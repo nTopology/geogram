@@ -526,12 +526,12 @@ namespace {
              * \brief The callback called for each integration simplex.
              * \param[in] v index of current center vertex
              * \param[in] v_adj (unused here) is the index of the Voronoi cell
-             *  adjacent to t accros facet (\p v1, \p v2, \p v3) or
+             *  adjacent to t across facet (\p v1, \p v2, \p v3) or
              *  -1 if it does not exists
              *  \param[in] t (unused here) is the index of the current
              *   tetrahedron
              *  \param[in] t_adj (unused here) is the index of the
-             *   tetrahedron adjacent to t accros facet (\p v1, \p v2, \p v3)
+             *   tetrahedron adjacent to t across facet (\p v1, \p v2, \p v3)
              *   or -1 if it does not exists
              * \param[in] p0 first vertex of current integration simplex
              * \param[in] p1 second vertex of current integration simplex
@@ -594,7 +594,7 @@ namespace {
          *   (can be one of Process::SpinLockArray, NoLocks)
          */
         template <class LOCKS>
-        class ComputeCentroidsVolumicWeighted {
+        class ComputeCentroidsVolumetricWeighted {
         public:
             /**
              * \brief Constructs a ComputeCentroidsWeighted.
@@ -603,7 +603,7 @@ namespace {
              * \param[in] locks the array of locks
              *  (or NoLocks in single thread mode)
              */
-            ComputeCentroidsVolumicWeighted(
+            ComputeCentroidsVolumetricWeighted(
                 double* mg,
                 double* m,
                 tbb::concurrent_vector<std::pair<index_t, double>>* master_g,
@@ -621,12 +621,12 @@ namespace {
              * \brief The callback called for each integration simplex.
              * \param[in] v index of current center vertex
              * \param[in] v_adj (unused here) is the index of the Voronoi cell
-             *  adjacent to t accros facet (\p v1, \p v2, \p v3) or
+             *  adjacent to t across facet (\p v1, \p v2, \p v3) or
              *  -1 if it does not exists
              *  \param[in] t (unused here) is the index of the current
              *   tetrahedron
              *  \param[in] t_adj (unused here) is the index of the
-             *   tetrahedron adjacent to t accros facet (\p v1, \p v2, \p v3)
+             *   tetrahedron adjacent to t across facet (\p v1, \p v2, \p v3)
              *   or -1 if it does not exists
              * \param[in] p0 first vertex of current integration simplex
              * \param[in] p1 second vertex of current integration simplex
@@ -681,7 +681,7 @@ namespace {
                 if(master_ != nullptr) {
                     if(has_weights_) {
                         RVD_.for_each_tetrahedron(
-                            ComputeCentroidsVolumicWeighted<Process::SpinLockArray>(
+                            ComputeCentroidsVolumetricWeighted<Process::SpinLockArray>(
                                 mg, m, master_g_, master_m_, master_->spinlocks_
                             )
                         );
@@ -696,7 +696,7 @@ namespace {
                     NoLocks nolocks;;
                     if(has_weights_) {
                         RVD_.for_each_tetrahedron(
-                            ComputeCentroidsVolumicWeighted<NoLocks>(
+                            ComputeCentroidsVolumetricWeighted<NoLocks>(
                                 mg, m, master_g_, master_m_, nolocks
                             )
                         );
@@ -1100,12 +1100,12 @@ namespace {
              * \brief The callback called for each integration simplex.
              * \param[in] v index of current center vertex
              * \param[in] v_adj (unused here) is the index of the Voronoi cell
-             *  adjacent to t accros facet (\p v1, \p v2, \p v3) or
+             *  adjacent to t across facet (\p v1, \p v2, \p v3) or
              *  -1 if it does not exists
              *  \param[in] t (unused here) is the index of the current
              *   tetrahedron
              *  \param[in] t_adj (unused here) is the index of the
-             *   tetrahedron adjacent to t accros facet (\p v1, \p v2, \p v3)
+             *   tetrahedron adjacent to t across facet (\p v1, \p v2, \p v3)
              *   or -1 if it does not exists
              * \param[in] p1 first vertex of current integration simplex
              * \param[in] p2 second vertex of current integration simplex
@@ -1173,22 +1173,206 @@ namespace {
             const GenRestrictedVoronoiDiagram& RVD_;
         };
 
+        /**
+         * \brief Implementation class for Newton-based restricted CVT.
+         * \details To be used as a template argument
+         *    to RVD::for_each_volumetric_integration_simplex().
+         * This version takes the weights into account.
+         *
+         * Computes for each RVD cell:
+         * - g (gradient)
+         * - f (CVT energy)
+         * \tparam LOCKS locking policy
+         *   (can be one of Process::SpinLockArray, NoLocks)
+         */
+        template <class LOCKS>
+        class ComputeCVTFuncGradVolumetricWeighted {
+        public:
+            /**
+             * \brief Constructs a ComputeCVTFuncGradVolumetricWeighted.
+             * \param[in] RVD the restricted Voronoi diagram
+             * \param[out] f the computed function value
+             * \param[out] g the computed gradient of f,
+             *  allocated by caller, and managed by caller
+             * \param[in] locks the array of locks
+             *  (or NoLocks in single thread mode)
+             */
+            ComputeCVTFuncGradVolumetricWeighted(
+                const GenRestrictedVoronoiDiagram& RVD,
+                double& f,
+                double* g,
+                tbb::concurrent_vector<double> * master_f,
+                tbb::concurrent_vector<std::pair<index_t, double>> * master_g,
+                LOCKS& locks
+            ) :
+                f_(f),
+                g_(g),
+                master_f_(master_f),
+                master_g_(master_g),
+                locks_(locks),
+                RVD_(RVD) {
+            }
+
+            /**
+             * \brief The callback called for each integration simplex.
+             * \param[in] v index of current center vertex
+             * \param[in] v_adj (unused here) is the index of the Voronoi cell
+             *  adjacent to t across facet (\p v1, \p v2, \p v3) or
+             *  -1 if it does not exists
+             *  \param[in] t (unused here) is the index of the current
+             *   tetrahedron
+             *  \param[in] t_adj (unused here) is the index of the
+             *   tetrahedron adjacent to t across facet (\p v1, \p v2, \p v3)
+             *   or -1 if it does not exists
+             * \param[in] v1 first vertex of current integration simplex
+             * \param[in] v2 second vertex of current integration simplex
+             * \param[in] v3 third vertex of current integration simplex
+             * \param[in] v4 fourth vertex of current integration simplex
+             */
+            void operator() (
+                index_t v,
+                signed_index_t v_adj,
+                index_t t,
+                signed_index_t t_adj,
+                const Vertex& v1,
+                const Vertex& v2,
+                const Vertex& v3,
+                const Vertex& v4
+            ) const {
+                geo_argused(v_adj);
+                geo_argused(t);
+                geo_argused(t_adj);
+
+                const double* p0 = RVD_.delaunay()->vertex_ptr(v);
+
+                const double* p1 = v1.point();
+                const double* p2 = v2.point();
+                const double* p3 = v3.point();
+                const double* p4 = v4.point();
+
+                double t_volume = Geom::tetra_volume(p1, p2, p3, p4, DIM);
+
+                double Sp = v1.weight() + v2.weight() + v3.weight() + v4.weight();
+                double rho[4], alpha[4];
+                rho[0] = v1.weight();
+                rho[1] = v2.weight();
+                rho[2] = v3.weight();
+                rho[3] = v4.weight();
+                alpha[0] = Sp + rho[0];
+                alpha[1] = Sp + rho[1];
+                alpha[2] = Sp + rho[2];
+                alpha[3] = Sp + rho[3];
+
+                double dotprod_00 = 0.0;
+                double dotprod_10 = 0.0;
+                double dotprod_11 = 0.0;
+                double dotprod_20 = 0.0;
+                double dotprod_21 = 0.0;
+                double dotprod_22 = 0.0;
+                double dotprod_30 = 0.0;
+                double dotprod_31 = 0.0;
+                double dotprod_32 = 0.0;
+                double dotprod_33 = 0.0;
+                for(unsigned int c = 0; c < DIM; c++) {
+                    double sp0 = p0[c] - p1[c];
+                    double sp1 = p0[c] - p2[c];
+                    double sp2 = p0[c] - p3[c];
+                    double sp3 = p0[c] - p4[c];
+                    dotprod_00 += sp0 * sp0;
+                    dotprod_10 += sp1 * sp0;
+                    dotprod_11 += sp1 * sp1;
+                    dotprod_20 += sp2 * sp0;
+                    dotprod_21 += sp2 * sp1;
+                    dotprod_22 += sp2 * sp2;
+                    dotprod_30 += sp3 * sp0;
+                    dotprod_31 += sp3 * sp1;
+                    dotprod_32 += sp3 * sp2;
+                    dotprod_33 += sp3 * sp3;
+                }
+
+                double cur_f = 0.0;
+                cur_f += (alpha[0] + rho[0]) * dotprod_00;  // 0 0
+                cur_f += (alpha[1] + rho[0]) * dotprod_10;  // 1 0
+                cur_f += (alpha[1] + rho[1]) * dotprod_11;  // 1 1
+                cur_f += (alpha[2] + rho[0]) * dotprod_20;  // 2 0
+                cur_f += (alpha[2] + rho[1]) * dotprod_21;  // 2 1
+                cur_f += (alpha[2] + rho[2]) * dotprod_22;  // 2 2
+                cur_f += (alpha[3] + rho[0]) * dotprod_30;  // 3 0
+                cur_f += (alpha[3] + rho[1]) * dotprod_31;  // 3 1
+                cur_f += (alpha[3] + rho[2]) * dotprod_32;  // 3 2
+                cur_f += (alpha[3] + rho[3]) * dotprod_33;  // 3 3
+
+                if (master_f_) {
+                    master_f_->push_back(t_volume * cur_f / 60.0);
+                    for(index_t c = 0; c < DIM; c++) {
+                        double val = (t_volume / 10.0) * (
+                            5.0 * Sp * p0[c] - (
+                                alpha[0] * p1[c] +
+                                alpha[1] * p2[c] +
+                                alpha[2] * p3[c] +
+                                alpha[3] * p4[c]
+                            )
+                        );
+                        master_g_->emplace_back(v * DIM + c, val);
+                    }
+                } else {
+                    f_ += t_volume * cur_f / 60.0;
+                    double* g_out = g_ + v * DIM;
+                    locks_.acquire_spinlock(v);
+                    for(index_t c = 0; c < DIM; c++) {
+                        g_out[c] += (t_volume / 10.0) * (
+                            5.0 * Sp * p0[c] - (
+                                alpha[0] * p1[c] +
+                                alpha[1] * p2[c] +
+                                alpha[2] * p3[c] +
+                                alpha[3] * p4[c]
+                            )
+                        );
+                    }
+                    locks_.release_spinlock(v);
+                }
+            }
+
+            double& f_;
+            double* g_;
+            tbb::concurrent_vector<double> * master_f_;
+            tbb::concurrent_vector<std::pair<index_t, double>> * master_g_;
+            LOCKS& locks_;
+            const GenRestrictedVoronoiDiagram& RVD_;
+        };
+
         void compute_CVT_func_grad_in_volume(double& f, double* g) override {
             create_threads();
             if(nb_parts() == 0) {
                 if(master_ != nullptr) {
-                    RVD_.for_each_volumetric_integration_simplex(
-                        ComputeCVTFuncGradVolumetric<Process::SpinLockArray>(
-                            RVD_, f, g, master_f_, master_g_, master_->spinlocks_
-                        )
-                    );
+                    if(has_weights_) {
+                        RVD_.for_each_volumetric_integration_simplex(
+                            ComputeCVTFuncGradVolumetricWeighted<Process::SpinLockArray>(
+                                RVD_, f, g, master_f_, master_g_, master_->spinlocks_
+                            )
+                        );
+                    } else {
+                        RVD_.for_each_volumetric_integration_simplex(
+                            ComputeCVTFuncGradVolumetric<Process::SpinLockArray>(
+                                RVD_, f, g, master_f_, master_g_, master_->spinlocks_
+                            )
+                        );
+                    }
                 } else {
                     NoLocks nolocks;
-                    RVD_.for_each_volumetric_integration_simplex(
-                        ComputeCVTFuncGradVolumetric<NoLocks>(
-                            RVD_, f, g, master_f_, master_g_, nolocks
-                        )
-                    );
+                    if(has_weights_) {
+                        RVD_.for_each_volumetric_integration_simplex(
+                            ComputeCVTFuncGradVolumetricWeighted<NoLocks>(
+                                RVD_, f, g, master_f_, master_g_, nolocks
+                            )
+                        );
+                    } else {
+                        RVD_.for_each_volumetric_integration_simplex(
+                            ComputeCVTFuncGradVolumetric<NoLocks>(
+                                RVD_, f, g, master_f_, master_g_, nolocks
+                            )
+                        );
+                    }
                 }
             } else {
                 thread_mode_ = MT_NEWTON;
@@ -1275,10 +1459,10 @@ namespace {
              * \brief The callback called for each volumetric
              *   integration simplex.
              * \param[in] v index of current center vertex
-             * \param[in] v_adj index of the Voronoi cell adjacent to t accros
+             * \param[in] v_adj index of the Voronoi cell adjacent to t across
              *    facet (\p v1, \p v2, \p v3) or -1 if it does not exists
              * \param[in] t index of the current tetrahedron
-             * \param[in] t_adj index of the tetrahedron adjacent to t accros
+             * \param[in] t_adj index of the tetrahedron adjacent to t across
              *    facet (\p v1, \p v2, \p v3) or -1 if it does not exists
              * \param[in] v1 first vertex of current integration simplex
              * \param[in] v2 second vertex of current integration simplex
@@ -1621,12 +1805,12 @@ namespace {
              * \brief The callback called for each integration simplex.
              * \param[in] v index of current center vertex
              * \param[in] v_adj (unused here) is the index of the Voronoi cell
-             *  adjacent to t accros facet (\p v1, \p v2, \p v3) or
+             *  adjacent to t across facet (\p v1, \p v2, \p v3) or
              *  -1 if it does not exists
              *  \param[in] t (unused here) is the index of the current
              *   tetrahedron
              *  \param[in] t_adj (unused here) is the index of the
-             *   tetrahedron adjacent to t accros facet (\p v1, \p v2, \p v3)
+             *   tetrahedron adjacent to t across facet (\p v1, \p v2, \p v3)
              *   or -1 if it does not exists
              * \param[in] v1 first vertex of current integration simplex
              * \param[in] v2 second vertex of current integration simplex
@@ -1677,12 +1861,12 @@ namespace {
              * \brief The callback called for each tetrahedron
              * \param[in] v index of current center vertex
              * \param[in] v_adj (unused here) is the index of the Voronoi cell
-             *  adjacent to t accros facet (\p v1, \p v2, \p v3) or
+             *  adjacent to t across facet (\p v1, \p v2, \p v3) or
              *  -1 if it does not exists
              *  \param[in] t (unused here) is the index of the current
              *   tetrahedron
              *  \param[in] t_adj (unused here) is the index of the
-             *   tetrahedron adjacent to t accros facet (\p v1, \p v2, \p v3)
+             *   tetrahedron adjacent to t across facet (\p v1, \p v2, \p v3)
              *   or -1 if it does not exists
              * \param[in] v1 first vertex of current tetrahedron
              * \param[in] v2 second vertex of current tetrahedron
