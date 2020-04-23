@@ -209,7 +209,8 @@ namespace GEO {
         store_cicl_ = false;
         keep_infinite_ = false;
         nb_finite_cells_ = 0;
-	keep_regions_ = false;
+        keep_regions_ = false;
+        Numeric::random_reset();
     }
 
     Delaunay::~Delaunay() {
