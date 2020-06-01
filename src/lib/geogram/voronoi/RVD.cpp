@@ -454,7 +454,7 @@ namespace {
                 accu_g_.clear();
                 accu_m_.reserve(mesh_->facets.nb());
                 accu_g_.reserve(DIM * mesh_->facets.nb());
-                parallel_for(
+                tbb_parallel_for(
                     0, nb_parts(),
                     [this](index_t i) { run_thread(i); }
                 );
@@ -720,7 +720,7 @@ namespace {
                 accu_g_.clear();
                 accu_m_.reserve(mesh_->cells.nb());
                 accu_g_.reserve(DIM * mesh_->cells.nb());
-                parallel_for(
+                tbb_parallel_for(
                     0, nb_parts(),
                     [this](index_t i) { run_thread(i); }
                 );
@@ -1027,7 +1027,7 @@ namespace {
                 accu_g_.clear();
                 accu_f_.reserve(mesh_->facets.nb());
                 accu_g_.reserve(DIM * mesh_->facets.nb());
-                parallel_for(
+                tbb_parallel_for(
                     0, nb_parts(),
                     [this](index_t i) { run_thread(i); }
                 );
@@ -1202,7 +1202,7 @@ namespace {
                 accu_g_.clear();
                 accu_f_.reserve(mesh_->cells.nb());
                 accu_g_.reserve(DIM * mesh_->cells.nb());
-                parallel_for(
+                tbb_parallel_for(
                     0, nb_parts(),
                     [this](index_t i) { run_thread(i); }
                 );
@@ -1361,7 +1361,7 @@ namespace {
                     part(t).funcval_ = 0.0;
                 }
 
-                parallel_for(
+                tbb_parallel_for(
                     0, nb_parts(),
                     [this](index_t i) { run_thread(i); }
                 );
@@ -1438,7 +1438,7 @@ namespace {
                 polygon_callback_ = &polygon_callback;
                 polygon_callback_->set_spinlocks(&spinlocks_);
                 // Note: callback begin()/end() is called in for_each_polygon()
-                parallel_for(
+                tbb_parallel_for(
                     0, nb_parts(),
                     [this](index_t i) { run_thread(i); }
                 );
@@ -1465,7 +1465,7 @@ namespace {
                 polyhedron_callback_->set_spinlocks(&spinlocks_);
                 // Note: callback begin()/end() is
                 // called in for_each_polyhedron()
-                parallel_for(
+                tbb_parallel_for(
                     0, nb_parts(),
                     [this](index_t i) { run_thread(i); }
                 );

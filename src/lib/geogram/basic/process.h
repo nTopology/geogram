@@ -574,6 +574,29 @@ namespace GEO {
         bool interleaved = false
     );
 
+     /**
+      * \brief Executes a loop with concurrent threads, using the tbb library.
+      * \details
+      *   Executes a parallel for loop from index \p to index \p to, calling
+      *   functional object \p func at each iteration.
+      *
+      * Calling parallel_for(func, from, to) is equivalent
+      * to the following loop, computed in parallel:
+      * \code
+      * for(index_t i = from; i < to; i++) {
+      *    func(i)
+      * }
+      * \endcode
+      *
+      * Unlike parallel_for, this does not allocate indices to specific threads;
+      * instead, tbb uses a work-stealing algorithm to ensure full usage of
+      * available threads; if called from a tbb worker thread, it is even
+      * able to share threads with other tasks in the same context.
+      */
+
+      void GEOGRAM_API tbb_parallel_for(
+          index_t from, index_t to, std::function<void(index_t)> func);
+
     /**
      * \brief Executes a loop with concurrent threads.
      *
