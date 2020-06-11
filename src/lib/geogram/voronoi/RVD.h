@@ -350,6 +350,7 @@ namespace GEO {
          * \param[in,out] F the object that computes the objective function
          *  and its gradients over a simplex. The contribution of each simplex
          *  is added to the gradient referenced by \p F.
+         * \pre !delaunay()->get_use_tbb()
          */
         virtual void compute_integration_simplex_func_grad(
             double& f, double* g, IntegrationSimplex* F
@@ -499,6 +500,7 @@ namespace GEO {
          * \param[in] AABB used if one of (RDT_RVC_PROJECT_ON_SURFACE,
          *   RDT_SELECT_NEAREST) is set in \p mode. If needed but not
          *   specified, then a temporary one is created.
+         * \pre !delaunay()->get_use_tbb()
          */
         virtual void compute_RDT(
             vector<index_t>& simplices,
@@ -521,6 +523,7 @@ namespace GEO {
          * \param[in] AABB used if one of (RDT_RVC_PROJECT_ON_SURFACE,
          *   RDT_SELECT_NEAREST) is set in \p mode. If needed but not
          *   specified, then a temporary one is created.
+         * \pre !delaunay()->get_use_tbb()
          */
         void compute_RDT(
             Mesh& RDT,
@@ -544,6 +547,7 @@ namespace GEO {
          *  geometrically correct (it may have inverted elements), but it is
          *  algebraically correct (the sum of signed volumes corresponds the
          *  the total volume of each cell).
+         * \pre !delaunay()->get_use_tbb()
          */
         virtual void compute_RVD(
             Mesh& M,
@@ -698,6 +702,15 @@ namespace GEO {
          *  intersections.
          */
         virtual GEOGen::PointAllocator* point_allocator() = 0;
+
+        /**
+         * \brief Determines whether this should use tbb for multithreading.
+         * \details We generally want to use tbb, but when running Lloyd
+         *  iterations not in safe mode, it can exacerbate reproducibility
+         *  issues.
+         * \param[in] x whether to use tbb
+         */
+        virtual void set_use_tbb(bool x) = 0;
 
     protected:
         /**
