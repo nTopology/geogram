@@ -134,7 +134,7 @@ namespace GEO {
     }
 
     void CentroidalVoronoiTesselation::Lloyd_iterations(
-        index_t nb_iter, bool safe_mode) {
+        index_t nb_iter, bool safe_mode, bool use_tbb) {
         index_t nb_points = index_t(points_.size() / dimension_);
 
         vector<double> mg;
