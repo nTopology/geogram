@@ -130,17 +130,17 @@ namespace GEO {
 	    return simplex_;
 	}
 
-	/**
-	 * \brief Sets the spinlocks array.
-	 * \details In multithreading mode, a spinlocks array can
-	 *  be used to manage concurrent accesses.
-	 * \param[in] spinlocks a pointer to the Process::SpinLockArray
-	 *  or nullptr if no spinlocks are used.
-	 */
-	void set_spinlocks(Process::SpinLockArray* spinlocks) {
-	    spinlocks_ = spinlocks;
-	}
-	
+        /**
+         * \brief Sets the spinlocks array.
+         * \details In multithreading mode, a spinlocks array can
+         *  be used to manage concurrent accesses.
+         * \param[in] spinlocks a pointer to the Process::SpinLockArray
+         *  or nullptr if no spinlocks are used.
+         */
+        void set_spinlocks(Process::SpinLockArray* spinlocks) {
+            spinlocks_ = spinlocks;
+        }
+
       protected:
 	index_t seed_;
 	index_t simplex_;
@@ -182,19 +182,18 @@ namespace GEO {
 	 */
 	virtual void end();
 
-	/**
-	 * \brief The default callback called for each polygon
-	 * \param[in] v index of current Delaunay seed
-	 * \param[in] t index of current mesh triangle
-	 * \param[in] C intersection between current mesh triangle
-	 *  and the Voronoi cell of \p v
-	 */
-	virtual void operator() (
-	    index_t v,
-	    index_t t,
-	    const GEOGen::Polygon& C
-	) const;
-
+        /**
+         * \brief The default callback called for each polygon
+         * \param[in] v index of current Delaunay seed
+         * \param[in] t index of current mesh triangle
+         * \param[in] C intersection between current mesh triangle
+         *  and the Voronoi cell of \p v
+         */
+        virtual void operator() (
+            index_t v,
+            index_t t,
+            const GEOGen::Polygon& C
+        ) const;
     };
     
     /***************************************************************/    
@@ -231,25 +230,23 @@ namespace GEO {
 	 */
 	virtual void end();
 
-	
-	/**
-	 * \brief The default callback called for each polyhedron
-	 * \details This default implementation routes the callback to the 
-	 *  begin_polyhedron_internal(), end_polyhedron_internal(), 
-	 *  begin_facet_internal(), end_facet_internal() and vertex_internal()
-	 *  functions (that in turn route the callbacks to their without 
-	 *  "_internal" counterparts).
-	 * \param[in] v index of current Delaunay seed
-	 * \param[in] t index of current mesh tetrahedron
-	 * \param[in] C intersection between current mesh tetrahedron
-	 *  and the Voronoi cell of \p v
-	 */
-	virtual void operator() (
-	    index_t v,
-	    index_t t,
-	    const GEOGen::ConvexCell& C
-	) const;
-	    
+        /**
+         * \brief The default callback called for each polyhedron
+         * \details This default implementation routes the callback to the 
+         *  begin_polyhedron_internal(), end_polyhedron_internal(), 
+         *  begin_facet_internal(), end_facet_internal() and vertex_internal()
+         *  functions (that in turn route the callbacks to their without 
+         *  "_internal" counterparts).
+         * \param[in] v index of current Delaunay seed
+         * \param[in] t index of current mesh tetrahedron
+         * \param[in] C intersection between current mesh tetrahedron
+         *  and the Voronoi cell of \p v
+         */
+        virtual void operator() (
+            index_t v,
+            index_t t,
+            const GEOGen::ConvexCell& C
+        ) const;
 
 	/**
 	 * \brief Called at the beginning of each intersection polyhedron.
@@ -332,61 +329,67 @@ namespace GEO {
 	    return facet_tet_;
 	}
 
-	/**
-	 * \brief Specifies whether internal tetrahedron facets should be
-	 *  removed.
-	 * \details If set, a single polyhedron is generated for each
-	 *  (connected component) of the restricted Voronoi cells. If not
-	 *  set (default), each tetrahedron-Voronoi cell intersection 
-	 *  generates a new polyhedron.
-	 * \param[in] x true if internal facets should be removed, false
-	 *  otherwise
-	 */
-	void set_simplify_internal_tet_facets(bool x) {
-	    simplify_internal_tet_facets_ = x;
-	}
+        /**
+         * \brief Specifies whether internal tetrahedron facets should be
+         *  removed.
+         * \details If set, a single polyhedron is generated for each
+         *  (connected component) of the restricted Voronoi cells. If not
+         *  set (default), each tetrahedron-Voronoi cell intersection 
+         *  generates a new polyhedron.  If set, this callback must be run
+         *  be run using connected components and not in parallel.
+         * \param[in] x true if internal facets should be removed, false
+         *  otherwise
+         */
+        void set_simplify_internal_tet_facets(bool x) {
+            simplify_internal_tet_facets_ = x;
+        }
 
-	/**
-	 * \brief Specifies whether Voronoi facets should be simplified.
-	 * \details By default, the computed Voronoi facets are composed
-	 *  of multiple polyhedra that correspond to the intersection with
-	 *  the tetrahedra of the input volume mesh. They can be simplified
-	 *  and replaced by a single polygon. This implies simplifying the
-	 *  internal tetrahedron facets and using a mesh.
-	 * \param[in] x true if Voronoi facets should be simplified, 
-	 *  false otherwise.
-	 */
-	void set_simplify_voronoi_facets(bool x) {
-	    simplify_voronoi_facets_ = x;
-	    if(x) {
-		set_simplify_internal_tet_facets(true);
-		set_use_mesh(true);
-	    }
-	}
+        /**
+         * \brief Specifies whether Voronoi facets should be simplified.
+         * \details By default, the computed Voronoi facets are composed
+         *  of multiple polyhedra that correspond to the intersection with
+         *  the tetrahedra of the input volume mesh. They can be simplified
+         *  and replaced by a single polygon. This implies simplifying the
+         *  internal tetrahedron facets and using a mesh.  If set, this 
+         *  callback must be run using connected components and not in 
+         *  parallel, unless simplify_internal_tet_facets and use_mesh are
+         *  subsequently set to false.
+         * \param[in] x true if Voronoi facets should be simplified, 
+         *  false otherwise.
+         */
+        void set_simplify_voronoi_facets(bool x) {
+            simplify_voronoi_facets_ = x;
+            if(x) {
+                set_simplify_internal_tet_facets(true);
+                set_use_mesh(true);
+            }
+        }
 
-	/**
-	 * \brief Specifies whether boundary facets should be simplified.
-	 * \details By default, the intersection between a Voronoi cell and
-	 *  the boundary is possibly composed of multiple polygons, that 
-	 *  correspond to the initial polygons of the boundary. They can be 
-	 *  simplified as a single polygon per Voronoi cell. This implies 
-	 *  simplifying the internal tetrahedron facets, simplifying the 
-	 *  Voronoi facets and using a mesh.
-	 * \param[in] x true if boundary facets should be simplified, 
-	 *  false otherwise.
-	 * \param[in] angle_threshold an edge shared by two adjacent facets 
-	 *  is suppressed if the angle between the facet normals is smaller 
-	 *  than \p angle_threshold
-	 */
-	void set_simplify_boundary_facets(bool x, double angle_threshold=45.0) {
-	    simplify_boundary_facets_ = x;
-	    if(x) {
-		set_simplify_voronoi_facets(true);
-		simplify_boundary_facets_angle_threshold_ = angle_threshold;
-	    } else {
-		simplify_boundary_facets_angle_threshold_ = 0.0;		
-	    }
-	}
+        /**
+         * \brief Specifies whether boundary facets should be simplified.
+         * \details By default, the intersection between a Voronoi cell and
+         *  the boundary is possibly composed of multiple polygons, that 
+         *  correspond to the initial polygons of the boundary. They can be 
+         *  simplified as a single polygon per Voronoi cell. This implies 
+         *  simplifying the internal tetrahedron facets, simplifying the 
+         *  Voronoi facets and using a mesh, and thus necessitates that the
+         *  callback be run using connected components and not in 
+         *  parallel.
+         * \param[in] x true if boundary facets should be simplified, 
+         *  false otherwise.
+         * \param[in] angle_threshold an edge shared by two adjacent facets 
+         *  is suppressed if the angle between the facet normals is smaller 
+         *  than \p angle_threshold
+         */
+        void set_simplify_boundary_facets(bool x, double angle_threshold=45.0) {
+            simplify_boundary_facets_ = x;
+            if(x) {
+                set_simplify_voronoi_facets(true);
+                simplify_boundary_facets_angle_threshold_ = angle_threshold;
+            } else {
+                simplify_boundary_facets_angle_threshold_ = 0.0;                
+            }
+        }
 
 	/**
 	 * \brief Specifies whether non-convex facets should be tessellated.
@@ -398,15 +401,16 @@ namespace GEO {
 	    tessellate_non_convex_facets_ = x;
 	}
 
-	
-	/**
-	 * \brief Specifies whether a mesh should be built for each
-	 *  traversed polyhedron.
-	 * \details The build mesh can then be modified (e.g., simplified)
-	 *  by overloading process_mesh().
-	 * \param[in] x true if a mesh should be build, false otherwise
-	 */
-	void set_use_mesh(bool x);
+        
+        /**
+         * \brief Specifies whether a mesh should be built for each
+         *  traversed polyhedron.
+         * \details The build mesh can then be modified (e.g., simplified)
+         *  by overloading process_mesh().  If this is true, the callback
+         *  must not be used in parallel.
+         * \param[in] x true if a mesh should be build, false otherwise
+         */
+        void set_use_mesh(bool x);
 
 	/**
 	 * \brief Sets the dimension of the internal mesh if need be.
