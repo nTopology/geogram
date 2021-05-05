@@ -1110,7 +1110,11 @@ namespace GEO {
         );
 
         repair_connect_facets(M);
-        repair_reorient_facets_anti_moebius(M);
+
+        if(mode & MESH_REPAIR_ORIENT) {
+            repair_reorient_facets_anti_moebius(M);
+        }
+
         repair_split_non_manifold_vertices(M);
 
         if(

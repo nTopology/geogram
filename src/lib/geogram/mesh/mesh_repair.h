@@ -70,9 +70,11 @@ namespace GEO {
         MESH_REPAIR_TRIANGULATE = 4,  /**< Triangulates mesh                  */
         MESH_REPAIR_RECONSTRUCT = 8,  /**< Post-process result of Co3Ne algo. */
         MESH_REPAIR_QUIET       = 16, /**< Do not display any message.        */
+        MESH_REPAIR_ORIENT      = 32, /**< Reorient faces.        */
         MESH_REPAIR_DEFAULT =
             MESH_REPAIR_COLOCATE |
             MESH_REPAIR_DUP_F |
+            MESH_REPAIR_ORIENT |
             MESH_REPAIR_TRIANGULATE
             /**< Fits most uses */
     };
