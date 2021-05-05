@@ -161,7 +161,7 @@ namespace {
      */
     index_t remove_intersecting_facets(Mesh& M, index_t nb_neigh = 0) {
         geo_assert(M.vertices.dimension() >= 3);
-        mesh_repair(M, MESH_REPAIR_DEFAULT & ~MESH_REPAIR_ORIENT);  // it repairs and triangulates.
+        mesh_repair(M, MeshRepairMode(MESH_REPAIR_DEFAULT & ~MESH_REPAIR_ORIENT));  // it repairs and triangulates.
 
         vector<index_t> has_intersection;
         StoreIntersections action(M, has_intersection);
