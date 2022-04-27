@@ -287,9 +287,10 @@ namespace VBW {
      * \see TriangleWithFlags.
      */
     enum {
-	CONFLICT_MASK  = 32768, /**< \brief The mask for conflict triangles.  */
-	END_OF_LIST    = 32767, /**< \brief Constant to indicate end of list. */
-	VERTEX_AT_INFINITY = 0  /**< \brief Vertex at infinity.               */
+	CONFLICT_MASK  = 32768, /**< \brief The mask for conflict triangles. */
+	MARKED_MASK    = 16384, /**< \brief The mask for marked triangles.   */	
+	END_OF_LIST    = 16383, /**< \brief Constant to indicate end of list.*/
+	VERTEX_AT_INFINITY = 0  /**< \brief Vertex at infinity.              */
     };
 
 
@@ -410,8 +411,7 @@ namespace VBW {
     /**
      * \brief Computes the intersection between a set of halfplanes using
      *  Bowyer-Watson algorithm.
-     * \details Implementation does not use exact predicates, and does not
-     *  climb from a random vertex. Do not use with a large number of planes.
+     * \details Do not use with a large number of planes.
      */
     class GEOGRAM_API ConvexCell {
       public:
@@ -474,7 +474,7 @@ namespace VBW {
 	 * \brief Initializes this ConvexCell to an axis-aligned
 	 *  box.
 	 * \details Previous contents of this ConvexCell are 
-	 *  discarded.
+	 *  discarded. Vertex 0 is vertex at infinity.
 	 * \param[in] xmin , ymin , zmin , xmax , ymax , zmax
 	 *  the coordinates of the box.
 	 */
@@ -482,7 +482,37 @@ namespace VBW {
 	    double xmin, double ymin, double zmin,
 	    double xmax, double ymax, double zmax
 	);
-	
+
+        /**
+         * \brief Initializes this ConvexCell to a tetrahedron.
+	 * \details Previous contents of this ConvexCell are 
+	 *  discarded. Vertex 0 is vertex at infinity.
+	 * \param[in] P0 , P1 , P2 , P3 the plane equations of 
+	 *  the four faces of the tetrahedron.
+	 */
+        void init_with_tet(
+	    vec4 P0, vec4 P1, vec4 P2, vec4 P3
+	);
+
+        /**
+         * \brief Initializes this ConvexCell to a tetrahedron.
+	 * \details Previous contents of this ConvexCell are 
+	 *  discarded. Vertex 0 is vertex at infinity.
+	 * \param[in] P0 , P1 , P2 , P3 the plane equations of 
+	 *  the four faces of the tetrahedron.
+	 * \param[in] P0_global_index , P1_global_index ,
+	 *            P1_global_index , P2_global_index the global
+	 *  indices associated with the plane equations. 
+	 * \pre has_vglobal()
+	 */
+        void init_with_tet(
+	    vec4 P0, vec4 P1, vec4 P2, vec4 P3,
+	    global_index_t P0_global_index,
+	    global_index_t P1_global_index,
+	    global_index_t P2_global_index,
+	    global_index_t P3_global_index	    
+	);
+      
 	/**
 	 * \brief Saves the computed cell in alias wavefront
 	 *  file format.
@@ -504,7 +534,7 @@ namespace VBW {
 	 * \return the number of created vertices. 
 	 */
 	index_t save(
-	    std::ostream& out, index_t v_offset=1, double shrink=0.0,
+	    std::ostream& out, global_index_t v_offset=1, double shrink=0.0,
 	    bool borders_only=false
 	) const;
 
@@ -526,7 +556,24 @@ namespace VBW {
 	    double shrink=0.0, bool borders_only=false,
 	    GEO::Attribute<GEO::index_t>* facet_attr=nullptr
 	) const;
+
 #endif      
+
+        /**
+         * \brief Calls a user-defined function for each vertex of a Voronoi
+	 *  facet.
+	 * \details One needs to call compute_geometry() before calling this
+	 *  function.
+	 * \param[in] v the index of the (dual) Voronoi Facet, that is a
+	 *  (primal) vertex, in [0..nb_v()-1]
+	 * \param[in] vertex a function that takes an index_t as an argument,
+	 *  with the index of the triangle that corresponds to the current
+	 *  Voronoi vertex.
+	 */
+        void for_each_Voronoi_vertex(
+	    index_t v,
+	    std::function<void(index_t)> vertex
+        );
       
 	/**
 	 * \brief Clips this convex cell by a new plane.
@@ -548,7 +595,55 @@ namespace VBW {
 	 * \param[in] j the global index of the plane.
 	 */
 	void clip_by_plane(vec4 P, global_index_t j);
-	
+
+
+	/**
+	 * \brief Clips this convex cell by a new plane, using a user-defined
+	 *  geometric predicate.
+	 * \details It is useful to be able to have a user-defined geometric
+	 *  predicates when the vertices have a symbolic representation, stored
+	 *  in the global indices associated with the plane. It is used by
+	 *  the robust mesh boolean operations.
+	 *  The positive side of the plane equation corresponds to
+	 *  what is kept. In other words, the normal vector P.x, P.y, P.z 
+	 *  points towards the interior of this ConvexCell.
+	 *  If global indices are stored, then j is stored as the global index
+	 *  of the plane equation.
+	 * \param[in] P the plane equation.
+	 * \param[in] P_global_index the global index of the plane.
+	 * \param[in] triangle_conflict_predicate a function that takes as
+	 *  arguments a local triangle index and local vertex (plane eqn)
+	 *  index, and that returns true if the triangle is in conflict with
+	 *  the vertex.
+	 */
+        void clip_by_plane(
+	    vec4 P, global_index_t P_global_index,
+	    std::function<bool(ushort,ushort)> triangle_conflict_predicate
+	);
+      
+	/**
+	 * \brief Clips this convex cell by a new plane and stores
+	 *  the corresponding global index in the newly created vertex.
+	 * \details For a ConvexCell with a large number of facets, this
+	 *  version is faster than clip_by_plane(). However, it cannot be
+	 *  used with a ConvexCell that has infinite faces.
+	 * \param[in] P the plane equation.
+	 * \see clip_by_plane()
+	 */
+        void clip_by_plane_fast(vec4 P);
+
+	/**
+	 * \brief Clips this convex cell by a new plane and stores
+	 *  the corresponding global index in the newly created vertex.
+	 * \details For a ConvexCell with a large number of facets, this
+	 *  version is faster than clip_by_plane(). However, it cannot be
+	 *  used with a ConvexCell that has infinite faces.
+	 * \param[in] P the plane equation.
+	 * \param[in] j the global index of the plane.
+	 * \see clip_by_plane()
+	 */
+        void clip_by_plane_fast(vec4 P, global_index_t j);      
+      
 	/**
 	 * \brief Gets the number of triangles.
 	 * \return the number of created triangles.
@@ -624,8 +719,8 @@ namespace VBW {
 	/**
 	 * \brief Tests whether a vertex has a corresponding
 	 *  facet in the cell.
-	 * \details One needs to call compute_geometry() before
-	 *  calling this function.
+	 * \details Calling compute_geometry() before makes
+	 *  this function faster.
 	 */
 	bool vertex_is_contributing(index_t v) const {
 	    if(!geometry_dirty_) {
@@ -683,6 +778,15 @@ namespace VBW {
 	 */
 	vec3 barycenter() const;
 
+	/**
+	 * \brief Computes volume and barycenter.
+	 * \param[out] m the computed volume
+	 * \param[out] mg the computed volume times the barycenter
+	 * \details compute_geometry() needs to be called before.
+	 */
+        void compute_mg(double& m, vec3& mg) const ;
+
+      
 	/**
 	 * \brief Computes the squared radius of the smallest sphere
 	 *  containing the cell and centered on a point.
@@ -901,13 +1005,29 @@ namespace VBW {
 	     vbw_assert(t < max_t());
 	     vbw_assert(le < 3);
 	     Triangle T = get_triangle(t);
-	     index_t v1 = index_t((le == 0)*T.j + (le == 1)*T.k + (le == 2)*T.i);
-	     index_t v2 = index_t((le == 0)*T.k + (le == 1)*T.i + (le == 2)*T.j);
+	     index_t v1 =
+		 index_t((le == 0)*T.j + (le == 1)*T.k + (le == 2)*T.i);
+	     index_t v2 =
+		 index_t((le == 0)*T.k + (le == 1)*T.i + (le == 2)*T.j);
 	     vbw_assert(vv2t(v1,v2) == t);
 	     vbw_assert(vv2t(v2,v1) != END_OF_LIST);
 	     return vv2t(v2,v1);
 	 }
 
+	/**
+	 * \brief Gets a triangle vertex.
+	 * \param[in] t a triangle.
+	 * \param[in] lv local index of a vertex of \p t (in 0..2).
+	 * \return the vertex
+	 */
+         index_t triangle_vertex(index_t t, index_t lv) const {
+	     vbw_assert(t < max_t());
+	     vbw_assert(lv < 3);
+	     Triangle T = get_triangle(t);
+	     return index_t((lv==0)*T.i+(lv==1)*T.j+(lv==2)*T.k);
+	 }
+
+      
 	/**
 	 * \brief Gets the local index of a vertex in a triangle.
 	 * \param[in] t a triangle.
@@ -1145,8 +1265,55 @@ namespace VBW {
 	void grow_v();
 
 
+        /**
+	 * \brief Swaps two ConvexCells.
+	 * \param[in] other the ConvexCell to be 
+	 *  exchanged with this ConvexCell.
+	 */
+        void swap(ConvexCell& other) {
+	    std::swap(max_t_,other.max_t_);
+	    std::swap(max_v_,other.max_v_);
+	    std::swap(t_,other.t_);
+	    std::swap(vv2t_,other.vv2t_);
+	    std::swap(plane_eqn_,other.plane_eqn_);
+	    std::swap(nb_t_,other.nb_t_);
+	    std::swap(nb_v_,other.nb_v_);
+	    std::swap(first_free_,other.first_free_);
+	    std::swap(first_valid_,other.first_valid_);
+	    std::swap(geometry_dirty_,other.geometry_dirty_);
+	    std::swap(triangle_point_,other.triangle_point_);
+	    std::swap(v2t_,other.v2t_);
+	    std::swap(vglobal_,other.vglobal_);
+	    std::swap(has_vglobal_,other.has_vglobal_);
+	    std::swap(tflags_,other.tflags_);
+	    std::swap(has_tflags_,other.has_tflags_);
+#ifndef STANDALONE_CONVEX_CELL	
+	    std::swap(use_exact_predicates_,other.use_exact_predicates_);
+#endif	
+        }
+
+        /**
+         * \brief Gets a modifiable reference to a triangle point.
+	 * \param[in] t the index
+	 * \return a modifiable reference to the stored point
+	 */
+        vec3& stored_triangle_point(ushort t) {
+	    return triangle_point_[t];	    
+        }
+      
       protected:
 
+        /**
+	 * \brief Triangulates the conflict zone.
+	 * \param[in] lv the local index of the new vertex
+	 * \param[in] conflict_head , conflict tail the first
+	 *  and last triangle of the conflict zone stored 
+	 *  as a linked list.
+	 */
+        void triangulate_conflict_zone(
+	   index_t lv, index_t conflict_head, index_t conflict_tail
+	);
+      
 	/**
 	 * \brief Changes a vertex plane equation.
 	 * \param[in] v the vertex.
@@ -1159,7 +1326,8 @@ namespace VBW {
 	    plane_eqn_[v] = P;
 	    geometry_dirty_ = true;
 	}
-	
+
+      
       private:
 
 	/** \brief number of allocated triangles */
@@ -1237,7 +1405,7 @@ namespace VBW {
 	 * \brief True if exact predicates should be used.
 	 */
 	bool use_exact_predicates_;
-#endif	
+#endif
     };
 }
 

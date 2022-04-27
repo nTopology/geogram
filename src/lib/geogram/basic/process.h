@@ -115,6 +115,7 @@ namespace GEO {
          */
         static Thread* current();
 
+
     protected:
         /** Thread destructor */
         virtual ~Thread();
@@ -372,6 +373,14 @@ namespace GEO {
          */
         void GEOGRAM_API terminate();
 
+
+	/**
+	 * \brief Sleeps for a period of time.
+	 * \param[in] microseconds the time to sleep,
+	 *  in microseconds.
+	 */
+	void GEOGRAM_API sleep(index_t microseconds);
+	
         /**
          * \brief Displays statistics about the current process
          * \details Displays the maximum used amount of memory.
@@ -544,7 +553,7 @@ namespace GEO {
      *   Executes a parallel for loop from index \p from index \p to, calling
      *   functional object \p func at each iteration.
      *
-     * Calling parallel_for(func, from, to) is equivalent
+     * Calling parallel_for(from, to, func) is equivalent
      * to the following loop, computed in parallel:
      * \code
      * for(index_t i = from; i < to; i++) {

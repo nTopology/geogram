@@ -47,6 +47,7 @@
 #define GEOGRAM_MESH_MESH
 
 #include <geogram/basic/common.h>
+#include <geogram/basic/range.h>
 #include <geogram/basic/attributes.h>
 #include <geogram/basic/geometry.h>
 
@@ -106,6 +107,22 @@ namespace GEO {
             return const_cast<AttributesManager&>(attributes_);
         }
 
+        /**
+	 * \brief Used by range-based for.
+	 * \return The index of the first position.
+	 */
+        no_iterator begin() const {
+	    return no_iterator(0);
+	}
+
+        /**
+	 * \brief Used by range-based for.
+	 * \return The index of one position past the last position.
+	 */
+        no_iterator end() const {
+	    return no_iterator(nb());
+	}
+    
     protected:
         
         /**
@@ -798,7 +815,7 @@ namespace GEO {
 	    geo_debug_assert(f < nb());
 	    return &facet_ptr_[f];
 	}
-	
+
     protected:
         virtual void clear_store(
             bool keep_attributes, bool keep_memory = false
@@ -1295,7 +1312,7 @@ namespace GEO {
          *   with the borders of the surfacic part.
          */
         void compute_borders();
-        
+
         /**
          * \brief Copies a triangle mesh into this Mesh.
          * \details Facet adjacence are not computed.
@@ -1329,7 +1346,21 @@ namespace GEO {
         );
 
         virtual void pop();
-        
+
+
+	/**
+	 * \brief Gets the corners of a facet.
+	 * \param[in] f the index of the facet.
+	 * \return a range with all the corners of the facet.
+	 */
+	range<no_iterator> corners(index_t f) const {
+	    geo_debug_assert(f < nb());
+	    return range<no_iterator>(
+		no_iterator(corners_begin(f)),
+		no_iterator(corners_end(f))
+	    );
+	}
+	
     protected:
 
         /**
@@ -1776,8 +1807,8 @@ namespace GEO {
         /**
          * \brief Gets a const pointer to a cell adjacent to a facet
          * \param[in] f the facet, in 0..nb()-1
-         * \return a const pointer to the cell adjacent to facet \p f, or NO_FACET if \p f
-         *  is on the border
+         * \return a const pointer to the cell adjacent to facet \p f, 
+	 *  or NO_FACET if \p f is on the border
          */
         const index_t* adjacent_cell_ptr(index_t f) const {
             geo_assert(f < nb());
@@ -1787,8 +1818,8 @@ namespace GEO {
         /**
          * \brief Gets a pointer to a cell adjacent to a facet
          * \param[in] f the facet, in 0..nb()-1
-         * \return a pointer to the cell adjacent to facet \p f, or NO_FACET if \p f
-         *  is on the border
+         * \return a pointer to the cell adjacent to facet \p f, 
+	 *  or NO_FACET if \p f is on the border
          */
         index_t* adjacent_cell_ptr(index_t f) {
             geo_assert(f < nb());
@@ -1966,6 +1997,18 @@ namespace GEO {
             return descriptor(c).edge_adjacent_facet[le][lf];
         }
 
+	/**
+	 * \brief Gets the corners of a cell.
+	 * \param[in] c the index of the cell.
+	 * \return a range with all the corners of the facet.
+	 */
+	range<no_iterator> corners(index_t c) const {
+	    geo_debug_assert(c < nb());
+	    return range<no_iterator>(
+		no_iterator(corners_begin(c)),
+		no_iterator(corners_end(c))
+	    );
+	}
         
         virtual void clear(
             bool keep_attributes=true, bool keep_memory=false
@@ -2265,6 +2308,15 @@ namespace GEO {
          */
         void compute_borders();
 
+        /**
+         * \brief Replaces the surfacic part of this mesh
+         *   with the borders of the volumetric part.
+	 * \param[out] facet_cell on exit, stores the
+	 *   index of the cell adjacent to the facet
+	 *   on the border.
+         */
+	void compute_borders(Attribute<index_t>& facet_cell);
+	
         /**
          * \brief Copies a tetrahedron mesh into this Mesh.
          * \details Tetrahedron adjacences are not computed.
@@ -2650,12 +2702,20 @@ namespace GEO {
             MeshElementsFlags what=MESH_ALL_ELEMENTS
         );
 
+
+        /**
+         * \brief Gets the list of all attributes.
+         * \return a ';'-separated list of all attributes. 
+         */
+        std::string get_attributes() const;
+    
         /**
          * \brief Gets the list of all scalar attributes.
          * \return a ';'-separated list of all scalar attributes. 
+	 * \details Whenever there is a vector attribute v of dim d,
+	 *  it appends v[0];v[1];...v[d-1] to the list.
          */
         std::string get_scalar_attributes() const;
-
 
 	/**
 	 * \brief Gets the list of all vector attributes.

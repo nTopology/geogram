@@ -82,7 +82,7 @@ namespace GEO {
      * \brief The small constant to shift a little bit ray intersections 
      *  in order to avoid false positives when detecting shadows.
      */
-    const double epsilon_t = 0.001;
+    const double epsilon_t = 1e-6;
 
     /**
      * \brief Multiplies two vec3 componentwise.
@@ -96,41 +96,6 @@ namespace GEO {
 	    U.z*V.z	    
 	);
     }
-
-    /**
-     * \brief A Ray of the raytracer.
-     * \details A Ray knows its origin and direction. 
-     *  In addition it has a level, keeping track of the
-     *  number of bounces.
-     */
-    struct Ray {
-	/**
-	 * \brief Ray default constructor.
-	 */
-	Ray() : level(0) {}
-
-
-	/**
-	 * \brief Ray constructor.
-	 * \param[in] origin_in the origin of the ray
-	 * \param[in] direction_in the direction of the ray,
-	 *  does not need to be normalized. For light rays it
-	 *  connects the point to the light source.
-	 * \param[in] level_in 0 for primary rays, else number of
-	 *  bounces.
-	 */
-	Ray(
-	    const vec3& origin_in,
-	    const vec3& direction_in,
-	    index_t level_in = 0
-	) : origin(origin_in),
-	    direction(direction_in),
-	    level(level_in) {
-	}
-	vec3 origin;
-	vec3 direction;
-	index_t level;
-    };
 
     /*******************************************************************/
 
@@ -157,11 +122,37 @@ namespace GEO {
 	) :
 	    image_width_(image_width),
 	    image_height_(image_height),
-	    image_(image_width*image_height*3)
+	    image_(image_width*image_height*3),
+	    bpp_(3)
 	{
 	    update(position, target, zoom);
 	}
 
+	/**
+	 * \brief Camera constructor.
+	 * \details Viewing parameters are not initialized.
+	 * \param[in] image_width , image_height dimension of the image.
+	 * \param[in] bpp bytes per pixel, 3 or 4
+	 */	
+	Camera(
+	    index_t image_width, index_t image_height, index_t bpp
+	) : image_width_(image_width),
+	    image_height_(image_height),
+	    image_(image_width*image_height*bpp),
+	    bpp_(bpp)
+	{
+	    geo_assert(bpp == 3 || bpp == 4);
+	}
+
+	/**
+	 * \brief Resizes the image.
+	 * \param[in] new_width , new_height new image size, in pixels.
+	 */
+	void resize(index_t new_width, index_t new_height) {
+	    image_width_ = new_width;
+	    image_height_ = new_height;
+	    image_.resize(image_width_*image_height_*bpp_);
+	}
 	
 	/**
 	 * \brief Updates the camera parameters.
@@ -189,9 +180,8 @@ namespace GEO {
 	    Y_ = cross(Z_,X_);
 	    
 	    // Coordinate of the viewing plane along viewing vector
-	    double zp = (
-		double(image_height_) / 2.0) / tan(zoom * M_PI / 180.0
-	    );
+	    double zp =
+ 	        (double(image_height_) / 2.0) / tan(zoom * M_PI / 180.0);
 	    
 	    // Center of the viewing plane
 	    center_ = position_+zp*Z_;
@@ -246,10 +236,13 @@ namespace GEO {
 	void set_pixel(index_t X, index_t Y, const vec3& color) {
 	    geo_debug_assert(X < image_width_);
 	    geo_debug_assert(Y < image_height_);
-	    Memory::byte* pixel_base = &image_[(Y*image_width_+X)*3];
+	    Memory::byte* pixel_base = &image_[(Y*image_width_+X)*bpp_];
 	    pixel_base[0] = Memory::byte(std::min(color.x, 1.0)*255.0);
 	    pixel_base[1] = Memory::byte(std::min(color.y, 1.0)*255.0);
-	    pixel_base[2] = Memory::byte(std::min(color.z, 1.0)*255.0);	    
+	    pixel_base[2] = Memory::byte(std::min(color.z, 1.0)*255.0);
+	    if(bpp_ == 4) {
+		pixel_base[3] = 255;
+	    }
 	}
 
 	/**
@@ -257,6 +250,7 @@ namespace GEO {
 	 * \param[in] filename the name of the file where to save the image.
 	 */
 	void save_image(const std::string& filename) const {
+	    geo_assert(bpp_ == 3);
 	    FILE* f = fopen(filename.c_str(),"wb");
 	    if(f == nullptr) {
 		std::cerr << "Could not create file: " << filename << std::endl;
@@ -279,6 +273,7 @@ namespace GEO {
 	index_t image_width_;
 	index_t image_height_;
 	vector<Memory::byte> image_;
+	index_t bpp_;
     };
 
     /*******************************************************************/
@@ -323,7 +318,7 @@ namespace GEO {
 	Intersection() :
 	    t(Numeric::max_float64()),
 	    object(nullptr),
-	    K(0.0, 0.0, 0.3) {
+	    K(0.1, 0.1, 0.1) {
 	}
 	vec3 position; /**< position of the intersection. */
 	vec3 normal; /**< normal to the object. */
@@ -445,8 +440,9 @@ namespace GEO {
 	    Vf[0] = float(V.x);
 	    Vf[1] = float(V.y);
 	    Vf[2] = float(V.z);
+	    ImGui::SetNextItemWidth(-ImGui::CalcTextSize(name.c_str()).x);
 	    bool result = ImGui::DragFloat3(
-		name.c_str(), Vf, 0.1f, 0.0f, 0.0f, "%.4f"
+		name.c_str(), Vf, 0.1f, 0.0f, 0.0f, "%.3f"
 	    );
 	    if(result) {
 		V.x = double(Vf[0]);
@@ -458,6 +454,7 @@ namespace GEO {
 
 	bool edit_scalar(const std::string& name, double& V) {
 	    double zero = 0.0;
+	    ImGui::SetNextItemWidth(-ImGui::CalcTextSize(name.c_str()).x);
 	    return ImGui::DragScalar(
 		name.c_str(),
 		ImGuiDataType_Double,
@@ -465,7 +462,7 @@ namespace GEO {
 		0.005f,
 		&zero,
 		nullptr,
-		"%.4f"
+		"%.3f"
 	    );
 	}
 	
@@ -709,8 +706,8 @@ namespace GEO {
     public:
 	/**
 	 * \brief MeshObject constructor.
-	 * \param[in,out] M a reference to the mesh. Note that MeshAABB changes the
-	 *  order of the mesh elements.
+	 * \param[in,out] M a reference to the mesh. Note that 
+	 *  MeshAABB changes the order of the mesh elements.
 	 */
 	MeshObject(Mesh& M) : AABB_(M) {
 	}
@@ -737,7 +734,7 @@ namespace GEO {
 		    I.material = material_;
 		    I.position = R.origin + t * R.direction;
 		    I.normal = normalize(
-			Geom::mesh_facet_normal(AABB_.mesh(),f)
+			Geom::mesh_facet_normal(*AABB_.mesh(),f)
 		    );
 		}
 	    }
@@ -759,7 +756,8 @@ namespace GEO {
 
     /**
      * \brief The traditional checkerboard.
-     * \details Cannot avoid to have this in a raytracer (this is the tradition).
+     * \details Cannot avoid to have this in a raytracer 
+     *   (this is the tradition).
      */
     class HorizontalCheckerboardPlane : public Object {
     public:
@@ -902,19 +900,18 @@ namespace GEO {
 	 * \param[in] R the ray to be launched.
 	 * \return the computed color.
 	 */
-	vec3 raytrace(const Ray& R) const {
+	vec3 raytrace(const Ray& R, index_t level=0) const {
 	    Intersection I;
 	    get_nearest_intersection(R,I);
 	    if(I.object != nullptr) {
 		compute_lighting(I);
-		if(I.material.reflective() && R.level < 3) {
+		if(I.material.reflective() && level < 3) {
 		    vec3 D = R.direction;
 		    Ray Reflected(
 			I.position,
-			D - 2.0*dot(D, I.normal)*I.normal,
-			R.level + 1
+			D - 2.0*dot(D, I.normal)*I.normal
 		    );
-		    vec3 Kreflect = raytrace(Reflected);
+		    vec3 Kreflect = raytrace(Reflected,level+1);
 		    I.K += mul(I.material.Kr, Kreflect);
 		}
 	    }

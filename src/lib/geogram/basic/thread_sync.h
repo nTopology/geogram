@@ -845,6 +845,7 @@ namespace GEO {
         return 0;
     }
 
+
     // Emulation of pthread condition variables using Windows API
 
     typedef CONDITION_VARIABLE pthread_cond_t;
@@ -870,10 +871,10 @@ namespace GEO {
         SleepConditionVariableCS(c, m, INFINITE);
         return 0;
     }
-
-#endif
-
-} // namespace GEO
+   
+#endif    
+    
+}
 
 #endif
 

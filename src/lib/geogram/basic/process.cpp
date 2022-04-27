@@ -52,6 +52,8 @@
 #include <tbb/tbb.h>
 #include <atomic>
 #include <mutex>
+#include <thread>
+#include <chrono>
 
 #ifdef GEO_OPENMP
 #include <omp.h>
@@ -236,10 +238,11 @@ namespace {
             geo_argused(max_threads);
 
 #pragma omp parallel for schedule(dynamic)
-            for(index_t i = 0; i < threads.size(); i++) {
-                set_thread_id(threads[i],i);
-                set_current_thread(threads[i]);
-                threads[i]->run();
+            for(int i = 0; i < int(threads.size()); i++) {
+	        index_t ii = index_t(i);
+                set_thread_id(threads[ii],ii);
+                set_current_thread(threads[ii]);
+                threads[ii]->run();
             }
         }
 
@@ -831,6 +834,12 @@ namespace GEO {
 	    threads.push_back(new ParallelThread(f8));
             Process::run_threads(threads);
         }
+    }
+
+    namespace Process {
+	void sleep(index_t microseconds) {
+	    std::this_thread::sleep_for(std::chrono::microseconds(microseconds));	    
+	}
     }
 }
 
