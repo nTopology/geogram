@@ -1183,12 +1183,6 @@ namespace GEO {
 		const double* pj = non_periodic_vertex_ptr(j);
 		const double* pk = non_periodic_vertex_ptr(k);
 		const double* pl = non_periodic_vertex_ptr(l);
-<<<<<<< HEAD
-		double hi = geo_sqr(pi[0]) + geo_sqr(pi[1]) + geo_sqr(pi[2]) - non_periodic_weight(i);
-		double hj = geo_sqr(pj[0]) + geo_sqr(pj[1]) + geo_sqr(pj[2]) - non_periodic_weight(j);
-		double hk = geo_sqr(pk[0]) + geo_sqr(pk[1]) + geo_sqr(pk[2]) - non_periodic_weight(k);
-		double hl = geo_sqr(pl[0]) + geo_sqr(pl[1]) + geo_sqr(pl[2]) - non_periodic_weight(l);
-=======
 		
 		double hi = geo_sqr(pi[0]) + geo_sqr(pi[1]) + geo_sqr(pi[2])
 		    - non_periodic_weight(i);
@@ -1202,17 +1196,13 @@ namespace GEO {
 		double hl = geo_sqr(pl[0]) + geo_sqr(pl[1]) + geo_sqr(pl[2])
 		    - non_periodic_weight(l);
 		
->>>>>>> loria/master
 		return PCK::in_circle_3dlifted_SOS(
 		    pi, pj, pk, pl,
 		    hi, hj, hk, hl
 		);
 	    }
 
-<<<<<<< HEAD
-=======
 	    // Note: in periodic mode, SOS mode is lexicographic.
->>>>>>> loria/master
 	    double V[4][4];
 	    get_lifted_vertex(i,V[0]);
 	    get_lifted_vertex(j,V[1]);
@@ -1240,13 +1230,6 @@ namespace GEO {
 		const double* pk = non_periodic_vertex_ptr(k);
 		const double* pl = non_periodic_vertex_ptr(l);
 		const double* pm = non_periodic_vertex_ptr(m);
-<<<<<<< HEAD
-		double hi = geo_sqr(pi[0]) + geo_sqr(pi[1]) + geo_sqr(pi[2]) - non_periodic_weight(i);
-		double hj = geo_sqr(pj[0]) + geo_sqr(pj[1]) + geo_sqr(pj[2]) - non_periodic_weight(j);
-		double hk = geo_sqr(pk[0]) + geo_sqr(pk[1]) + geo_sqr(pk[2]) - non_periodic_weight(k);
-		double hl = geo_sqr(pl[0]) + geo_sqr(pl[1]) + geo_sqr(pl[2]) - non_periodic_weight(l);
-		double hm = geo_sqr(pm[0]) + geo_sqr(pm[1]) + geo_sqr(pm[2]) - non_periodic_weight(m);
-=======
 		
 		double hi = geo_sqr(pi[0]) + geo_sqr(pi[1]) + geo_sqr(pi[2])
 		    - non_periodic_weight(i);
@@ -1263,7 +1246,6 @@ namespace GEO {
 		double hm = geo_sqr(pm[0]) + geo_sqr(pm[1]) + geo_sqr(pm[2])
 		    - non_periodic_weight(m);
 
->>>>>>> loria/master
 		return PCK::orient_3dlifted_SOS(
 		    pi, pj, pk, pl, pm,
 		    hi, hj, hk, hl, hm
@@ -1271,14 +1253,6 @@ namespace GEO {
 	    }
 
 	    // Periodic mode.
-<<<<<<< HEAD
-	    double V[5][4];
-	    get_lifted_vertex(i,V[0]);
-	    get_lifted_vertex(j,V[1]);
-	    get_lifted_vertex(k,V[2]);
-	    get_lifted_vertex(l,V[3]);
-	    get_lifted_vertex(m,V[4]);
-=======
 	    // Note: in periodic mode, SOS mode is lexicographic.	    
 	    double V[5][4];
 
@@ -1331,7 +1305,6 @@ namespace GEO {
 	    V[3][3] = -non_periodic_weight(l) + (geo_sqr(V[3][0]) + geo_sqr(V[3][1]) + geo_sqr(V[3][2]));	    
 	    V[4][3] = -non_periodic_weight(m) + (geo_sqr(V[4][0]) + geo_sqr(V[4][1]) + geo_sqr(V[4][2]));	    
 
->>>>>>> loria/master
 	    return PCK::orient_3dlifted_SOS(
 		V[0],    V[1],    V[2],    V[3],    V[4],
 		V[0][3], V[1][3], V[2][3], V[3][3], V[4][3]
@@ -2213,15 +2186,10 @@ namespace GEO {
 	     // v needs to be a real vertex.
 	     geo_debug_assert(periodic_vertex_instance(v) == 0);
 
-<<<<<<< HEAD
-	     geo_debug_assert(T[0] != -1 && T[1] != -1 && T[2] != -1 && T[3] != -1);
-
-=======
 	     geo_debug_assert(
 		 T[0] != -1 && T[1] != -1 && T[2] != -1 && T[3] != -1
 	     );
 	     
->>>>>>> loria/master
             // The following expression is 10% faster than using
             // if() statements. This uses the C++ norm, that
             // ensures that the 'true' boolean value converted to
@@ -2476,14 +2444,6 @@ namespace GEO {
 
 	    index_t tbord = index_t(tet_adjacent(t1,t1fbord));
 
-<<<<<<< HEAD
-	    // We generate the tetrahedron with the three vertices of the tet outside
-	    // the conflict zone and the newly created vertex in the local frame of the
-	    // tet outside the conflict zone.
-
-	    // Replace in new_t the vertex opposite to t1fbord with v
-	    set_tet_vertex(new_t, t1fbord, v);
-=======
 	    // We generate the tetrahedron with the three vertices
 	    // of the tet outside the conflict zone and the newly
 	    // created vertex in the local frame of the tet outside
@@ -2491,7 +2451,6 @@ namespace GEO {
 	    
 	    // Replace in new_t the vertex opposite to t1fbord with v		
 	    set_tet_vertex(new_t, t1fbord, v);		
->>>>>>> loria/master
 
             {
 		// Connect new_t with t1's neighbor across t1fbord
@@ -3056,12 +3015,8 @@ namespace GEO {
     }
 
     void PeriodicDelaunay3d::set_weights(const double* weights) {
-<<<<<<< HEAD
-	weights_ = weights;
-=======
 	has_empty_cells_ = false;
 	weights_ = weights;	
->>>>>>> loria/master
     }
 
     void PeriodicDelaunay3d::compute() {
@@ -3483,16 +3438,11 @@ namespace GEO {
 			index_t v_real = periodic_vertex_real(v);
 			index_t v_instance = periodic_vertex_instance(v);
 
-<<<<<<< HEAD
-			geo_debug_assert((vertex_instances_[v_real] & (1u << v_instance))!=0);
-
-=======
 			geo_debug_assert(
 			    (vertex_instances_[v_real] &
 			     (1u << v_instance))!=0
 			);
 			
->>>>>>> loria/master
 			index_t slot = pop_count(
 			    vertex_instances_[v_real] & ((1u << v_instance)-1)
 			) - 1;
@@ -3591,15 +3541,10 @@ namespace GEO {
 	} else {
 	    index_t v_real = periodic_vertex_real(v);
 	    index_t v_instance = periodic_vertex_instance(v);
-<<<<<<< HEAD
-
-	    geo_debug_assert((vertex_instances_[v_real] & (1u << v_instance))!=0);
-=======
 	    
 	    geo_debug_assert(
 		(vertex_instances_[v_real] & (1u << v_instance))!=0
 	    );
->>>>>>> loria/master
 
 	    index_t slot = pop_count(
 		vertex_instances_[v_real] & ((1u << v_instance)-1)
