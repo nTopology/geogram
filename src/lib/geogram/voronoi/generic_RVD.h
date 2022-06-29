@@ -1394,7 +1394,8 @@ namespace GEOGen {
 
             auto process_facet = [&vertex_weight, &action](
                 FacetSeed fs, thisclass& RVD, GEO::vector<index_t>& seed_stamp,
-                auto test_and_set_facet, auto propagate_facet) {
+                                   const std::function<bool(index_t)>& test_and_set_facet,
+                                   const std::function<void(FacetSeed)>& propagate_facet) {
                 auto current_facet_ = fs.f;
                 auto current_seed_ = fs.seed;
 
@@ -1672,7 +1673,8 @@ namespace GEOGen {
 
             auto process_tet = [&vertex_weight, &action](
                 TetSeed ts, thisclass& RVD, GEO::vector<index_t>& seed_stamp,
-                auto test_and_set_tet, auto propagate_tet) {
+                                 const std::function<bool(index_t)>& test_and_set_tet,
+                                 const std::function<void(FacetSeed)>& propagate_tet) {
                 auto current_tet_ = ts.f;
                 auto current_seed_ = ts.seed;
 
