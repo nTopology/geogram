@@ -64,6 +64,7 @@
 
 #include "tbb/enumerable_thread_specific.h"
 #include "tbb/task.h"
+#include "tbb/task_group.h"
 
 /**
  * \file geogram/voronoi/generic_RVD.h
@@ -1536,51 +1537,45 @@ namespace GEOGen {
                 };
 
                 for (index_t f = facets_begin_; f < facets_end_; f++) {
-                    if (test_and_set_facet(f - facets_begin_)) {
-                        // Propagate along the facet-graph, using a custom tbb
-                        // task.
-                        auto waiter_task = 
-                            new(tbb::task::allocate_root()) tbb::empty_task;                        
+                  if (test_and_set_facet(f - facets_begin_)) {
+                    // Propagate along the facet-graph, using a custom tbb
+                    // task.
 
-                        struct FacetTaskData {
-                            decltype(RVDs)& taskRVDs;
-                            decltype(seed_stamps)& task_seed_stamps;
-                            decltype(process_facet)& process;
-                            decltype(test_and_set_facet)& test_and_set;
-                            decltype(waiter_task)& waiter;
+                    struct FacetTaskData
+                    {
+                      decltype(RVDs)&               taskRVDs;
+                      decltype(seed_stamps)&        task_seed_stamps;
+                      decltype(process_facet)&      process;
+                      decltype(test_and_set_facet)& test_and_set;
+                    };
+
+                    struct FacetTask
+                    {
+                      FacetTask(FacetTaskData data, FacetSeed fs, tbb::task_group& g)
+                          : data(data)
+                          , fs(fs)
+                          , taskGroup(g)
+                      {}
+
+                      void operator()() const
+                      {
+                        auto propagate = [this](FacetSeed prop_fs) {
+                          auto newTask = FacetTask(data, prop_fs, taskGroup);
+                          taskGroup.run(newTask);
                         };
+                        data.process(fs, data.taskRVDs.local(), data.task_seed_stamps.local(), data.test_and_set, propagate);
+                      }
+                      FacetTaskData    data;
+                      FacetSeed        fs;
+                      tbb::task_group& taskGroup;
+                    };
 
-                        struct FacetTask : tbb::task {
-                            FacetTask(FacetTaskData data, FacetSeed fs)
-                                : data(data), fs(fs) {}
-                            tbb::task* execute() override {                                
-                                auto propagate = [this](FacetSeed prop_fs) {
-                                    auto newTask =
-                                        new(tbb::task::
-                                            allocate_additional_child_of(
-                                            *data.waiter
-                                            )) FacetTask(data, prop_fs);
-                                    tbb::task::spawn(*newTask);
-                                };
-                                data.process(fs, data.taskRVDs.local(),
-                                    data.task_seed_stamps.local(),
-                                    data.test_and_set, propagate);
-                                return nullptr;
-                            }
-                            FacetTaskData data;
-                            FacetSeed fs;
-                        };
-
-                        FacetTaskData data{ RVDs, seed_stamps, process_facet,
-                                            test_and_set_facet, waiter_task };
-                        waiter_task->set_ref_count(2);
-
-                        auto first_facet_task =
-                            new(waiter_task->allocate_child())
-                            FacetTask(data,
-                                FacetSeed(f, find_seed_near_facet(f)));
-                        waiter_task->spawn_and_wait_for_all(*first_facet_task);
-                    }
+                    FacetTaskData   data {RVDs, seed_stamps, process_facet, test_and_set_facet};
+                    tbb::task_group g;
+                    auto            first_facet_task = FacetTask(data, FacetSeed(f, find_seed_near_facet(f)), g);
+                    g.run(first_facet_task);
+                    g.wait();
+                  }
                 }
             }
             current_polygon_ = nullptr;
@@ -1830,51 +1825,44 @@ namespace GEOGen {
                 };
 
                 for (index_t t = tets_begin_; t < tets_end_; t++) {
-                    if (test_and_set_tet(t - tets_begin_)) {
-                        // Propagate along the facet-graph, using a custom tbb
-                        // task.
-                        auto waiter_task =
-                            new(tbb::task::allocate_root()) tbb::empty_task;
+                  if (test_and_set_tet(t - tets_begin_)) {
+                    // Propagate along the facet-graph, using a custom tbb
+                    // task.
+                    struct TetTaskData
+                    {
+                      decltype(RVDs)&             taskRVDs;
+                      decltype(seed_stamps)&      task_seed_stamps;
+                      decltype(process_tet)&      process;
+                      decltype(test_and_set_tet)& test_and_set;
+                    };
 
-                        struct TetTaskData {
-                            decltype(RVDs)& taskRVDs;
-                            decltype(seed_stamps)& task_seed_stamps;
-                            decltype(process_tet)& process;
-                            decltype(test_and_set_tet)& test_and_set;
-                            decltype(waiter_task)& waiter;
+                    struct TetTask
+                    {
+                      TetTask(TetTaskData data, TetSeed ts, tbb::task_group& g)
+                          : data(data)
+                          , ts(ts)
+                          , taskGroup(g)
+                      {}
+
+                      void operator()() const
+                      {
+                        auto propagate = [this](TetSeed prop_ts) {
+                          auto newTask = TetTask(data, prop_ts, taskGroup);
+                          taskGroup.run(newTask);
                         };
+                        data.process(ts, data.taskRVDs.local(), data.task_seed_stamps.local(), data.test_and_set, propagate);
+                      }
+                      TetTaskData      data;
+                      TetSeed          ts;
+                      tbb::task_group& taskGroup;
+                    };
 
-                        struct TetTask : tbb::task {
-                            TetTask(TetTaskData data, TetSeed ts)
-                                : data(data), ts(ts) {}
-                            tbb::task* execute() override {
-                                auto propagate = [this](TetSeed prop_ts) {
-                                    auto newTask =
-                                        new(tbb::task::
-                                            allocate_additional_child_of(
-                                                *data.waiter
-                                            )) TetTask(data, prop_ts);
-                                    tbb::task::spawn(*newTask);
-                                };
-                                data.process(ts, data.taskRVDs.local(),
-                                    data.task_seed_stamps.local(),
-                                    data.test_and_set, propagate);
-                                return nullptr;
-                            }
-                            TetTaskData data;
-                            TetSeed ts;
-                        };
-
-                        TetTaskData data{ RVDs, seed_stamps, process_tet,
-                                          test_and_set_tet, waiter_task };
-                        waiter_task->set_ref_count(2);
-
-                        auto first_tet_task =
-                            new(waiter_task->allocate_child())
-                            TetTask(data,
-                                TetSeed(t, find_seed_near_tet(t)));
-                        waiter_task->spawn_and_wait_for_all(*first_tet_task);
-                    }
+                    TetTaskData     data {RVDs, seed_stamps, process_tet, test_and_set_tet};
+                    tbb::task_group g;
+                    auto            first_tet_task = TetTask(data, TetSeed(t, find_seed_near_tet(t)), g);
+                    g.run(first_tet_task);
+                    g.wait();
+                  }
                 }
             }
             current_polyhedron_ = nullptr;
