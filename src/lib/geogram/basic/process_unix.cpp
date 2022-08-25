@@ -72,7 +72,14 @@
 
 #ifdef GEO_OS_APPLE
 #include <mach-o/dyld.h>
+#ifdef __x86_64
 #include <xmmintrin.h>
+#endif
+#endif
+
+#ifdef GEO_OS_EMSCRIPTEN
+#include <emscripten.h>
+#include <emscripten/threading.h>
 #endif
 
 #define GEO_USE_PTHREAD_MANAGER
@@ -384,13 +391,17 @@ namespace GEO {
         }
 
         index_t os_number_of_cores() {
-#ifdef GEO_OS_ANDROID
+#if defined(GEO_OS_ANDROID)
             int nb_cores = android_get_number_of_cores();
             geo_assert(nb_cores > 0);
             return index_t(nb_cores);
-#elif defined GEO_OS_EMSCRIPTEN
-	    return 1;
-#else
+#elif defined(GEO_OS_EMSCRIPTEN)
+#  ifdef __EMSCRIPTEN_PTHREADS__
+	   return index_t(emscripten_num_logical_cores());
+#  else
+	   return 1;
+#  endif	   
+#else	    
             return index_t(sysconf(_SC_NPROCESSORS_ONLN));
 #endif
         }
@@ -445,6 +456,7 @@ namespace GEO {
 
         bool os_enable_FPE(bool flag) {
 #ifdef GEO_OS_APPLE
+/*	    
            unsigned int excepts = 0
                 // | _MM_MASK_INEXACT   // inexact result
                    | _MM_MASK_DIV_ZERO  // division by zero
@@ -452,15 +464,16 @@ namespace GEO {
                    | _MM_MASK_OVERFLOW  // result not representable due to overflow
                    | _MM_MASK_INVALID   // invalid operation
                    ;
+*/
             // _MM_SET_EXCEPTION_MASK(_MM_GET_EXCEPTION_MASK() & ~excepts);
             geo_argused(flag);
-            geo_argused(excepts);
+//          geo_argused(excepts);
             return true;
 #else
             int excepts = 0
-                // | FE_INEXACT   // inexact result
+                // | FE_INEXACT     // inexact result
                    | FE_DIVBYZERO   // division by zero
-                   | FE_UNDERFLOW // result not representable due to underflow
+                   | FE_UNDERFLOW   // result not representable due to underflow
                    | FE_OVERFLOW    // result not representable due to overflow
                    | FE_INVALID     // invalid operation
                    ;

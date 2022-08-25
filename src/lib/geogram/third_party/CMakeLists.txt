@@ -34,8 +34,8 @@ aux_source_directories(SOURCES "Source Files\\LM6"          LM7)
 aux_source_directories(SOURCES "Source Files\\rply"         rply)
 aux_source_directories(SOURCES "Source Files\\shewchuk"     shewchuk)
 aux_source_directories(SOURCES "Source Files\\zlib"         zlib)
-aux_source_directories(SOURCES "Source Files\\gzstream"     gzstream)
 aux_source_directories(SOURCES "Source Files\\PoissonRecon" PoissonRecon)
+aux_source_directories(SOURCES "Source Files\\xatlas"       xatlas)
 
 if(GEOGRAM_WITH_LUA)
    aux_source_directories(SOURCES "Source Files\\lua"          lua)
@@ -57,6 +57,14 @@ add_library(geogram_third_party OBJECT ${SOURCES})
 
 ntop_import(tbb)
 target_link_libraries(geogram_third_party tbb::tbb)
+
+if(ANDROID)
+  target_include_directories(geogram_third_party PRIVATE
+    ${ANDROID_NDK}/sources/android/native_app_glue
+  )
+  message(STATUS "building for Android")
+endif()  
+
 
 set_target_properties(
     geogram_third_party PROPERTIES

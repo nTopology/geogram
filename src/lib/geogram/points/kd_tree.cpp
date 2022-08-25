@@ -53,6 +53,7 @@
 namespace {
 
     using namespace GEO;
+    using GEO::index_t;
 
     /**
      * \brief Comparison functor used to

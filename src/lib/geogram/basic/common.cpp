@@ -48,6 +48,7 @@
 #include <geogram/basic/logger.h>
 #include <geogram/basic/progress.h>
 #include <geogram/basic/command_line.h>
+#include <geogram/basic/file_system.h>
 #include <geogram/basic/stopwatch.h>
 #include <geogram/numerics/multi_precision.h>
 #include <geogram/numerics/predicates.h>
@@ -96,6 +97,7 @@ namespace GEO {
 #endif
 
         if (!Logger::is_initialized()) { Logger::initialize(); }
+	FileSystem::initialize();
         Process::initialize(flags);
         Progress::initialize();
         CmdLine::initialize();
@@ -183,6 +185,7 @@ namespace GEO {
         Process::terminate();
         CmdLine::terminate();
         Logger::terminate();
+	FileSystem::terminate();
         Environment::terminate();
     }
 }

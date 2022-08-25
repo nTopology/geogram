@@ -49,9 +49,12 @@
 #include <geogram/basic/string.h>
 #include <geogram/basic/command_line.h>
 #include <geogram/basic/stopwatch.h>
+
 #include <tbb/tbb.h>
 #include <atomic>
 #include <mutex>
+#include <thread>
+#include <chrono>
 
 #ifdef GEO_OPENMP
 #include <omp.h>
@@ -98,9 +101,9 @@ namespace {
          * \retval false otherwise
          * \see Environment::get_value()
          */
-        virtual bool get_local_value(
+        bool get_local_value(
             const std::string& name, std::string& value
-        ) const {
+        ) const override {
             if(name == "sys:nb_cores") {
                 value = String::to_string(Process::number_of_cores());
                 return true;
@@ -142,9 +145,9 @@ namespace {
          * \retval false otherwise
          * \see Environment::set_value()
          */
-        virtual bool set_local_value(
+        bool set_local_value(
             const std::string& name, const std::string& value
-        ) {
+        ) override {
             if(name == "sys:multithread") {
                 Process::enable_multithreading(String::to_bool(value));
                 return true;
@@ -184,7 +187,7 @@ namespace {
         }
 
         /** ProcessEnvironment destructor */
-        virtual ~ProcessEnvironment() {
+        ~ProcessEnvironment() override {
         }
     };
 
@@ -236,10 +239,11 @@ namespace {
             geo_argused(max_threads);
 
 #pragma omp parallel for schedule(dynamic)
-            for(index_t i = 0; i < threads.size(); i++) {
-                set_thread_id(threads[i],i);
-                set_current_thread(threads[i]);
-                threads[i]->run();
+            for(int i = 0; i < int(threads.size()); i++) {
+	        index_t ii = index_t(i);
+                set_thread_id(threads[ii],ii);
+                set_current_thread(threads[ii]);
+                threads[ii]->run();
             }
         }
 
@@ -831,6 +835,12 @@ namespace GEO {
 	    threads.push_back(new ParallelThread(f8));
             Process::run_threads(threads);
         }
+    }
+
+    namespace Process {
+	void sleep(index_t microseconds) {
+	    std::this_thread::sleep_for(std::chrono::microseconds(microseconds));	    
+	}
     }
 }
 

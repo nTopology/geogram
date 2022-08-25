@@ -249,7 +249,7 @@ namespace GEO {
         /**
          * \brief Factory destructor.
          */
-        virtual ~Factory() {
+        ~Factory() override {
         }
 
     private:

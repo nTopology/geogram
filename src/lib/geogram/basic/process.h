@@ -115,9 +115,10 @@ namespace GEO {
          */
         static Thread* current();
 
+
     protected:
         /** Thread destructor */
-        virtual ~Thread();
+        ~Thread() override;
 
 
     private:
@@ -308,7 +309,7 @@ namespace GEO {
         }
 
         /** ThreadManager destructor */
-        virtual ~ThreadManager();
+        ~ThreadManager() override;
     };
 
     /** Smart pointer that contains a ThreadManager object */
@@ -325,31 +326,31 @@ namespace GEO {
          * \copydoc ThreadManager::maximum_concurrent_threads()
          * \note This implementation always returns 1.
          */
-        virtual index_t maximum_concurrent_threads();
+        index_t maximum_concurrent_threads() override;
 
         /**
          * \copydoc ThreadManager::enter_critical_section()
          * \note This implementation does actually nothing
          */
-        virtual void enter_critical_section();
+        void enter_critical_section() override;
 
         /**
          * \copydoc ThreadManager::leave_critical_section()
          * \note This implementation does actually nothing
          */
-        virtual void leave_critical_section();
+        void leave_critical_section() override;
 
     protected:
         /** MonoThreadingThreadManager destructor */
-        virtual ~MonoThreadingThreadManager();
+        ~MonoThreadingThreadManager() override;
 
         /**
          * \copydoc ThreadManager::run_concurrent_threads()
          * \note This implementation always executes threads sequentially.
          */
-        virtual void run_concurrent_threads(
+        void run_concurrent_threads(
             ThreadGroup& threads, index_t max_threads
-        );
+        ) override;
     };
 
     /**
@@ -372,6 +373,14 @@ namespace GEO {
          */
         void GEOGRAM_API terminate();
 
+
+	/**
+	 * \brief Sleeps for a period of time.
+	 * \param[in] microseconds the time to sleep,
+	 *  in microseconds.
+	 */
+	void GEOGRAM_API sleep(index_t microseconds);
+	
         /**
          * \brief Displays statistics about the current process
          * \details Displays the maximum used amount of memory.
@@ -544,7 +553,7 @@ namespace GEO {
      *   Executes a parallel for loop from index \p from index \p to, calling
      *   functional object \p func at each iteration.
      *
-     * Calling parallel_for(func, from, to) is equivalent
+     * Calling parallel_for(from, to, func) is equivalent
      * to the following loop, computed in parallel:
      * \code
      * for(index_t i = from; i < to; i++) {
