@@ -930,7 +930,7 @@ namespace {
 	
 	Logger::out("Booleans") << "Compute intersections" << std::endl;
 
-	Process::spinlock lock = GEOGRAM_SPINLOCK_INIT;
+	Process::spinlock lock;
 
 	// Associates a facet corner index and its symbolic information.
 	// Used at the next step to glue the facets (by merging the vertices
