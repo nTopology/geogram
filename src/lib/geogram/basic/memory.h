@@ -544,6 +544,7 @@ namespace GEO {
              * member allocate().
              */
             size_type max_size() const {
+                ::std::allocator<char> a;
                 return std::allocator_traits<decltype(a)>::max_size(a) / sizeof(T);
             }
 
