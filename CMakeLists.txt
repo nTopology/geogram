@@ -43,7 +43,6 @@ option(GEOGRAM_USE_SYSTEM_GLFW3     "Use the version of GLFW3 installed in the s
 
 include(GeogramMain.cmake)
 add_library(geogram::geogram ALIAS geogram)
-add_library(geogram::gfx ALIAS geogram_gfx)
 target_include_directories(geogram SYSTEM PUBLIC ${GEOGRAM_SOURCE_INCLUDE_DIR})
 
 ################################################################################
