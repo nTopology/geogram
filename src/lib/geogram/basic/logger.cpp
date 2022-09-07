@@ -64,6 +64,14 @@
 
 namespace GEO {
 
+  namespace {
+    class NullBuffer : public std::streambuf
+    {
+      public:
+        int overflow(int c) { return c; }
+      };
+    }
+
     /************************************************************************/
 
     int LoggerStreamBuf::sync() {
@@ -381,12 +389,10 @@ namespace GEO {
         return result;
     }
 
-    std::ostream& Logger::out(const std::string& feature) {
-        std::ostream& result =
-            (is_initialized() && !Process::is_running_threads()) ?
-            instance()->out_stream(feature) :
-            (std::cerr << "    [" << feature << "] ");
-        return result;
+    std::ostream& Logger::out(const std::string&) {
+        static NullBuffer nullBuffer;
+        static std::ostream stream(&nullBuffer);
+        return stream;
     }
 
     std::ostream& Logger::err(const std::string& feature) {
