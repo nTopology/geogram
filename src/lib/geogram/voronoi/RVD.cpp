@@ -2769,7 +2769,6 @@ namespace {
                     static_cast<index_t>(std::log2(
                         mesh_->facets.nb() + mesh_->cells.nb()
                     ));
-                nb_parts_in = std::fmax(1, nb_parts_in);
                 vector<index_t> facet_ptr;
                 vector<index_t> tet_ptr;
                 mesh_partition(
