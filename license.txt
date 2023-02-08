@@ -17,6 +17,7 @@ ALICE Project LORIA, INRIA Lorraine, Campus Scientifique, BP 239 54506 VANDOEUVR
 Bundled third-party software
 Geogram uses the following softwares:
 
+Microsoft C++ Standard Library - Modifications under license: Apache v2.0 with LLVM Exception
 AntTweakBar: Simple OpenGL GUI (by Philippe Decaudin) - License: zlib/libpng
 Exact predicates (by Jonathan Shewchuk) - License: Public Domain
 HLBFGS: Numerical optimization (developed by Yang Liu during his post-doc at Inria)
