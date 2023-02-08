@@ -46,6 +46,7 @@
 #include <geogram/mesh/mesh.h>
 #include <geogram/mesh/mesh_geometry.h>
 #include <geogram/mesh/mesh_repair.h>
+#include <geogram/mesh/nth_element.h>
 #include <geogram/mesh/index.h>
 #include <geogram/delaunay/periodic.h>
 #include <geogram/basic/permutation.h>
@@ -82,7 +83,7 @@ namespace {
             return begin;
         }
         IT middle = begin + (end - begin) / 2;
-        std::nth_element(begin, middle, end, cmp);
+        stdfixed::nthElement(begin, middle, end, cmp);
         return middle;
     }
 
@@ -748,37 +749,37 @@ namespace {
                 case 0:
                 {
                     CMP<0, false, MESH> cmp(M);
-                    std::nth_element(begin, middle, end, cmp);
+                    stdfixed::nthElement(begin, middle, end, cmp);
                     break;
                 }
                 case 1:
                 {
                     CMP<0, true, MESH> cmp(M);
-                    std::nth_element(begin, middle, end, cmp);
+                    stdfixed::nthElement(begin, middle, end, cmp);
                     break;
                 }
                 case 2:
                 {
                     CMP<1, false, MESH> cmp(M);
-                    std::nth_element(begin, middle, end, cmp);
+                    stdfixed::nthElement(begin, middle, end, cmp);
                     break;
                 }
                 case 3:
                 {
                     CMP<1, true, MESH> cmp(M);
-                    std::nth_element(begin, middle, end, cmp);
+                    stdfixed::nthElement(begin, middle, end, cmp);
                     break;
                 }
                 case 4:
                 {
                     CMP<2, false, MESH> cmp(M);
-                    std::nth_element(begin, middle, end, cmp);
+                    stdfixed::nthElement(begin, middle, end, cmp);
                     break;
                 }
                 case 5:
                 {
                     CMP<2, true, MESH> cmp(M);
-                    std::nth_element(begin, middle, end, cmp);
+                    stdfixed::nthElement(begin, middle, end, cmp);
                     break;
                 }
                 default:
@@ -1046,7 +1047,7 @@ namespace {
         }
         HilbertSort3d<Hilbert_vcmp, Mesh>(
             M, sorted_indices.begin(), sorted_indices.end()
-        );
+        );        
     }
 
     /**
