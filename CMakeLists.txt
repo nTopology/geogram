@@ -17,6 +17,11 @@ find_path(GEOGRAM_SOURCE_INCLUDE_DIR
 		NO_DEFAULT_PATH
 )
 
+find_path(ZLIB_SOURCE_INCLUDE_DIR
+		zlib.h
+		PATHS ${TURBO_EXTERNAL}/zlib
+)
+
 ################################################################################
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
@@ -44,7 +49,7 @@ option(GEOGRAM_USE_SYSTEM_GLFW3     "Use the version of GLFW3 installed in the s
 include(GeogramMain.cmake)
 add_library(geogram::geogram ALIAS geogram)
 target_include_directories(geogram SYSTEM PUBLIC ${GEOGRAM_SOURCE_INCLUDE_DIR})
-
+target_include_directories(geogram SYSTEM PUBLIC ${ZLIB_SOURCE_INCLUDE_DIR})
 ################################################################################
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
