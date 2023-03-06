@@ -18,8 +18,8 @@ find_path(GEOGRAM_SOURCE_INCLUDE_DIR
 )
 
 find_path(ZLIB_SOURCE_INCLUDE_DIR
-		zlib.h
-		PATHS ${TURBO_EXTERNAL}/zlib
+		zlib/zlib.h
+		HINTS ${GEOGRAM_ROOT}/../
 )
 
 ################################################################################
