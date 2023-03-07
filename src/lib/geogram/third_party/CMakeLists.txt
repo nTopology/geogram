@@ -56,9 +56,9 @@ endif()
 add_library(geogram_third_party OBJECT ${SOURCES})
 
 ntop_import(tbb)
-target_link_libraries(geogram_third_party tbb::tbb)
 ntop_import(zlib)
-target_include_directories(geogram_third_party SYSTEM PUBLIC ${ZLIB_SOURCE_INCLUDE_DIR})
+target_link_libraries(geogram_third_party tbb::tbb zlibstatic)
+
 set_target_properties(
     geogram_third_party PROPERTIES
     FOLDER "GEOGRAM"
