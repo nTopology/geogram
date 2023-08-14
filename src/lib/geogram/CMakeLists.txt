@@ -35,7 +35,7 @@ include_directories(${PROJECT_BINARY_DIR}/src/lib)
 add_library(geogram ${SOURCES} $<TARGET_OBJECTS:geogram_third_party>)
 
 ntop_import(tbb)
-target_link_libraries(geogram tbb::tbb)
+target_link_libraries(geogram tbb::tbb zlibstatic)
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
     find_package(OpenMP REQUIRED)
