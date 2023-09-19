@@ -35,7 +35,7 @@
 
 // [Bruno] modified include to make sure local version is used.
 // and inserted GEOGRAM_API declarations for Windows DLL link.
-#include <geogram/third_party/zlib/zlib.h>
+#include <zlib.h>
 #include <geogram/api/defs.h>
 
 #ifdef GZSTREAM_NAMESPACE

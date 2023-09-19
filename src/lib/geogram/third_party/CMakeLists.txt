@@ -33,7 +33,7 @@ aux_source_directories(SOURCES "Source Files"               .)
 aux_source_directories(SOURCES "Source Files\\LM6"          LM7)
 aux_source_directories(SOURCES "Source Files\\rply"         rply)
 aux_source_directories(SOURCES "Source Files\\shewchuk"     shewchuk)
-aux_source_directories(SOURCES "Source Files\\zlib"         zlib)
+aux_source_directories(SOURCES "Source Files\\zlib"         ${ZLIB_INCLUDE_DIR})
 aux_source_directories(SOURCES "Source Files\\gzstream"     gzstream)
 aux_source_directories(SOURCES "Source Files\\PoissonRecon" PoissonRecon)
 
@@ -56,7 +56,7 @@ endif()
 add_library(geogram_third_party OBJECT ${SOURCES})
 
 ntop_import(tbb)
-target_link_libraries(geogram_third_party tbb::tbb)
+target_link_libraries(geogram_third_party tbb::tbb zlibstatic)
 
 set_target_properties(
     geogram_third_party PROPERTIES
