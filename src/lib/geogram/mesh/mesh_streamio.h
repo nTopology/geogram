@@ -1,7 +1,3 @@
-// ============================================================================
-// Copyright 2023 nTopology Inc. All Rights Reserved.
-// ============================================================================
-
 #pragma once
 
 #include <geogram/mesh/mesh.h>
@@ -10,7 +6,7 @@
 #include <iostream>
 #include <vector>
 
-namespace nTopology::geo {
+namespace GEO::mesh::stream {
 
 static constexpr int64_t k_MaxVectorSize = 1ll << 40;
 
@@ -306,4 +302,4 @@ inline int deserializeMesh(GEO::Mesh& mesh, std::istream& iss)
   }
   return 0;
 }
-}  // namespace nTopology::geo
+}  // namespace GEO::mesh::stream
