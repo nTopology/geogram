@@ -2,14 +2,47 @@
 // Copyright 2023 nTopology Inc. All Rights Reserved.
 // ============================================================================
 
-
 #pragma once
 
 #include <geogram/mesh/mesh.h>
 
+#include <array>
 #include <iostream>
+#include <vector>
 
-namespace ntopology::geo {
+namespace nTopology::geo {
+
+static constexpr int64_t k_MaxVectorSize = 1ll << 40;
+
+template <class T>
+struct EnableBinarySerialize
+{
+  // IEEE 754 and no long doubles
+  static constexpr bool value = std::is_arithmetic_v<T> ||
+                                (std::is_floating_point_v<T> && std::numeric_limits<T>::is_iec559 && sizeof(T) <= 64) ||
+                                std::is_enum_v<T>;
+};
+
+template <class T, std::size_t N>
+struct EnableBinarySerialize<std::array<T, N>>
+{
+  // No padding in arrays
+  static constexpr bool value = EnableBinarySerialize<T>::value && sizeof(std::array<T, N>) == sizeof(T) * N;
+};
+
+/// Will fail if 'sz' would be less than 0 or more than k_MaxVectorSize.
+/// Designed for vector sizes or similar.
+inline int readSize(int64_t& sz, std::istream& ist)
+{
+  int64_t size = 0;
+  ist.read(reinterpret_cast<char*>(&size), sizeof(size));
+  if (ist.bad() || size < 0 || size > k_MaxVectorSize) {
+    return -1;
+  }
+  sz = size;
+  return 0;
+}
+
 /// Return 'length' bytes into 'buffer' from 'stream'. Return 0 on success.
 inline int readFromStream(std::istream& ist, char* buffer, size_t length)
 {
@@ -29,7 +62,7 @@ inline int readFromStream(std::istream& ist, char* buffer, size_t length)
 /// Read 'n' number of type T into 't' from binary data istream.
 /// NOTE: 'n' must not exceed size of container pointed to by 't'.
 /// Return 0 on success
-template<typename T>
+template <typename T>
 inline int readBytesFromStream(T* t, size_t n, std::istream& ist)
 {
   static_assert(EnableBinarySerialize<T>::value);
@@ -47,14 +80,14 @@ inline int readBytesFromStream(T* t, size_t n, std::istream& ist)
 }
 
 /// Read 't' from 'ist'. Return 0 on success
-template<typename T>
+template <typename T>
 inline int readBytesFromStream(T& t, std::istream& ist)
 {
   return readBytesFromStream(&t, 1, ist);
 }
 
 /// Read 'vec' from 'ist' in binary form. Return 0 on success.
-template<typename T>
+template <typename T>
 inline int readVector(std::vector<T>& vec, std::istream& ist)
 {
   static_assert(EnableBinarySerialize<T>::value);
@@ -80,9 +113,8 @@ inline int writeToStream(std::ostream& ost, std::string_view sv)
   return 0;
 }
 
-
 /// Write memory at 't' of size 'n' into 'ost' in binary form. Return 0 on success.
-template<typename T>
+template <typename T>
 inline int writeBytesToStream(const T* t, size_t n, std::ostream& ost)
 {
   static_assert(EnableBinarySerialize<T>::value);
@@ -100,14 +132,14 @@ inline int writeBytesToStream(const T* t, size_t n, std::ostream& ost)
 }
 
 /// Write 't' into 'ost' in binary form. Return 0 on success.
-template<typename T>
+template <typename T>
 inline int writeBytesToStream(const T& t, std::ostream& ost)
 {
   return writeBytesToStream(&t, 1, ost);
 }
 
 /// Write 'vec' to 'ost' in binary form. Return 0 on success.
-template<typename T>
+template <typename T>
 inline int writeVector(const std::vector<T>& vec, std::ostream& ost)
 {
   static_assert(EnableBinarySerialize<T>::value);
@@ -121,7 +153,7 @@ inline int writeVector(const std::vector<T>& vec, std::ostream& ost)
   return writeBytesToStream(vec.data(), vec.size(), ost);
 }
 
-void serializeGEOMesh(const GEO::Mesh& mesh, std::ostream& oss)
+inline void serializeMesh(const GEO::Mesh& mesh, std::ostream& oss)
 {
   GEO::index_t numDimensions = 3;
 
@@ -130,22 +162,22 @@ void serializeGEOMesh(const GEO::Mesh& mesh, std::ostream& oss)
   auto numFaces    = mesh.facets.nb();
   auto numCells    = mesh.cells.nb();
 
- writeBytesToStream(numDimensions, oss);
- writeBytesToStream(numVertices, oss);
- writeBytesToStream(numEdges, oss);
- writeBytesToStream(numFaces, oss);
- writeBytesToStream(numCells, oss);
+  writeBytesToStream(numDimensions, oss);
+  writeBytesToStream(numVertices, oss);
+  writeBytesToStream(numEdges, oss);
+  writeBytesToStream(numFaces, oss);
+  writeBytesToStream(numCells, oss);
 
   // Write vertices
- writeToStream(oss,
-                                   std::string_view(reinterpret_cast<const char*>(mesh.vertices.point_ptr(0)),
-                                                    size_t(numVertices) * size_t(numDimensions) * sizeof(double)));
+  writeToStream(oss,
+                std::string_view(reinterpret_cast<const char*>(mesh.vertices.point_ptr(0)),
+                                 size_t(numVertices) * size_t(numDimensions) * sizeof(double)));
 
   // Write edges
   if (numEdges != 0) {
-   writeToStream(oss,
-                                     std::string_view(reinterpret_cast<const char*>(mesh.edges.vertex_index_ptr(0)),
-                                                      2 * size_t(numEdges) * sizeof(GEO::index_t)));
+    writeToStream(oss,
+                  std::string_view(reinterpret_cast<const char*>(mesh.edges.vertex_index_ptr(0)),
+                                   2 * size_t(numEdges) * sizeof(GEO::index_t)));
   }
 
   // Write facet distinguisher
@@ -159,15 +191,15 @@ void serializeGEOMesh(const GEO::Mesh& mesh, std::ostream& oss)
       faceVertices.back()[0]++;
     }
   }
- writeVector(faceVertices, oss);
+  writeVector(faceVertices, oss);
 
   // Write facets
   for (auto f = 0; f != numFaces; ++f) {
     GEO::index_t fb = mesh.facets.corners_begin(f);
     GEO::index_t nv = mesh.facets.nb_corners(f);
-   writeBytesToStream(fb, oss);
-   writeBytesToStream(nv, oss);
-   writeToStream(
+    writeBytesToStream(fb, oss);
+    writeBytesToStream(nv, oss);
+    writeToStream(
       oss, std::string_view(reinterpret_cast<const char*>(mesh.facet_corners.vertex_index_ptr(fb)), nv * sizeof(GEO::index_t)));
   }
 
@@ -182,20 +214,20 @@ void serializeGEOMesh(const GEO::Mesh& mesh, std::ostream& oss)
       cellTypes.back()[0]++;
     }
   }
- writeVector(cellTypes, oss);
+  writeVector(cellTypes, oss);
 
   // Write cells
   for (auto c = 0; c != numCells; ++c) {
     auto cb = mesh.cells.corners_begin(c);
     auto nc = mesh.cells.nb_corners(c);
-   writeBytesToStream(cb, oss);
-   writeBytesToStream(nc, oss);
-   writeToStream(
+    writeBytesToStream(cb, oss);
+    writeBytesToStream(nc, oss);
+    writeToStream(
       oss, std::string_view(reinterpret_cast<const char*>(mesh.cell_corners.vertex_index_ptr(cb)), nc * sizeof(GEO::index_t)));
   }
 }
 
-int deserializeGEOMesh(GEO::Mesh& mesh, std::istream& iss)
+inline int deserializeMesh(GEO::Mesh& mesh, std::istream& iss)
 {
   GEO::index_t numDimensions;
   GEO::index_t numVertices;
@@ -206,10 +238,9 @@ int deserializeGEOMesh(GEO::Mesh& mesh, std::istream& iss)
   std::vector<std::array<GEO::index_t, 2>> faceVertices;
   std::vector<std::array<GEO::index_t, 2>> cellTypes;
 
-  if (readBytesFromStream(numDimensions, iss) != 0 ||
-     readBytesFromStream(numVertices, iss) != 0 ||
-     readBytesFromStream(numEdges, iss) != 0 ||readBytesFromStream(numFaces, iss) != 0 ||
-     readBytesFromStream(numCells, iss) != 0) {
+  if (readBytesFromStream(numDimensions, iss) != 0 || readBytesFromStream(numVertices, iss) != 0 ||
+      readBytesFromStream(numEdges, iss) != 0 || readBytesFromStream(numFaces, iss) != 0 ||
+      readBytesFromStream(numCells, iss) != 0) {
     return -1;
   }
 
@@ -217,16 +248,14 @@ int deserializeGEOMesh(GEO::Mesh& mesh, std::istream& iss)
 
   // Setup vertices
   mesh.vertices.create_vertices(GEO::index_t(numVertices));
-  if (readFromStream(
-        iss, (char*)mesh.vertices.point_ptr(0), numVertices * size_t(numDimensions) * sizeof(double)) != 0) {
+  if (readFromStream(iss, (char*)mesh.vertices.point_ptr(0), numVertices * size_t(numDimensions) * sizeof(double)) != 0) {
     return -1;
   }
 
   // Setup edges
   mesh.edges.create_edges(numEdges);
   if (numEdges != 0) {
-    if (readFromStream(
-          iss, (char*)mesh.edges.vertex_index_ptr(0), 2 * size_t(numEdges) * sizeof(GEO::index_t)) != 0) {
+    if (readFromStream(iss, (char*)mesh.edges.vertex_index_ptr(0), 2 * size_t(numEdges) * sizeof(GEO::index_t)) != 0) {
       return -1;
     }
   }
@@ -239,7 +268,7 @@ int deserializeGEOMesh(GEO::Mesh& mesh, std::istream& iss)
   // Setup faces
   auto         faceId  = 0;
   auto         listCtr = 0;
-  GEO::index_t numFaceVertices;
+  GEO::index_t numFaceVertices {};
   for (auto f = 0; f != numFaces; ++f) {
     if (f == faceId) {
       numFaceVertices = faceVertices[listCtr][1];
@@ -248,7 +277,7 @@ int deserializeGEOMesh(GEO::Mesh& mesh, std::istream& iss)
     }
     GEO::index_t fb;
     GEO::index_t nv;
-    if (readBytesFromStream(fb, iss) != 0 ||readBytesFromStream(nv, iss) != 0) {
+    if (readBytesFromStream(fb, iss) != 0 || readBytesFromStream(nv, iss) != 0) {
       return -1;
     }
     mesh.facets.create_polygon((GEO::index_t)numFaceVertices);
@@ -270,11 +299,11 @@ int deserializeGEOMesh(GEO::Mesh& mesh, std::istream& iss)
   for (GEO::index_t c = 0; c < numCells; c++) {
     GEO::index_t cb;
     GEO::index_t nc;
-    if (readBytesFromStream(cb, iss) != 0 ||readBytesFromStream(nc, iss) != 0 ||
-       readFromStream(iss, (char*)mesh.cell_corners.vertex_index_ptr(cb), nc * sizeof(GEO::index_t)) != 0) {
+    if (readBytesFromStream(cb, iss) != 0 || readBytesFromStream(nc, iss) != 0 ||
+        readFromStream(iss, (char*)mesh.cell_corners.vertex_index_ptr(cb), nc * sizeof(GEO::index_t)) != 0) {
       return -1;
     }
   }
   return 0;
 }
-}
+}  // namespace nTopology::geo
