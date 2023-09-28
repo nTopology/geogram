@@ -6,7 +6,7 @@
 #include <iostream>
 #include <vector>
 
-namespace GEO::Mesh::stream {
+namespace GEO::stream {
 
 static constexpr int64_t k_MaxVectorSize = 1ll << 40;
 
@@ -302,4 +302,4 @@ inline int deserializeMesh(GEO::Mesh& mesh, std::istream& iss)
   }
   return 0;
 }
-}  // namespace GEO::Mesh::stream
+}  // namespace GEO::stream
