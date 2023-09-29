@@ -51,7 +51,7 @@ inline int readFromStream(std::istream& ist, char* buffer, size_t length)
   if (ist.bad()) {
     return -1;
   }
-  assert(ist.gcount() == length);
+  assert(static_cast<size_t>(ist.gcount()) == length);
 
   return 0;
 }
