@@ -3,6 +3,7 @@
 #include <geogram/mesh/mesh.h>
 
 #include <array>
+#include <cassert>
 #include <iostream>
 #include <vector>
 
@@ -178,7 +179,7 @@ inline void serializeMesh(const GEO::Mesh& mesh, std::ostream& oss)
 
   // Write facet distinguisher
   std::vector<std::array<GEO::index_t, 2>> faceVertices;
-  for (auto f = 0; f != numFaces; ++f) {
+  for (GEO::index_t f = 0; f != numFaces; ++f) {
     auto numFaceVertices = GEO::index_t(mesh.facets.nb_vertices(f));
     if (faceVertices.empty() || faceVertices.back()[1] != numFaceVertices) {
       faceVertices.push_back({1, numFaceVertices});
@@ -190,7 +191,7 @@ inline void serializeMesh(const GEO::Mesh& mesh, std::ostream& oss)
   writeVector(faceVertices, oss);
 
   // Write facets
-  for (auto f = 0; f != numFaces; ++f) {
+  for (GEO::index_t f = 0; f != numFaces; ++f) {
     GEO::index_t fb = mesh.facets.corners_begin(f);
     GEO::index_t nv = mesh.facets.nb_corners(f);
     writeBytesToStream(fb, oss);
@@ -201,7 +202,7 @@ inline void serializeMesh(const GEO::Mesh& mesh, std::ostream& oss)
 
   // Write cell distinguisher
   std::vector<std::array<int, 2>> cellTypes;
-  for (auto c = 0; c != numCells; ++c) {
+  for (GEO::index_t c = 0; c != numCells; ++c) {
     auto t = mesh.cells.type(c);
     if (cellTypes.empty() || cellTypes.back()[1] != t) {
       cellTypes.push_back({1, t});
@@ -213,7 +214,7 @@ inline void serializeMesh(const GEO::Mesh& mesh, std::ostream& oss)
   writeVector(cellTypes, oss);
 
   // Write cells
-  for (auto c = 0; c != numCells; ++c) {
+  for (GEO::index_t c = 0; c != numCells; ++c) {
     auto cb = mesh.cells.corners_begin(c);
     auto nc = mesh.cells.nb_corners(c);
     writeBytesToStream(cb, oss);
@@ -262,10 +263,10 @@ inline int deserializeMesh(GEO::Mesh& mesh, std::istream& iss)
   }
 
   // Setup faces
-  auto         faceId  = 0;
-  auto         listCtr = 0;
+  GEO::index_t faceId  = 0;
+  GEO::index_t listCtr = 0;
   GEO::index_t numFaceVertices {};
-  for (auto f = 0; f != numFaces; ++f) {
+  for (GEO::index_t f = 0; f != numFaces; ++f) {
     if (f == faceId) {
       numFaceVertices = faceVertices[listCtr][1];
       faceId += faceVertices[listCtr][0];
@@ -288,7 +289,7 @@ inline int deserializeMesh(GEO::Mesh& mesh, std::istream& iss)
   }
 
   // Setup cells
-  for (auto c = 0; c < cellTypes.size(); c++) {
+  for (GEO::index_t c = 0; c < cellTypes.size(); c++) {
     mesh.cells.create_cells((GEO::index_t)cellTypes[c][0], (GEO::MeshCellType)cellTypes[c][1]);
   }
 
