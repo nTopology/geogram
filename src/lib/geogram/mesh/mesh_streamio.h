@@ -5,6 +5,8 @@
 #include <array>
 #include <cassert>
 #include <iostream>
+#include <limits>
+#include <type_traits>
 #include <vector>
 
 namespace GEO::stream {
