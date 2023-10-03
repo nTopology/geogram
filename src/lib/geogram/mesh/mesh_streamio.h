@@ -156,11 +156,16 @@ inline void serializeMesh(const GEO::Mesh& mesh, std::ostream& oss)
 {
   GEO::index_t numDimensions = 3;
 
-  auto numVertices = mesh.vertices.nb();
-  auto numEdges    = mesh.edges.nb();
-  auto numFaces    = mesh.facets.nb();
-  auto numCells    = mesh.cells.nb();
+  size_t      version     = 1;
+  std::string startString = "beginmesh";
+  std::string endString   = "endmesh";
+  auto        numVertices = mesh.vertices.nb();
+  auto        numEdges    = mesh.edges.nb();
+  auto        numFaces    = mesh.facets.nb();
+  auto        numCells    = mesh.cells.nb();
 
+  writeBytesToStream(version, oss);
+  writeBytesToStream(startString.data(), startString.length(), oss);  // Delimit the mesh in the stream for debugging
   writeBytesToStream(numDimensions, oss);
   writeBytesToStream(numVertices, oss);
   writeBytesToStream(numEdges, oss);
@@ -224,10 +229,15 @@ inline void serializeMesh(const GEO::Mesh& mesh, std::ostream& oss)
     writeToStream(
       oss, std::string_view(reinterpret_cast<const char*>(mesh.cell_corners.vertex_index_ptr(cb)), nc * sizeof(GEO::index_t)));
   }
+  writeBytesToStream(endString.data(), endString.length(), oss);  // Delimit the mesh in the stream
 }
 
 inline int deserializeMesh(GEO::Mesh& mesh, std::istream& iss)
 {
+  size_t            version;
+  std::vector<char> startString(9);  // Read and ignore
+  std::vector<char> endString(7);    // Read and ignore
+
   GEO::index_t numDimensions;
   GEO::index_t numVertices;
   GEO::index_t numEdges;
@@ -237,9 +247,13 @@ inline int deserializeMesh(GEO::Mesh& mesh, std::istream& iss)
   std::vector<std::array<GEO::index_t, 2>> faceVertices;
   std::vector<std::array<GEO::index_t, 2>> cellTypes;
 
-  if (readBytesFromStream(numDimensions, iss) != 0 || readBytesFromStream(numVertices, iss) != 0 ||
-      readBytesFromStream(numEdges, iss) != 0 || readBytesFromStream(numFaces, iss) != 0 ||
-      readBytesFromStream(numCells, iss) != 0) {
+  if (readBytesFromStream(version, iss) != 0 || version != 1) {
+    return -1;
+  }
+
+  if (readBytesFromStream(startString.data(), 9, iss) != 0 || readBytesFromStream(numDimensions, iss) != 0 ||
+      readBytesFromStream(numVertices, iss) != 0 || readBytesFromStream(numEdges, iss) != 0 ||
+      readBytesFromStream(numFaces, iss) != 0 || readBytesFromStream(numCells, iss) != 0) {
     return -1;
   }
 
@@ -302,6 +316,10 @@ inline int deserializeMesh(GEO::Mesh& mesh, std::istream& iss)
         readFromStream(iss, (char*)mesh.cell_corners.vertex_index_ptr(cb), nc * sizeof(GEO::index_t)) != 0) {
       return -1;
     }
+  }
+
+  if (readBytesFromStream(endString.data(), 7, iss) != 0) {
+    return -1;
   }
   return 0;
 }
