@@ -14,18 +14,19 @@ Contact: Bruno Levy: Bruno.Levy@inria.fr, http://www.loria.fr/~levy
 
 ALICE Project LORIA, INRIA Lorraine, Campus Scientifique, BP 239 54506 VANDOEUVRE-LES-NANCY CEDEX FRANCE
 
+Modifications:
+Peter Beben     2023/02/07: Microsoft C++ Standard Library - Modifications under license: Apache v2.0 with LLVM Exception
+Evan Sullivan   2024/03/08: Removed TETGEN and LM6 sources and license attributions. Removed LMIOHandler from mesh_io.cpp.
+
 Bundled third-party software
 Geogram uses the following softwares:
 
-Microsoft C++ Standard Library - Modifications under license: Apache v2.0 with LLVM Exception
 AntTweakBar: Simple OpenGL GUI (by Philippe Decaudin) - License: zlib/libpng
 Exact predicates (by Jonathan Shewchuk) - License: Public Domain
 HLBFGS: Numerical optimization (developed by Yang Liu during his post-doc at Inria)
-LM6: .mesh file format I/O (by Loic Marechal) - License: LGPL
 RPLY: .ply file format I/O (by Diego Nehab) - License: MIT
 Optionally, Geogram can be compiled with additional libraries (see "How to compile" )
 
-TETGEN: mesh generation (by Hang Si) - License: Affero GPL (free for academic use, contact Hang Si for other uses)
 TRIANGLE: mesh generation (by Jonathan Shewchuk) (free for academic use, contact Jonathan Shewchuk for other uses)
 FPG: Predicate filter generator (by Andreas Meyer and Sylvain Pion)
 Some test programs use the following libraries to validate the algorithms:
