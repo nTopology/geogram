@@ -4103,8 +4103,6 @@ namespace GEO {
     
 
     void mesh_io_initialize() {
-        geo_register_MeshIOHandler_creator(LMIOHandler,   "mesh");
-        geo_register_MeshIOHandler_creator(LMIOHandler,   "meshb");
         geo_register_MeshIOHandler_creator(OBJIOHandler,  "obj");
         geo_register_MeshIOHandler_creator(OBJIOHandler,  "eobj");        
         geo_register_MeshIOHandler_creator(OBJ6IOHandler, "obj6");
