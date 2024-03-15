@@ -30,7 +30,6 @@ if(BUILD_SHARED_LIBS)
 endif()
 
 aux_source_directories(SOURCES "Source Files"               .)
-aux_source_directories(SOURCES "Source Files\\LM6"          LM7)
 aux_source_directories(SOURCES "Source Files\\rply"         rply)
 aux_source_directories(SOURCES "Source Files\\shewchuk"     shewchuk)
 aux_source_directories(SOURCES "Source Files\\zlib"         ${ZLIB_INCLUDE_DIR})
@@ -43,10 +42,6 @@ endif()
 
 if(GEOGRAM_WITH_HLBFGS)
     aux_source_directories(SOURCES "Source Files\\HLBFGS"       HLBFGS)
-endif()
-
-if(GEOGRAM_WITH_TETGEN)
-    aux_source_directories(SOURCES "Source Files\\tetgen" tetgen)
 endif()
 
 if(GEOGRAM_WITH_TRIANGLE)
