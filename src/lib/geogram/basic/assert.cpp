@@ -112,17 +112,13 @@ namespace GEO {
         os << "File: " << file << ",\n";
         os << "Line: " << line;
 
+        Logger::err("Assert") << os.str() << std::endl;
+
         if(assert_mode_ == ASSERT_THROW) {
-            if(Logger::instance()->is_quiet()) {
-                std::cerr << os.str()
-                          << std::endl;
-            }
             throw std::runtime_error(os.str());
         } else if(assert_mode_ == ASSERT_ABORT) {
-            Logger::err("Assert") << os.str() << std::endl;
             geo_abort();
         } else {
-            Logger::err("Assert") << os.str() << std::endl;
             geo_breakpoint();
         }
     }
@@ -137,14 +133,11 @@ namespace GEO {
         os << "File: " << file << ",\n";
         os << "Line: " << line;
 
+        Logger::err("Assert") << os.str() << std::endl;
+
         if(assert_mode_ == ASSERT_THROW) {
-            if(Logger::instance()->is_quiet()) {
-                std::cerr << os.str()
-                          << std::endl;
-            }
             throw std::runtime_error(os.str());
         } else {
-            Logger::err("Assert") << os.str() << std::endl;
             geo_abort();
         }
     }
@@ -157,14 +150,11 @@ namespace GEO {
         os << "File: " << file << ",\n";
         os << "Line: " << line;
 
+        Logger::err("Assert") << os.str() << std::endl;
+
         if(assert_mode_ == ASSERT_THROW) {
-            if(Logger::instance()->is_quiet()) {
-                std::cerr << os.str()
-                          << std::endl;
-            }
             throw std::runtime_error(os.str());
         } else {
-            Logger::err("Assert") << os.str() << std::endl;
             geo_abort();
         }
     }
