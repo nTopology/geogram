@@ -2,7 +2,7 @@
 # Build Geogram as part of the current CMake project
 ################################################################################
 
-cmake_minimum_required(VERSION 3.11)
+cmake_minimum_required(VERSION 3.11...4.2)
 
 if(TARGET geogram::geogram)
 	return()
