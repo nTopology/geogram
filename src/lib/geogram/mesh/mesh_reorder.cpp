@@ -41,6 +41,7 @@
 #include <geogram/mesh/mesh.h>
 #include <geogram/mesh/mesh_geometry.h>
 #include <geogram/mesh/mesh_repair.h>
+#include <geogram/mesh/nth_element.h>
 #include <geogram/mesh/index.h>
 #include <geogram/delaunay/periodic.h>
 #include <geogram/basic/permutation.h>
@@ -73,7 +74,7 @@ namespace {
             return begin;
         }
         IT middle = begin + (end - begin) / 2;
-        std::nth_element(begin, middle, end, cmp);
+        stdfixed::nthElement(begin, middle, end, cmp);
         return middle;
     }
 
@@ -1166,7 +1167,7 @@ namespace GEO {
         geo_assert(M.vertices.dimension() >= 3);
 
         // Step 1: reorder vertices
-        if((elements & MESH_VERTICES) != 0) {
+        if((elements & MESH_VERTICES) != 0 && M.vertices.nb() != 0) {
             vector<index_t> sorted_indices;
             switch(order) {
             case MESH_ORDER_HILBERT:
