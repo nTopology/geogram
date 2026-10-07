@@ -1,4 +1,3 @@
-# Tetgen (by Hang Si) is currently included by default.
 # Triangle (by Jonathan Shewchuk) is currently included by default.
 
 configure_file(geogram.pc.in ${PROJECT_BINARY_DIR}/geogram${VORPALINE_VERSION_MAJOR}.pc @ONLY)

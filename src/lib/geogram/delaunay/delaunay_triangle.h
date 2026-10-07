@@ -72,7 +72,7 @@ namespace GEO {
     public:
         /**
          * \brief Creates a new DelaunayTriangle.
-         * \details DelaunayTetgen triangulations are only supported for
+         * \details DelaunayTriangle triangulations are only supported for
          * dimension 2. If a different dimension is specified in the
          * constructor, a InvalidDimension exception is thrown.
          * \param[in] dimension dimension of the triangulation

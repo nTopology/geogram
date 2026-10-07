@@ -139,7 +139,6 @@ namespace GEO {
          *  specified dimension.
          * \param[in] dim dimension of the triangulation
          * \param[in] name name of the implementation to use:
-         * - "tetgen" - Delaunay with the Tetgen library (dimension 3 only)
          * - "BDEL" - Delaunay in 3D (dimension 3 only)
          * - "BPOW" - Weighted regular 3D triangulation (dimension 4 only)
          * - "NN" - Delaunay with NearestNeighborSearch (any dimension)

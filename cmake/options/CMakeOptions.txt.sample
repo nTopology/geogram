@@ -7,8 +7,6 @@
 #Uncomment to generate a Debian package
 #set(CPACK_GENERATOR DEB)
 
-#Uncomment to disable Hang-Si's tetgen
-#set(GEOGRAM_WITH_TETGEN OFF)
 
 #Uncomment to disable Jonathan Shewchuk's triangle
 #set(GEOGRAM_WITH_TRIANGLE OFF)

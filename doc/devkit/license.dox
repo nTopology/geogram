@@ -56,19 +56,15 @@ Geogram uses the following softwares:
 - [HLBFGS](http://research.microsoft.com/en-us/um/people/yangliu/software/HLBFGS/):
  Numerical optimization (developed by [Yang Liu](http://research.microsoft.com/en-us/um/people/yangliu/)
  during his post-doc at Inria)
-- [LM6](https://www.rocq.inria.fr/gamma/gamma/Membres/CIPD/Loic.Marechal/Research/LM6.html):
+- [libMeshb](https://github.com/LoicMarechal/libMeshb):
  .mesh file format I/O
- (by [Loic Marechal](https://www.rocq.inria.fr/gamma/gamma/Membres/CIPD/Loic.Marechal/Research/About_Me.html)) -
- License: LGPL
+ (by Loic Marechal) -
+ License: MIT
 - [RPLY](http://w3.impa.br/~diego/software/rply/): .ply file format I/O
  (by [Diego Nehab](http://w3.impa.br/~diego/)) - License: MIT
 
 Optionally, Geogram can be compiled with additional libraries
   (see \link geogram_compiling "How to compile" \endlink)
-- [TETGEN](http://wias-berlin.de/software/tetgen/): mesh generation
- (by [Hang Si](http://www.wias-berlin.de/~si/)) -
- License: [Affero GPL](http://www.gnu.org/licenses/agpl-3.0.en.html)
- (free for academic use, contact Hang Si for other uses)
 - [TRIANGLE](https://www.cs.cmu.edu/~quake/triangle.html): mesh generation
  (by [Jonathan Shewchuk](http://www.cs.berkeley.edu/~jrs/))
  (free for academic use, contact Jonathan Shewchuk for other uses)

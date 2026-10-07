@@ -45,7 +45,6 @@
 #include <geogram/mesh/mesh_io.h>
 #include <geogram/mesh/mesh.h>
 #include <geogram/delaunay/delaunay.h>
-#include <geogram/delaunay/delaunay_tetgen.h>
 #include <geogram/basic/logger.h>
 #include <geogram/basic/command_line.h>
 
@@ -67,7 +66,7 @@ namespace GEO {
             Logger::err("TetMeshing")
                 << "Not supported in this version" << std::endl;
             Logger::err("TetMeshing")
-                << "(need to recompile with tetgen support)"
+                << "(TetGen has been removed from this build)"
                 << std::endl;
             return false;
         }
