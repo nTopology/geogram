@@ -569,6 +569,38 @@ namespace GEO {
         }
 
         /**
+         * \brief Computes the centroid of a 3d tetrahedron with weighted points.
+         * \details The integrated weight varies linearly in the tetrahedron.
+         * \param[in] p first vertex of the tetrahedron
+         * \param[in] q second vertex of the tetrahedron
+         * \param[in] r third vertex of the tetrahedron
+         * \param[in] s fourth vertex of the tetrahedron
+         * \param[in] a the weight associated with vertex \p p
+         * \param[in] b the weight associated with vertex \p q
+         * \param[in] c the weight associated with vertex \p r
+         * \param[in] d the weight associated with vertex \p s
+         * \param[out] Vg the total weight times the centroid
+         * \param[out] V the total weight
+         */
+        inline void tetra_centroid(
+            const vec3& p, const vec3& q, const vec3& r, const vec3& s,
+            double a, double b, double c, double d,
+            vec3& Vg, double& V
+        ) {
+            double abcd = a + b + c + d;
+            double volume = Geom::tetra_volume(p, q, r, s);
+            V = volume / 4.0 * abcd;
+            double wp = a + abcd;
+            double wq = b + abcd;
+            double wr = c + abcd;
+            double ws = d + abcd;
+            double t = volume / 20.0;
+            Vg.x = t * (wp * p.x + wq * q.x + wr * r.x + ws * s.x);
+            Vg.y = t * (wp * p.y + wq * q.y + wr * r.y + ws * s.y);
+            Vg.z = t * (wp * p.z + wq * q.z + wr * r.z + ws * s.z);
+        }
+
+        /**
          * \brief Computes the mass of a 3d triangle with weighted points.
          * \details The integrated weight varies linearly in the triangle.
          * \param[in] p first vertex of the triangle
