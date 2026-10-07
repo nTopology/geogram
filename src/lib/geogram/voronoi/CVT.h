@@ -446,7 +446,7 @@ namespace GEO {
      */
     void constrain_points(double* g) const;
 
-    static CentroidalVoronoiTesselation* instance_;
+    static thread_local CentroidalVoronoiTesselation* instance_;
     bool show_iterations_;
     coord_index_t dimension_;
     Delaunay_var delaunay_;

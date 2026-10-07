@@ -14,17 +14,17 @@ int MCSRCH(
     int *keep, double *rkeep, double *cg_dginit
 ) {
         /* Local variables */
-        static double dg, fm, fx, fy, dgm, dgx, dgy, fxm, fym, stx, sty;
-        static double dgxm, dgym;
+        static thread_local double dg, fm, fx, fy, dgm, dgx, dgy, fxm, fym, stx, sty;
+        static thread_local double dgxm, dgym;
 
-        static int infoc;
-        static double finit;
-        static double width;
-        static double stmin, stmax;
-        static bool stage1;
-        static double width1, ftest1;
-        static bool brackt;
-        static double dginit, dgtest;
+        static thread_local int infoc;
+        static thread_local double finit;
+        static thread_local double width;
+        static thread_local double stmin, stmax;
+        static thread_local bool stage1;
+        static thread_local double width1, ftest1;
+        static thread_local bool brackt;
+        static thread_local double dginit, dgtest;
 
         /* Parameter adjustments */
         --rkeep;
@@ -237,12 +237,12 @@ int MCSTEP(double *stx, double *fx, double *dx, double *sty, double *fy,
         double d__1, d__2, d__3;
 
         /* Local variables */
-        static double p, q, r__, s, gama, sgnd, stpc, stpf, stpq, theta;
-        static bool bound;
+        static thread_local double p, q, r__, s, gama, sgnd, stpc, stpf, stpq, theta;
+        static thread_local bool bound;
 
 #ifdef SAFE_SEARCH
         /*     copy from TNPACK */
-        static double xsafe;
+        static thread_local double xsafe;
         xsafe = .001;
 #endif
         *info = 0;

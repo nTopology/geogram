@@ -50,7 +50,7 @@
 
 namespace GEO {
 
-    CentroidalVoronoiTesselation*
+    thread_local CentroidalVoronoiTesselation*
     CentroidalVoronoiTesselation::instance_ = nullptr;
 
     CentroidalVoronoiTesselation::CentroidalVoronoiTesselation(

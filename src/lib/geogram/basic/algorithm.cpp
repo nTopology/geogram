@@ -44,15 +44,11 @@
 namespace GEO {
 
     bool uses_parallel_algorithm(size_t size) {
-        static bool initialized = false;
-        static bool result = false;
-        if(!initialized) {
-            result =
-                CmdLine::get_arg_bool("sys:multithread") &&
-                CmdLine::get_arg_bool("algo:parallel");
-            initialized = true;
-        }
-	bool large_enough = (size == 0 || size > 65535);
+        // The CmdLine arguments sys:multithread and algo:parallel are not
+        // declared when geogram is embedded, and the lazily-initialized
+        // statics were a data race: always enabled.
+        const bool result = true;
+        bool large_enough = (size == 0 || size > 65535);
         return result && large_enough && !Process::is_running_threads();
     }
 }

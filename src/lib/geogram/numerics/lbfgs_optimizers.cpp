@@ -62,10 +62,10 @@ namespace GEO {
      */
     namespace OptimizerConfig {
 
-        static Optimizer::newiteration_callback newiteration_callback_ = nullptr;
-        static Optimizer::funcgrad_callback funcgrad_callback_ = nullptr;
-        static Optimizer::evalhessian_callback evalhessian_callback_ = nullptr;
-        static index_t N_ = 0;
+        static thread_local Optimizer::newiteration_callback newiteration_callback_ = nullptr;
+        static thread_local Optimizer::funcgrad_callback funcgrad_callback_ = nullptr;
+        static thread_local Optimizer::evalhessian_callback evalhessian_callback_ = nullptr;
+        static thread_local index_t N_ = 0;
 
         /**
          * \brief Initializes Optimizer configuration

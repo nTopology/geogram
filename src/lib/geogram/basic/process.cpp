@@ -40,6 +40,8 @@
 #include <geogram/basic/process.h>
 #include <geogram/basic/process_private.h>
 #include <geogram/basic/logger.h>
+#include <atomic>
+#include <mutex>
 #include <geogram/basic/environment.h>
 #include <geogram/basic/string.h>
 #include <geogram/basic/command_line.h>
@@ -61,7 +63,8 @@ namespace {
     using namespace GEO;
 
     ThreadManager_var thread_manager_;
-    int running_threads_invocations_ = 0;
+    std::atomic<int> running_threads_invocations_(0);
+    std::mutex run_threads_mutex_;
 
     bool multithreading_initialized_ = false;
     bool multithreading_enabled_ = true;
@@ -482,6 +485,7 @@ namespace GEO {
 
         void run_threads(ThreadGroup& threads) {
             running_threads_invocations_++;
+            std::lock_guard<std::mutex> lock(run_threads_mutex_);
             thread_manager_->run_threads(threads);
             running_threads_invocations_--;
         }

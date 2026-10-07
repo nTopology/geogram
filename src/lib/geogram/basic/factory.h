@@ -46,6 +46,7 @@
 #include <map>
 #include <vector>
 #include <typeinfo>
+#include <mutex>
 
 /**
  * \file geogram/basic/factory.h
@@ -91,6 +92,7 @@ namespace GEO {
      */
     template <class InstanceType>
     static InstanceType& instance() {
+        std::lock_guard<std::recursive_mutex> lock(instance_mutex_);
         const std::string name = typeid(InstanceType).name();
         Instance* instance = get(name);
         if(instance == nullptr) {
@@ -115,6 +117,8 @@ namespace GEO {
      * \retval a null pointer otherwise
      */
     static Instance* get(const std::string& name);
+
+    static std::recursive_mutex instance_mutex_;
     };
 
     /**************************************************************************/

@@ -66,4 +66,6 @@ namespace GEO {
         auto i = r.find(name);
         return i == r.end() ? nullptr : i->second.get();
     }
+
+    std::recursive_mutex InstanceRepo::instance_mutex_;
 }
