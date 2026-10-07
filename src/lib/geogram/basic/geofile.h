@@ -44,7 +44,7 @@
 #include <geogram/basic/numeric.h>
 #include <geogram/basic/memory.h>
 #include <geogram/basic/string.h>
-#ifdef GEOGRAM_USE_BUILTIN_DEPS
+#if defined(GEOGRAM_USE_BUILTIN_DEPS) && !defined(GEOGRAM_USE_EXTERNAL_ZLIB)
 #include <geogram/third_party/zlib/zlib.h>
 #else
 #include <zlib.h>

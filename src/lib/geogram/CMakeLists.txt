@@ -69,6 +69,12 @@ target_link_libraries(geogram TBB::tbb) # TODO: Use PRIVATE keyword here
 target_compile_definitions(geogram PRIVATE -DGEO_TBB)
 endif()
 
+# nTop: OpenMP on Linux (as in the previous fork)
+if(CMAKE_SYSTEM_NAME MATCHES "Linux")
+find_package(OpenMP REQUIRED)
+target_link_libraries(geogram OpenMP::OpenMP_CXX)
+endif()
+
 # For now here (quick and dirty fix, for using parallel STL)
 if(LINUX AND NOT GEOGRAM_WITH_EMSCRIPTEN) 
 target_link_libraries(geogram tbb)
@@ -115,6 +121,12 @@ endif()
 
 if(GEOGRAM_USE_BUILTIN_DEPS)
     target_compile_definitions(geogram PUBLIC -DGEOGRAM_USE_BUILTIN_DEPS)
+endif()
+
+# nTop: zlib provided by the parent project (turbo: zlibstatic)
+if(GEOGRAM_USE_EXTERNAL_ZLIB)
+    target_link_libraries(geogram ${GEOGRAM_EXTERNAL_ZLIB_TARGET})
+    target_compile_definitions(geogram PUBLIC -DGEOGRAM_USE_EXTERNAL_ZLIB)
 endif()
 
 # Install the library
