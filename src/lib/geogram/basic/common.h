@@ -66,6 +66,8 @@ namespace GEO {
     enum {
         /// Do not install error handlers
         GEOGRAM_INSTALL_NONE = 0,
+        /// nTop compatibility alias of GEOGRAM_INSTALL_NONE (name used by 1.6.x)
+        GEOGRAM_NO_HANDLER = 0,
         /// Install Geogram's signal handlers
         GEOGRAM_INSTALL_HANDLERS = 1,
         /// Sets the locale to POSIX
