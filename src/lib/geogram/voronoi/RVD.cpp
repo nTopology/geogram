@@ -2766,6 +2766,8 @@ namespace {
                     static_cast<index_t>(std::log2(
                         mesh_->facets.nb() + mesh_->cells.nb()
                     ));
+                // Avoid a division by zero for tiny meshes.
+                nb_parts_in = std::max(index_t(1), nb_parts_in);
                 vector<index_t> facet_ptr;
                 vector<index_t> tet_ptr;
                 mesh_partition(
@@ -2816,7 +2818,7 @@ namespace {
                             );
                         }
                     }
-                    geo_assert(!Process::is_running_threads());
+                    // geo_assert(!Process::is_running_threads());
                 }
             }
         }

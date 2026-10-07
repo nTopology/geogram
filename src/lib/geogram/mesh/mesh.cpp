@@ -42,6 +42,7 @@
 #include <geogram/basic/logger.h>
 #include <geogram/basic/algorithm.h>
 #include <geogram/basic/string.h>
+#include <geogram/basic/process.h>
 
 namespace GEO {
 
@@ -1357,7 +1358,9 @@ namespace GEO {
         }
 
         // Step 2: connect tets
-        for(index_t t1 = 0; t1 < nb(); ++t1) {
+        // Each tet only writes its own adjacency (the symmetric link is
+        // found when processing the neighbor), so this is thread-safe.
+        auto connect = [&](index_t t1) {
             for(index_t lf1 = 0; lf1 < 4; ++lf1) {
                 if(adjacent(t1, lf1) == NO_CELL) {
                     index_t v1 = facet_vertex(t1, lf1, 0);
@@ -1371,13 +1374,13 @@ namespace GEO {
                         index_t lf2 = find_tet_facet(t2, v3, v2, v1);
                         if(lf2 != NO_FACET) {
                             set_adjacent(t1, lf1, t2);
-                            set_adjacent(t2, lf2, t1);
                             break;
                         }
                     }
                 }
             }
-        }
+        };
+        tbb_parallel_for(0, nb(), connect);
     }
 
     bool MeshCells::facets_match(
