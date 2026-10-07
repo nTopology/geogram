@@ -153,8 +153,17 @@ namespace GEO {
      *  a call to compute_initial_sampling() to regularize
      *  the point set before calling Newton_iterations().
      * \param[in] nb_iter number of iterations
+     * \param[in] safe_mode a flag that determines whether to run this
+     *  function in a way that avoids potential errors in the algorithm when
+     *  a point has many neighbors.  If set to false, the potential errors
+     *  will typically be fairly minor (and thus still produce a suitable
+     *  input for Newton_iterations()), but will be dependent on the number
+     *  of threads used (and thus may pose issues for reproducibility across
+     *  different machines); they may also be somewhat more significant in
+     *  extreme cases.  Defaults to true (as at the end of the nTop fork
+     *  history; upstream always ran with the check disabled).
      */
-    virtual void Lloyd_iterations(index_t nb_iter);
+    virtual void Lloyd_iterations(index_t nb_iter, bool safe_mode = true);
 
     /**
      * \brief Relaxes the points with Newton-Lloyd's algorithm.
@@ -406,6 +415,13 @@ namespace GEO {
         point_is_locked_.clear();
     }
 
+    /**
+     * \brief Computes the 3d representation of the Nd points.
+     * \details It projects the points onto the Nd surface, then recovers
+     *  the 3d coordinates by barycentric interpolation.
+     */
+    void compute_R3_embedding();
+
     protected:
     /**
      * \brief Callback for the numerical solver.
@@ -429,13 +445,6 @@ namespace GEO {
      * \param[in,out] g gradient of the objective function
      */
     void constrain_points(double* g) const;
-
-    /**
-     * \brief Computes the 3d representation of the Nd points.
-     * \details It projects the points onto the Nd surface, then recovers
-     *  the 3d coordinates by barycentric interpolation.
-     */
-    void compute_R3_embedding();
 
     static CentroidalVoronoiTesselation* instance_;
     bool show_iterations_;
