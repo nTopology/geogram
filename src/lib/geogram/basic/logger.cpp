@@ -63,6 +63,14 @@ namespace {
     using namespace GEO;
 
     /**
+     * rief A stream buffer that discards everything written to it.
+     */
+    class NullBuffer : public std::streambuf {
+    public:
+        int overflow(int c) override { return c; }
+    };
+
+    /**
      * \brief The output stream returned by Logger::err_console()
      * \details It has a locking mechanism that avoids messages sent by different
      *  threads to be mixed.
@@ -429,15 +437,13 @@ namespace GEO {
     }
 
     std::ostream& Logger::out(const std::string& feature) {
-        std::ostream& result =
-            (is_initialized() && !Process::is_running_threads()) ?
-            instance()->out_stream(feature) :
-            (instance()->err_console() << "    >>"
-	                               << CmdLine::ui_feature(feature));
-	for(index_t i=0; i<instance_->indent_; ++i) {
-	    result << "| ";
-	}
-        return result;
+        // Informational output is disabled: it was a source of data races
+        // and of noise when geogram is embedded. Errors and warnings still
+        // go through err() and warn().
+        geo_argused(feature);
+        static NullBuffer null_buffer;
+        static std::ostream null_stream(&null_buffer);
+        return null_stream;
     }
 
     std::ostream& Logger::err(const std::string& feature) {
