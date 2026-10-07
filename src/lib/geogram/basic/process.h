@@ -562,6 +562,36 @@ namespace GEO {
     );
 
     /**
+     * \brief Executes a loop with concurrent threads using tbb.
+     * \details
+     *   Executes a parallel for loop from index \p from to index \p to,
+     *   calling functional object \p func at each iteration.
+     *
+     * Calling tbb_parallel_for(from, to, func) is equivalent
+     * to the following loop, computed in parallel:
+     * \code
+     * for(index_t i = from; i < to; i++) {
+     *    func(i)
+     * }
+     * \endcode
+     *
+     * While similar to parallel_for(), this function lets tbb decide
+     * which indices are run by which threads, and it may be called from
+     * within a tbb task (or from a thread started by Process::run_threads()),
+     * in which case threads available to the caller's context are used.
+     * If geogram was compiled without tbb support, this is equivalent to
+     * parallel_for().
+     *
+     * \param[in] from first iteration index of the loop
+     * \param[in] to one position past the last iteration index
+     * \param[in] func functional object that accepts one argument of
+     *  type index_t.
+     */
+    void GEOGRAM_API tbb_parallel_for(
+        index_t from, index_t to, std::function<void(index_t)> func
+    );
+
+    /**
      * \brief Calls functions in parallel.
      * \details Can be typically used with lambdas that capture this. See
      *  mesh/mesh_reorder.cpp and points/kd_tree.cpp for examples.

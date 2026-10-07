@@ -53,6 +53,7 @@
 
 #ifdef GEO_TBB
 #include <tbb/parallel_for.h>
+#include <tbb/blocked_range.h>
 #include <tbb/task_arena.h>
 #endif
 
@@ -809,6 +810,21 @@ namespace GEO {
             }
             Process::run_threads(threads);
         }
+    }
+
+    void tbb_parallel_for(
+        index_t from, index_t to, std::function<void(index_t)> func
+    ) {
+#ifdef GEO_TBB
+        auto body = [&func](const tbb::blocked_range<index_t>& range) {
+            for(index_t i = range.begin(); i != range.end(); ++i) {
+                func(i);
+            }
+        };
+        tbb::parallel_for(tbb::blocked_range<index_t>(from, to), body);
+#else
+        parallel_for(from, to, func);
+#endif
     }
 
     void parallel(

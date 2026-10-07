@@ -54,6 +54,11 @@
 #include <deque>
 #include <algorithm>
 #include <iostream>
+#include <atomic>
+#include <functional>
+
+#include "tbb/enumerable_thread_specific.h"
+#include "tbb/task_group.h"
 
 /**
  * \file geogram/voronoi/generic_RVD.h
@@ -376,6 +381,15 @@ namespace GEOGen {
             return &intersections_;
         }
 
+       /**
+         * \brief Determines whether this should use tbb for multithreading.
+         * \details We generally want to use tbb, but when running Lloyd
+         *  iterations not in safe mode, it can exacerbate reproducibility
+         *  issues.
+         * \param[in] x whether to use tbb
+         */
+        void set_use_tbb(bool x) { use_tbb_ = x; }
+        
     protected:
         /**
          * \name Adapter classes for surfacic computation
@@ -413,7 +427,7 @@ namespace GEOGen {
                 const Polygon& P
             ) const {
                 GEO::geo_argused(f);
-                const_cast<ACTION&> ( do_it_)(v, P);
+                const_cast<ACTION&> ( do_it_)(v, f, P);
             }
 
         protected:
@@ -1070,7 +1084,7 @@ namespace GEOGen {
          * \brief Iterates on the facets of this RVD.
          * \param[in] action the user action object
          * \tparam ACTION needs to implement:
-         *  operator()(index_t v, index_t f, const Polygon& P) const
+         *  -operator()(index_t v, index_t f, const Polygon& P) const
          *  where v denotes the index of the current Voronoi cell
          *  (or Delaunay vertex), f the index of the current facet
          *  and P the computed intersection between facet f
@@ -1318,22 +1332,16 @@ namespace GEOGen {
         template <class ACTION>
         inline void compute_surfacic_with_seeds_priority(const ACTION& action) {
             if(
-                facets_begin_ == UNSPECIFIED_RANGE &&
-                facets_end_ == UNSPECIFIED_RANGE
+               facets_begin_ == UNSPECIFIED_RANGE && 
+               facets_end_ == UNSPECIFIED_RANGE
             ) {
                 facets_begin_ = 0;
                 facets_end_ = mesh_->facets.nb();
             }
             current_polygon_ = nullptr;
-            GEO::vector<index_t> seed_stamp(
-                delaunay_->nb_vertices(), index_t(-1)
-            );
-            GEO::vector<bool> facet_is_marked(facets_end_-facets_begin_, false);
             init_get_neighbors();
 
             FacetSeedStack adjacent_facets;
-            SeedStack adjacent_seeds;
-            Polygon F;
             GEO::Attribute<double> vertex_weight;
             vertex_weight.bind_if_is_defined(
                 mesh_->vertices.attributes(), "weight"
@@ -1342,81 +1350,185 @@ namespace GEOGen {
             // The algorithm propagates along both the facet-graph of
             // the surface and the 1-skeleton of the Delaunay triangulation,
             // and computes all the relevant intersections between
-            // each Voronoi cell and facet.
-            for(index_t f = facets_begin_; f < facets_end_; f++) {
-                if(!facet_is_marked[f-facets_begin_]) {
-                    // Propagate along the facet-graph.
-                    facet_is_marked[f-facets_begin_] = true;
-                    adjacent_facets.push(
-                        FacetSeed(f, find_seed_near_facet(f))
-                    );
-                    while(!adjacent_facets.empty()) {
-                        current_facet_ = adjacent_facets.top().f;
-                        current_seed_ = adjacent_facets.top().seed;
-                        adjacent_facets.pop();
+            // each Voronoi cell and facet.  How it does this depends on whether
+            // it is to be multithreaded via tbb or not.  This is done via two
+            // variadic arguments in the following lambda: 
+            // void propagate_facet(FacetSeed) will call this with a new 
+            // FacetSeed, possibly using tbb.
+            // bool test_and_set_facet(index_t) will (atomically if necessary)
+            // check if the corresponding facet (assuming that offsetting by 
+            // facets_begin_ was done before the call) has already been 
+            // accessed, and set it as accessed if not; it returns true if the 
+            // facet is changed, and false if not.
+            //
+            // Even if multithreading, the extra granularity of multithreading
+            // each facet is likely not worth the cost, so each facet will be
+            // all on a single thread.
 
-                        // Copy the current facet from the Mesh into
-                        // RestrictedVoronoiDiagram's Polygon data structure
-                        // (gathers all the necessary information)
-                        F.initialize_from_mesh_facet(
-                            mesh_, current_facet_, symbolic_, vertex_weight
-                        );
+            auto process_facet = [&vertex_weight, &action](
+                FacetSeed fs, thisclass& RVD, GEO::vector<index_t>& seed_stamp,
+                auto test_and_set_facet, auto propagate_facet) {
+                auto current_facet_ = fs.f;
+                auto current_seed_ = fs.seed;
 
-                        // Propagate along the Delaunay 1-skeleton
+                // Copy the current facet from the Mesh into
+                // RestrictedVoronoiDiagram's Polygon data structure
+                // (gathers all the necessary information)
+                Polygon F;
+                F.initialize_from_mesh_facet(
+                    RVD.mesh_, current_facet_, RVD.symbolic_, vertex_weight
+                );
+                // Propagate along the Delaunay 1-skeleton
                         // This will traverse all the seeds such that their
                         // Voronoi cell has a non-empty intersection with
                         // the current facet.
-                        seed_stamp[current_seed_] = current_facet_;
-                        adjacent_seeds.push(current_seed_);
+                seed_stamp[current_seed_] = current_facet_;
 
-                        while(!adjacent_seeds.empty()) {
-                            current_seed_ = adjacent_seeds.top();
-                            adjacent_seeds.pop();
+                SeedStack adjacent_seeds;
+                adjacent_seeds.push(current_seed_);
 
-                            current_polygon_ = intersect_cell_facet(
-                                current_seed_, F
-                            );
+                while (!adjacent_seeds.empty()) {
+                    current_seed_ = adjacent_seeds.top();
+                    adjacent_seeds.pop();
 
-                            action(
-                                current_seed_, current_facet_, current_polygon()
-                            );
+                    RVD.current_polygon_ = RVD.intersect_cell_facet(
+                        current_seed_, F
+                    );
 
-                            // Propagate to adjacent facets and adjacent seeds
-                            for(index_t v = 0;
-                                v < current_polygon().nb_vertices(); v++
-                               ) {
-                                const Vertex& ve = current_polygon().vertex(v);
-                                signed_index_t neigh_f = ve.adjacent_facet();
-                                if(
-                                    neigh_f >= signed_index_t(facets_begin_) &&
-                                    neigh_f < signed_index_t(facets_end_) &&
-                                    neigh_f != signed_index_t(current_facet_)
+                    action(
+                        current_seed_, current_facet_, RVD.current_polygon()
+                    );
+
+                    // Propagate to adjacent facets and adjacent seeds
+                    for (index_t v = 0;
+                        v < RVD.current_polygon().nb_vertices(); v++
+                        ) {
+                        const Vertex& ve = RVD.current_polygon().vertex(v);
+                        signed_index_t neigh_f = ve.adjacent_facet();
+                        if (
+                            neigh_f >= signed_index_t(RVD.facets_begin_) &&
+                            neigh_f < signed_index_t(RVD.facets_end_) &&
+                            neigh_f != signed_index_t(current_facet_)
+                            ) {
+                            if (test_and_set_facet(
+                                index_t(neigh_f) - RVD.facets_begin_)
                                 ) {
-                                    if(!facet_is_marked[
-                                           index_t(neigh_f)-facets_begin_
-                                       ]) {
-                                        facet_is_marked[
-                                            index_t(neigh_f)-facets_begin_
-                                        ] = true;
-                                        adjacent_facets.push(
-                                            FacetSeed(
-                                                index_t(neigh_f),
-                                                current_seed_
-                                            )
-                                        );
-                                    }
-                                }
-                                signed_index_t neigh_s = ve.adjacent_seed();
-                                if(neigh_s != -1) {
-                                    if(
-                                        seed_stamp[neigh_s] != current_facet_
-                                    ) {
-                                        seed_stamp[neigh_s] = current_facet_;
-                                        adjacent_seeds.push(index_t(neigh_s));
-                                    }
-                                }
+                                propagate_facet(
+                                    FacetSeed(
+                                        index_t(neigh_f),
+                                        current_seed_
+                                    )
+                                );
                             }
                         }
+                        signed_index_t neigh_s = ve.adjacent_seed();
+                        if (neigh_s != -1) {
+                            if (
+                                seed_stamp[neigh_s] != current_facet_
+                                ) {
+                                seed_stamp[neigh_s] = current_facet_;
+                                adjacent_seeds.push(index_t(neigh_s));
+                            }
+                        }
+                    }
+                }
+            };
+
+            if (!use_tbb_) {
+                GEO::vector<index_t> seed_stamp(
+                    delaunay_->nb_vertices(), index_t(-1)
+                );
+                GEO::vector<bool> facet_is_marked_(
+                    facets_end_ - facets_begin_, false
+                );
+                auto test_and_set_facet = [&facet_is_marked_](index_t f) {
+                    auto out = !facet_is_marked_[f];
+                    facet_is_marked_[f] = true;
+                    return out;
+                };
+                for (index_t f = facets_begin_; f < facets_end_; f++) {
+                    if (!facet_is_marked_[f - facets_begin_]) {
+                        // Propagate along the facet-graph.
+                        facet_is_marked_[f - facets_begin_] = true;
+                        adjacent_facets.push(
+                            FacetSeed(f, find_seed_near_facet(f))
+                        );
+                        auto propagate_facet = [&](FacetSeed fs) {
+                            adjacent_facets.push(fs);
+                        };
+                        while (!adjacent_facets.empty()) {
+                            auto current_facet_seed = adjacent_facets.top();
+                            adjacent_facets.pop();
+                            process_facet(
+                                current_facet_seed, *this, seed_stamp,
+                                test_and_set_facet, propagate_facet
+                            );
+                        }
+                    }
+                }
+            }
+            else {
+                auto copy_this = [this]() {
+                    return shallowCopy();
+                };
+                tbb::enumerable_thread_specific<thisclass> RVDs(copy_this);
+                auto make_seed_stamp = [this]() { return GEO::vector<index_t>(
+                        delaunay_->nb_vertices(), index_t(-1)
+                    );};
+                tbb::enumerable_thread_specific<GEO::vector<index_t>> 
+                    seed_stamps(make_seed_stamp);
+
+                // We can't use std::vector or GEO::vector for atomics because
+                // they are neither moveable nor copyable, but we can make a
+                // simple struct to handle it.
+
+                struct atomic_bool_vector {
+                    atomic_bool_vector(size_t size) 
+                        : ptr(new std::atomic_bool[size]()) {
+                        // Nothing to do; the () in the new-expression causes
+                        // the resulting values to all be set to false.
+                    }
+                    ~atomic_bool_vector() {
+                        delete[] ptr;
+                    }
+                    std::atomic_bool& operator[](size_t idx) { 
+                        return ptr[idx]; 
+                    }
+                    std::atomic_bool* ptr;
+                };
+
+                atomic_bool_vector facet_is_marked_(
+                    facets_end_ - facets_begin_
+                );
+
+                auto test_and_set_facet = [&facet_is_marked_](index_t f) {
+                    bool expected = false;
+                    return facet_is_marked_[f].compare_exchange_strong(
+                        expected, true, std::memory_order_relaxed
+                    );
+                };
+
+                for (index_t f = facets_begin_; f < facets_end_; f++) {
+                    if (test_and_set_facet(f - facets_begin_)) {
+                        // Propagate along the facet-graph, spawning one tbb
+                        // task (in a task_group) per newly reached facet.
+                        // (tbb::task_group is available both in classic tbb
+                        // and in oneTBB, unlike tbb::task.)
+                        tbb::task_group task_group;
+                        std::function<void(FacetSeed)> run_facet;
+                        run_facet = [&](const FacetSeed& cur) {
+                            auto propagate = [&](const FacetSeed& prop) {
+                                task_group.run([&run_facet, prop]() {
+                                    run_facet(prop);
+                                });
+                            };
+                            process_facet(
+                                cur, RVDs.local(), seed_stamps.local(),
+                                test_and_set_facet, propagate
+                            );
+                        };
+                        FacetSeed first_seed(f, find_seed_near_facet(f));
+                        task_group.run_and_wait([&]() { run_facet(first_seed); });
                     }
                 }
             }
@@ -1464,8 +1576,8 @@ namespace GEOGen {
         template <class ACTION>
         inline void compute_volumetric_with_seeds_priority(const ACTION& action){
             if(
-                tets_begin_ == UNSPECIFIED_RANGE &&
-                tets_end_ == UNSPECIFIED_RANGE
+               tets_begin_ == UNSPECIFIED_RANGE && 
+               tets_end_ == UNSPECIFIED_RANGE
             ) {
                 tets_begin_ = 0;
                 tets_end_ = mesh_->cells.nb();
@@ -1474,122 +1586,215 @@ namespace GEOGen {
             geo_assert(tets_begin_ != UNSPECIFIED_RANGE);
             geo_assert(tets_end_ != UNSPECIFIED_RANGE);
 
-            GEO::vector<index_t> seed_stamp(
-                delaunay_->nb_vertices(), index_t(-1)
-            );
-            GEO::vector<bool> tet_is_marked(tets_end_-tets_begin_, false);
+
             init_get_neighbors();
 
+            /////////////////////////////////
+
             TetSeedStack adjacent_tets;
-            SeedStack adjacent_seeds;
-            Polyhedron C(dimension());
             GEO::Attribute<double> vertex_weight;
             vertex_weight.bind_if_is_defined(
                 mesh_->vertices.attributes(), "weight"
             );
 
-            current_polyhedron_ = &C;
             // The algorithm propagates along both the facet-graph of
-            // the surface and the 1-skeleton of the Delaunay triangulation,
+            // the tet mesh and the 1-skeleton of the Delaunay triangulation,
             // and computes all the relevant intersections between
-            // each Voronoi cell and facet.
-            for(index_t t = tets_begin_; t < tets_end_; ++t) {
-                if(!tet_is_marked[t-tets_begin_]) {
-                    // Propagate along the tet-graph.
-                    tet_is_marked[t-tets_begin_] = true;
-                    adjacent_tets.push(
-                        TetSeed(t, find_seed_near_tet(t))
+            // each Voronoi cell and facet.  How it does this depends on whether
+            // it is to be multithreaded via tbb or not.  This is done via two
+            // variadic arguments in the following lambda: 
+            // void propagate_facet(FacetSeed) will call this with a new 
+            // FacetSeed, possibly using tbb.
+            // bool test_and_set_tet(index_t) will (atomically if necessary)
+            // check if the corresponding tet (assuming that offsetting by 
+            // tets_begin_ was done before the call) has already been 
+            // accessed, and set it as accessed if not; it returns true if the 
+            // tet is changed, and false if not.
+            //
+            // Even if multithreading, the extra granularity of multithreading
+            // each tet is likely not worth the cost, so each tet will be
+            // all on a single thread.
+
+            auto process_tet = [&vertex_weight, &action](
+                TetSeed ts, thisclass& RVD, GEO::vector<index_t>& seed_stamp,
+                auto test_and_set_tet, auto propagate_tet) {
+                auto current_tet_ = ts.f;
+                auto current_seed_ = ts.seed;
+
+                // Note: current cell could be looked up here,
+                // (from current_tet_) if we chose to keep it
+                // and copy it right before clipping (I am
+                // not sure that it is worth it, lookup time
+                // will be probably fast enough)
+
+                // Propagate along the Delaunay 1-skeleton
+                // This will traverse all the seeds such that their
+                // Voronoi cell has a non-empty intersection with
+                // the current facet.
+                seed_stamp[current_seed_] = current_tet_;
+
+                SeedStack adjacent_seeds;
+                adjacent_seeds.push(current_seed_);
+
+                while (!adjacent_seeds.empty()) {
+                    current_seed_ = adjacent_seeds.top();
+                    adjacent_seeds.pop();
+
+                    Polyhedron C(dimension());
+                    RVD.current_polyhedron_ = &C;
+
+                    C.initialize_from_mesh_tetrahedron(
+                        RVD.mesh_, current_tet_,
+                        RVD.symbolic_, vertex_weight
                     );
-                    while(!adjacent_tets.empty()) {
-                        current_tet_ = adjacent_tets.top().f;
-                        current_seed_ = adjacent_tets.top().seed;
-                        adjacent_tets.pop();
 
-                        // Note: current cell could be looked up here,
-                        // (from current_tet_) if we chose to keep it
-                        // and copy it right before clipping (I am
-                        // not sure that it is worth it, lookup time
-                        // will be probably fast enough)
+                    RVD.intersect_cell_cell(
+                        current_seed_, C
+                    );
 
-                        // Propagate along the Delaunay 1-skeleton
-                        // This will traverse all the seeds such that their
-                        // Voronoi cell has a non-empty intersection with
-                        // the current facet.
-                        seed_stamp[current_seed_] = current_tet_;
-                        adjacent_seeds.push(current_seed_);
+                    action(
+                        current_seed_, current_tet_,
+                        RVD.current_polyhedron()
+                    );
 
-                        while(!adjacent_seeds.empty()) {
-                            current_seed_ = adjacent_seeds.top();
-                            adjacent_seeds.pop();
+                    // Propagate to adjacent tets and adjacent seeds
+                    // Iterate on the vertices of the cell (remember:
+                    // the cell is represented in dual form)
+                    for (index_t v = 0;
+                        v < RVD.current_polyhedron().max_v(); ++v
+                        ) {
+                        //  Skip clipping planes that are no longer
+                        // connected to a cell facet.
+                        if (RVD.current_polyhedron().vertex_triangle(v) == -1) {
+                            continue;
+                        }
 
-                            C.initialize_from_mesh_tetrahedron(
-                                mesh_, current_tet_, symbolic_, vertex_weight
-                            );
+                        signed_index_t id =
+                            RVD.current_polyhedron().vertex_id(v);
+                        if (id > 0) {
+                            // Propagate to adjacent seed
+                            index_t neigh_s = index_t(id - 1);
+                            if (seed_stamp[neigh_s] != current_tet_) {
+                                seed_stamp[neigh_s] = current_tet_;
+                                adjacent_seeds.push(neigh_s);
+                            }
+                        }
+                        else if (id < 0) {
+                            // id==0 corresponds to facet on boundary (skipped)
+                            // id<0 corresponds to adjacent tet index
 
-                            intersect_cell_cell(
-                                current_seed_, C
-                            );
-
-                            action(
-                                current_seed_, current_tet_,
-                                current_polyhedron()
-                            );
-
-                            // Propagate to adjacent tets and adjacent seeds
-                            // Iterate on the vertices of the cell (remember:
-                            // the cell is represented in dual form)
-                            for(index_t v = 0;
-                                v < current_polyhedron().max_v(); ++v
-                               ) {
-
-                                //  Skip clipping planes that are no longer
-                                // connected to a cell facet.
-                                if(
-                                    current_polyhedron().vertex_triangle(v)
-                                    == -1
+                            // Propagate to adjacent tet
+                            signed_index_t neigh_t = -id - 1;
+                            if (
+                                neigh_t >=
+                                signed_index_t(RVD.tets_begin_) &&
+                                neigh_t < signed_index_t(RVD.tets_end_) &&
+                                neigh_t != signed_index_t(RVD.current_tet_)
                                 ) {
-                                    continue;
-                                }
-
-                                signed_index_t id =
-                                    current_polyhedron().vertex_id(v);
-                                if(id > 0) {
-                                    // Propagate to adjacent seed
-                                    index_t neigh_s = index_t(id - 1);
-                                    if(seed_stamp[neigh_s] != current_tet_) {
-                                        seed_stamp[neigh_s] = current_tet_;
-                                        adjacent_seeds.push(neigh_s);
-                                    }
-                                } else if(id < 0) {
-                                    // id==0 corresponds to facet on boundary
-                                    //  (skipped)
-                                    // id<0 corresponds to adjacent tet index
-
-                                    // Propagate to adjacent tet
-                                    signed_index_t neigh_t = -id - 1;
-                                    if(
-                                        neigh_t >=
-                                        signed_index_t(tets_begin_) &&
-                                        neigh_t <  signed_index_t(tets_end_) &&
-                                        neigh_t != signed_index_t(current_tet_)
+                                if (test_and_set_tet(
+                                    index_t(neigh_t) - RVD.tets_begin_)
                                     ) {
-                                        if(!tet_is_marked[
-                                               index_t(neigh_t)-tets_begin_
-                                           ]) {
-                                            tet_is_marked[
-                                                index_t(neigh_t)-tets_begin_
-                                            ] = true;
-                                            adjacent_tets.push(
-                                                TetSeed(
-                                                    index_t(neigh_t),
-                                                    current_seed_
-                                                )
-                                            );
-                                        }
-                                    }
+                                    propagate_tet(
+                                        TetSeed(index_t(neigh_t), current_seed_)
+                                    );
                                 }
                             }
                         }
+                    }
+                }
+            };
+
+            if (!use_tbb_) {
+                GEO::vector<index_t> seed_stamp(
+                    delaunay_->nb_vertices(), index_t(-1)
+                );
+                GEO::vector<bool> tet_is_marked(tets_end_ - tets_begin_, false);
+                auto test_and_set_tet = [&tet_is_marked](index_t t) {
+                    auto out = !tet_is_marked[t];
+                    tet_is_marked[t] = true;
+                    return out;
+                };
+                for (index_t t = tets_begin_; t < tets_end_; ++t) {
+                    if (!tet_is_marked[t - tets_begin_]) {
+                        // Propagate along the tet-graph.
+                        tet_is_marked[t - tets_begin_] = true;
+                        adjacent_tets.push(
+                            TetSeed(t, find_seed_near_tet(t))
+                        );
+                        auto propagate_tet = [&](TetSeed ts) {
+                            adjacent_tets.push(ts);
+                        };
+                        while (!adjacent_tets.empty()) {
+                            auto current_tet_seed = adjacent_tets.top();
+                            adjacent_tets.pop();
+                            process_tet(
+                                current_tet_seed, *this, seed_stamp,
+                                test_and_set_tet, propagate_tet
+                            );
+                        }
+                    }
+                }
+            }
+            else {
+                auto copy_this = [this]() {
+                    return shallowCopy();
+                };
+                tbb::enumerable_thread_specific<thisclass> RVDs(copy_this);
+                auto make_seed_stamp = [this]() { return GEO::vector<index_t>(
+                    delaunay_->nb_vertices(), index_t(-1)
+                    ); };
+                tbb::enumerable_thread_specific<GEO::vector<index_t>> 
+                    seed_stamps(make_seed_stamp);
+
+                // We can't use std::vector or GEO::vector for atomics because
+                // they are neither moveable nor copyable, but we can make a
+                // simple struct to handle it.
+
+                struct atomic_bool_vector {
+                    atomic_bool_vector(size_t size)
+                        : ptr(new std::atomic_bool[size]()) {
+                        // Nothing to do; the () in the new-expression causes
+                        // the resulting values to all be set to false.
+                    }
+                    ~atomic_bool_vector() {
+                        delete[] ptr;
+                    }
+                    std::atomic_bool& operator[](size_t idx) {
+                        return ptr[idx];
+                    }
+                    std::atomic_bool* ptr;
+                };
+
+                atomic_bool_vector tet_is_marked(tets_end_ - tets_begin_);
+
+                auto test_and_set_tet = [&tet_is_marked](index_t t) {
+                    bool expected = false;
+                    return tet_is_marked[t].compare_exchange_strong(
+                        expected, true, std::memory_order_relaxed
+                    );
+                };
+
+                for (index_t t = tets_begin_; t < tets_end_; t++) {
+                    if (test_and_set_tet(t - tets_begin_)) {
+                        // Propagate along the tet-graph, spawning one tbb
+                        // task (in a task_group) per newly reached tet.
+                        // (tbb::task_group is available both in classic tbb
+                        // and in oneTBB, unlike tbb::task.)
+                        tbb::task_group task_group;
+                        std::function<void(TetSeed)> run_tet;
+                        run_tet = [&](const TetSeed& cur) {
+                            auto propagate = [&](const TetSeed& prop) {
+                                task_group.run([&run_tet, prop]() {
+                                    run_tet(prop);
+                                });
+                            };
+                            process_tet(
+                                cur, RVDs.local(), seed_stamps.local(),
+                                test_and_set_tet, propagate
+                            );
+                        };
+                        TetSeed first_seed(t, find_seed_near_tet(t));
+                        task_group.run_and_wait([&]() { run_tet(first_seed); });
                     }
                 }
             }
@@ -1843,8 +2048,9 @@ namespace GEOGen {
          * that computes the final surface in CVT (i.e., the dual of the
          * connected components).
          * \note This function is less efficient than
-         *  compute_surfacic_with_seeds_priority() but
-         *  is required by some traversals that need to be done in that order.
+         *  compute_surfacic_with_seeds_priority() and does not allow for use
+         *  of tbb for multithreading, but is required by some traversals that
+         *  need to be done in that order.
          * \tparam ACTION needs to implement:
          *  operator()(index_t v, index_t f, const Polygon& P) const
          *  where v denotes the index of the current Voronoi cell
@@ -2268,6 +2474,29 @@ namespace GEOGen {
             }
         }
 
+        /**
+          * \brief Returns a shallow copy.
+          *
+          * \details This function returns a copy that references the same mesh
+          *  and delaunay structure; other pointers are cleared entirely.
+          */
+        RestrictedVoronoiDiagram shallowCopy() const {
+            auto out = *this;
+            out.current_polyhedron_ = nullptr;
+            out.current_polygon_ = nullptr;
+            out.facet_seed_marking_ = nullptr;
+            return out;
+        }
+
+        /**
+          * \brief Move constructor.
+          *
+          * \details The copy constructor is private to force use of
+          *  shallowCopy(), but a move constructor is needed regardless, and
+          *  is harmless since moves are "shallow" by default.
+          */
+        RestrictedVoronoiDiagram(thisclass&& rhs) = default;
+
     protected:
         /**
          * \brief Computes the intersection between a Voronoi cell
@@ -2476,10 +2705,12 @@ namespace GEOGen {
         bool connected_component_changed_;
         index_t current_connected_component_;
 
+        bool use_tbb_ = true;
+
         /**
          * \brief Forbids construction from copy.
          */
-        RestrictedVoronoiDiagram(const thisclass& rhs) = delete;
+        RestrictedVoronoiDiagram(const thisclass& rhs) = default;
 
         /**
          * \brief Forbids assignment.
