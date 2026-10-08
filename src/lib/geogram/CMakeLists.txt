@@ -1,7 +1,19 @@
-# Tetgen (by Hang Si) is currently included by default.
 # Triangle (by Jonathan Shewchuk) is currently included by default.
 
 configure_file(geogram.pc.in ${PROJECT_BINARY_DIR}/geogram${VORPALINE_VERSION_MAJOR}.pc @ONLY)
+
+if(GEOGRAM_WITH_GEOGRAMPLUS)
+   add_subdirectory(geogramplus)
+   list(APPEND SOURCES $<TARGET_OBJECTS:geogramplus>)
+   target_include_directories(
+      geogramplus PRIVATE
+      ${PROJECT_SOURCE_DIR}/src/lib/geogram/
+      ${PROJECT_SOURCE_DIR}/src/lib/geogram/geogramplus/third_party
+   )
+   install_devkit_targets(mini-gmp-plus)
+endif()
+
+add_definitions(-DGEOGRAM_VERSION="${VORPALINE_VERSION}")
 
 add_subdirectory(third_party)
 
@@ -13,17 +25,20 @@ aux_source_directories(SOURCES "Source Files\\delaunay" delaunay)
 aux_source_directories(SOURCES "Source Files\\voronoi"  voronoi)
 aux_source_directories(SOURCES "Source Files\\points"   points)
 aux_source_directories(SOURCES "Source Files\\api"      api)
-aux_source_directories(SOURCES "Source Files\\NL"       NL)
+#aux_source_directories(SOURCES "Source Files\\NL"       NL)
 aux_source_directories(SOURCES "Source Files\\image"    image)
 aux_source_directories(SOURCES "Source Files\\parameterization" parameterization)
 aux_source_directories(SOURCES "Source Files\\bibliography" bibliography)
 
 if(GEOGRAM_WITH_LUA)
-   aux_source_directories(SOURCES "Source Files\\lua"      lua)
+aux_source_directories(SOURCES "Source Files\\lua"      lua)
 endif()
 
 # Parallel Delaunay now works on both Windows and Unix !
 add_definitions(-DGEOGRAM_WITH_PDEL)
+
+# Activate AMGCL support in OpenNL (algebraic multigrid solver)
+add_definitions(-DNL_WITH_AMGCL)
 
 # Copy the default version info to the build directory
 configure_file(basic/version.h.in version.h @ONLY)
@@ -34,59 +49,107 @@ include_directories(${PROJECT_BINARY_DIR}/src/lib)
 
 add_library(geogram ${SOURCES} $<TARGET_OBJECTS:geogram_third_party>)
 
-ntop_import(tbb)
-target_link_libraries(geogram tbb::tbb zlibstatic)
+target_compile_features(geogram PUBLIC cxx_std_17)
 
-if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
-    find_package(OpenMP REQUIRED)
-    target_link_libraries(geogram OpenMP::OpenMP_CXX)
+target_include_directories(geogram PRIVATE
+${PROJECT_SOURCE_DIR}/src/lib/geogram/third_party/amgcl
+)
+
+if(GEOGRAM_WITH_GEOGRAMPLUS)
+target_include_directories(geogram PUBLIC
+${PROJECT_SOURCE_DIR}/src/lib/geogram/
+${PROJECT_SOURCE_DIR}/src/lib/geogram/geogramplus/third_party
+)
+target_link_libraries(geogram mini-gmp-plus)
+endif()
+
+if(GEOGRAM_WITH_TBB)
+target_link_libraries(geogram TBB::tbb) # TODO: Use PRIVATE keyword here
+target_compile_definitions(geogram PRIVATE -DGEO_TBB)
+endif()
+
+# nTop: OpenMP on Linux (as in the previous fork)
+if(CMAKE_SYSTEM_NAME MATCHES "Linux")
+find_package(OpenMP REQUIRED)
+target_link_libraries(geogram OpenMP::OpenMP_CXX)
+endif()
+
+# For now here (quick and dirty fix, for using parallel STL)
+if(LINUX AND NOT GEOGRAM_WITH_EMSCRIPTEN) 
+target_link_libraries(geogram tbb)
 endif()
 
 # Jeremie/Maxence: avoids the need to redeclare geogram include
 # path for targets that depend on geogram.
 # See: https://cmake.org/cmake/help/v3.3/command/target_include_directories.html
 # https://stackoverflow.com/questions/26243169/cmake-target-include-directories-meaning-of-scope
-target_include_directories(geogram PUBLIC ${GEOGRAM_PATH}/src/lib)
+target_include_directories(geogram PUBLIC ${PROJECT_SOURCE_DIR}/src/lib)
+
+if(ANDROID)
+target_include_directories(geogram PRIVATE
+${ANDROID_NDK}/sources/android/native_app_glue
+)
+message(STATUS "building for Android")
+endif()
+
 
 set_target_properties(geogram PROPERTIES
-                      VERSION ${VORPALINE_VERSION}
-                      SOVERSION ${VORPALINE_VERSION_MAJOR}
-		      FOLDER "GEOGRAM")
+VERSION ${VORPALINE_VERSION}
+SOVERSION ${VORPALINE_VERSION_MAJOR}.${VORPALINE_VERSION_MINOR}.${VORPALINE_VERSION_PATCH}
+FOLDER "GEOGRAM")
 
 if(UNIX AND VORPALINE_BUILD_DYNAMIC)
-    target_link_libraries(geogram pthread dl)
+if (ANDROID)
+target_link_libraries(geogram dl)
+else()
+  if(GEOGRAM_USE_BUILTIN_DEPS)
+      target_link_libraries(geogram pthread dl)
+  else()
+      target_link_libraries(geogram pthread dl lua5.4 z triangle Meshb.7 rply)
+  endif()
+endif()
 endif()
 
 if(WIN32)
-    target_link_libraries(geogram psapi)
+target_link_libraries(geogram psapi)
 endif()
 
-target_compile_features(geogram PUBLIC cxx_std_17)
+if(GEOGRAM_WITH_GEOGRAMPLUS)
+target_link_libraries(geogram ${GEOGRAMPLUS_LIBS})
+endif()
+
+if(GEOGRAM_USE_BUILTIN_DEPS)
+    target_compile_definitions(geogram PUBLIC -DGEOGRAM_USE_BUILTIN_DEPS)
+endif()
+
+# nTop: zlib provided by the parent project (turbo: zlibstatic)
+if(GEOGRAM_USE_EXTERNAL_ZLIB)
+    target_link_libraries(geogram ${GEOGRAM_EXTERNAL_ZLIB_TARGET})
+    target_compile_definitions(geogram PUBLIC -DGEOGRAM_USE_EXTERNAL_ZLIB)
+endif()
 
 # Install the library
 install_devkit_targets(geogram)
 
 # Install include files for the standard devkit
 install(
-    DIRECTORY api
-    DESTINATION include/${VORPALINE_INCLUDE_SUBPATH}/geogram
-    COMPONENT devkit
-    FILES_MATCHING PATTERN *.h
+DIRECTORY api
+DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${VORPALINE_INCLUDE_SUBPATH}/geogram
+COMPONENT devkit
+FILES_MATCHING PATTERN *.h
 )
 
 # Install include files for the full devkit
 install(
-    DIRECTORY .
-    DESTINATION include/${VORPALINE_INCLUDE_SUBPATH}/geogram
-    COMPONENT devkit-full
-    FILES_MATCHING PATTERN *.h
-    # Exclude all files related to licensing
-    REGEX /license/ EXCLUDE
+DIRECTORY .
+DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${VORPALINE_INCLUDE_SUBPATH}/geogram
+COMPONENT devkit-full
+FILES_MATCHING PATTERN *.h
+# Exclude all files related to licensing
+REGEX /license/ EXCLUDE
 )
 
 install(
-        FILES "${PROJECT_BINARY_DIR}/geogram${VORPALINE_VERSION_MAJOR}.pc"
-        DESTINATION lib${LIB_SUFFIX}/pkgconfig
+FILES "${PROJECT_BINARY_DIR}/geogram${VORPALINE_VERSION_MAJOR}.pc"
+DESTINATION ${GEOGRAM_INSTALL_PKGCONFIG_DIR}
 )
-
-

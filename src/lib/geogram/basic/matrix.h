@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2014, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -13,7 +13,7 @@
  *  * Neither the name of the ALICE Project-Team nor the names of its
  *  contributors may be used to endorse or promote products derived from this
  *  software without specific prior written permission.
- * 
+ *
  *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -26,19 +26,13 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine, 
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX 
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
@@ -48,6 +42,7 @@
 
 #include <geogram/basic/common.h>
 #include <geogram/basic/vecg.h>
+#include <initializer_list>
 
 /**
  * \file geogram/basic/matrix.h
@@ -57,55 +52,6 @@
 namespace GEO {
 
     /************************************************************************/
-
-    /**
-     * \brief Computes a two-by-two determinant.
-     */
-    inline double det2x2(
-        double a11, double a12,                    
-        double a21, double a22
-    ) {                                 
-        return a11*a22-a12*a21 ;
-    }
-
-    /**
-     * \brief Computes a three-by-three determinant.
-     */
-    inline double det3x3(
-        double a11, double a12, double a13,                
-        double a21, double a22, double a23,                
-        double a31, double a32, double a33
-    ) {
-    return
-         a11*det2x2(a22,a23,a32,a33)   
-        -a21*det2x2(a12,a13,a32,a33)   
-        +a31*det2x2(a12,a13,a22,a23);
-    }   
-
-
-    /**
-     * \brief Computes a four-by-four determinant.
-     */
-    inline double det4x4(
-        double a11, double a12, double a13, double a14,
-        double a21, double a22, double a23, double a24,               
-        double a31, double a32, double a33, double a34,  
-        double a41, double a42, double a43, double a44  
-    ) {
-        double m12 = a21*a12 - a11*a22;
-        double m13 = a31*a12 - a11*a32;
-        double m14 = a41*a12 - a11*a42;
-        double m23 = a31*a22 - a21*a32;
-        double m24 = a41*a22 - a21*a42;
-        double m34 = a41*a32 - a31*a42;
-
-        double m123 = m23*a13 - m13*a23 + m12*a33;
-        double m124 = m24*a13 - m14*a23 + m12*a43;
-        double m134 = m34*a13 - m14*a33 + m13*a43;
-        double m234 = m34*a23 - m24*a33 + m23*a43;
-        
-        return (m234*a14 - m134*a24 + m124*a34 - m123*a44);
-    }   
 
 
     /**
@@ -126,7 +72,7 @@ namespace GEO {
         typedef FT value_type;
 
         /** The dimension of the matrix */
-        static const index_t dim = DIM;
+        static constexpr index_t dim = DIM;
 
         /**
          * \brief Default constructor
@@ -151,7 +97,26 @@ namespace GEO {
                 }
             }
         }
-        
+
+        /**
+         * \brief Constructs a matrix from 2d array of initializers.
+         * \param[in] Mi a 2d array of values to be copied to the matrix.
+         */
+        Matrix(const std::initializer_list< std::initializer_list<FT> >& Mi) {
+            index_t i = 0;
+            for(auto& it: Mi) {
+                index_t j = 0;
+                for(auto& jt: it) {
+                    geo_debug_assert(i < DIM);
+                    geo_debug_assert(j < DIM);
+                    coeff_[i][j] = jt;
+                    ++j;
+                }
+                ++i;
+            }
+        }
+
+
         /**
          * \brief Gets the matrix dimension
          * \return the value of \p DIM
@@ -201,7 +166,7 @@ namespace GEO {
             }
             return true;
         }
-        
+
         /**
          * \brief Gets a modifiable element
          * \details Gets element at row \p i and column \p j in the matrix. If
@@ -379,10 +344,14 @@ namespace GEO {
          * \brief Computes the inverse matrix
          * \details Computes matrix \p M such that (\p this * \p M) = identity
          * \param[out] result the inverse matrix
-         * \return true if the matrix is inversible
+	 * \param[in] min_val minimum absolute value of pivot. If lower than
+	 *  that, the matrix is considered to be non-invertible.
+         * \return true if the matrix is invertible
          * \retval false otherwise
          */
-        bool compute_inverse(matrix_type& result) const {
+        bool compute_inverse(
+	    matrix_type& result, value_type min_val = value_type(0)
+	) const {
             FT val=FT(0.0), val2=FT(0.0);
             matrix_type tmp = (*this);
 
@@ -409,7 +378,7 @@ namespace GEO {
                     }
                 }
 
-                if(val == 0.0) {
+                if(abs(val) <= min_val) {
                     return false;
                 }
 
@@ -429,7 +398,7 @@ namespace GEO {
                     }
                 }
             }
-            
+
             return true;
         }
 
@@ -582,8 +551,61 @@ namespace GEO {
     }
 
     /************************************************************************/
-    
-}
+
+    /**
+     * \brief Computes a matrix vector product.
+     * \param[in] x the vector considered as a row vector
+     * \param[in] M the matrix
+     * \return \p x times \p M
+     * \note This function copies the resulting vector, thus it is not
+     *  very efficient and should be only used when prototyping.
+     */
+    template <index_t DIM, class FT> inline
+    vecng<DIM,FT> operator*(
+        const vecng<DIM,FT>& x, const Matrix<DIM, FT>& M
+    ) {
+        vecng<DIM,FT> y;
+        for(index_t i = 0; i < DIM; i++) {
+            y[i] = 0;
+            for(index_t j = 0; j < DIM; j++) {
+                y[i] += M(j, i) * x[j];
+            }
+        }
+        return y;
+    }
+
+
+    /************************************************************************/
+
+#ifndef GOMGEN
+
+    /**
+     * \brief Computes a matrix vector product.
+     * \param[in] M the matrix
+     * \param[in] x the vector
+     * \return \p M times \p x
+     * \note This function copies the resulting vector, thus it is not
+     *  very efficient and should be only used when prototyping.
+     */
+    template <index_t DIM, class FT>
+    [[deprecated("use operator*(matrix, vector) instead")]]
+    inline vecng<DIM,FT> mult(
+        const Matrix<DIM, FT>& M, const vecng<DIM,FT>& x
+    ) {
+        vecng<DIM,FT> y;
+        for(index_t i = 0; i < DIM; i++) {
+            y[i] = 0;
+            for(index_t j = 0; j < DIM; j++) {
+                y[i] += M(i, j) * x[j];
+            }
+        }
+        return y;
+    }
 
 #endif
 
+    /************************************************************************/
+
+}
+
+#endif

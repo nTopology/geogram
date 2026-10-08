@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2014, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -13,7 +13,7 @@
  *  * Neither the name of the ALICE Project-Team nor the names of its
  *  contributors may be used to endorse or promote products derived from this
  *  software without specific prior written permission.
- * 
+ *
  *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -26,19 +26,13 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine, 
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX 
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
@@ -118,12 +112,12 @@ namespace {
         Mesh& M,
         vector<index_t>& facet_ptr
     ) {
-        const index_t UNVISITED = index_t(-1);
+        static constexpr index_t UNVISITED = NO_INDEX;
 
         vector<index_t> new_index(M.facets.nb(), UNVISITED);
         std::stack<index_t> S;
         index_t new_cur_index = 0;
-        for(index_t f = 0; f < M.facets.nb(); f++) {
+        for(index_t f: M.facets) {
             if(new_index[f] == UNVISITED) {
                 facet_ptr.push_back(new_cur_index);
                 new_index[f] = new_cur_index;
@@ -133,8 +127,7 @@ namespace {
             while(!S.empty()) {
                 index_t ftop = S.top();
                 S.pop();
-                for(index_t c = M.facets.corners_begin(ftop);
-                    c < M.facets.corners_end(ftop); ++c) {
+                for(index_t c: M.facets.corners(ftop)) {
                     index_t g = M.facet_corners.adjacent_facet(c);
                     if(g != NO_FACET && new_index[g] == UNVISITED) {
                         new_index[g] = new_cur_index;
@@ -162,12 +155,12 @@ namespace {
         Mesh& M,
         vector<index_t>& tet_ptr
     ) {
-        const index_t UNVISITED = index_t(-1);
+        static constexpr index_t UNVISITED = NO_INDEX;
 
         vector<index_t> new_index(M.cells.nb(), UNVISITED);
         std::stack<index_t> S;
         index_t new_cur_index = 0;
-        for(index_t t = 0; t < M.cells.nb(); ++t) {
+        for(index_t t: M.cells) {
             if(new_index[t] == UNVISITED) {
                 tet_ptr.push_back(new_cur_index);
                 new_index[t] = new_cur_index;
@@ -205,12 +198,12 @@ namespace GEO {
         index_t nb_parts
     ) {
         switch(mode) {
-            case MESH_PARTITION_HILBERT:
-                partition_Hilbert_surface(M, facet_ptr, nb_parts);
-                break;
-            case MESH_PARTITION_CONNECTED_COMPONENTS:
-                partition_surface_connected_components(M, facet_ptr);
-                break;
+        case MESH_PARTITION_HILBERT:
+            partition_Hilbert_surface(M, facet_ptr, nb_parts);
+            break;
+        case MESH_PARTITION_CONNECTED_COMPONENTS:
+            partition_surface_connected_components(M, facet_ptr);
+            break;
         }
     }
 
@@ -222,18 +215,17 @@ namespace GEO {
         index_t nb_parts
     ) {
         switch(mode) {
-            case MESH_PARTITION_HILBERT:
-                partition_Hilbert_surface_and_volume(
-                    M, facet_ptr, tet_ptr, nb_parts
-                );
-                break;
-            case MESH_PARTITION_CONNECTED_COMPONENTS:
-                partition_surface_connected_components(M, facet_ptr);
-                if(M.cells.nb() != 0) {
-                    partition_volume_connected_components(M, tet_ptr);
-                }
-                break;
+        case MESH_PARTITION_HILBERT:
+            partition_Hilbert_surface_and_volume(
+                M, facet_ptr, tet_ptr, nb_parts
+            );
+            break;
+        case MESH_PARTITION_CONNECTED_COMPONENTS:
+            partition_surface_connected_components(M, facet_ptr);
+            if(M.cells.nb() != 0) {
+                partition_volume_connected_components(M, tet_ptr);
+            }
+            break;
         }
     }
 }
-

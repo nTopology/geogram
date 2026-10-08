@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2014, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -13,7 +13,7 @@
  *  * Neither the name of the ALICE Project-Team nor the names of its
  *  contributors may be used to endorse or promote products derived from this
  *  software without specific prior written permission.
- * 
+ *
  *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -26,19 +26,13 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine, 
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX 
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
@@ -48,11 +42,10 @@
 #include <geogram/basic/process.h>
 #include <geogram/basic/algorithm.h>
 
-#include <tbb/parallel_for.h>
-
 namespace {
 
     using namespace GEO;
+    using GEO::index_t;
 
     /**
      * \brief Comparison functor used to
@@ -96,7 +89,7 @@ namespace {
             return
                 (points_ + i * stride_)[splitting_coord_] <
                 (points_ + j * stride_)[splitting_coord_]
-            ;
+                ;
         }
 
     private:
@@ -115,7 +108,7 @@ namespace GEO {
         NearestNeighborSearch(dim),
         bbox_min_(dim),
         bbox_max_(dim),
-        root_(index_t(-1)) {
+        root_(NO_INDEX) {
     }
 
     KdTree::~KdTree() {
@@ -136,7 +129,7 @@ namespace GEO {
         for(index_t i = 0; i < nb_points; i++) {
             point_index_[i] = i;
         }
-        
+
         // Compute the bounding box.
         for(coord_index_t c = 0; c < dimension(); ++c) {
             bbox_min_[c] =  Numeric::max_float64();
@@ -149,7 +142,7 @@ namespace GEO {
                 bbox_max_[c] = std::max(bbox_max_[c], p[c]);
             }
         }
-        
+
         root_ = build_tree();
     }
 
@@ -225,7 +218,7 @@ namespace GEO {
             (double*)alloca(sizeof(double) * (nb_neighbors+1))
         );
         NN.copy_from_user();
-        get_nearest_neighbors_recursive( 
+        get_nearest_neighbors_recursive(
             root_, 0, nb_points(), bbox_min, bbox_max, box_dist, query_point, NN
         );
         NN.copy_to_user();
@@ -240,10 +233,10 @@ namespace GEO {
         // TODO: optimized version that uses the fact that
         // we know that query_point is in the search data
         // structure already.
-        // (I tried something already, see in the Attic, 
+        // (I tried something already, see in the Attic,
         //  but it did not give any significant speedup).
         get_nearest_neighbors(
-            nb_neighbors, point_ptr(q_index), 
+            nb_neighbors, point_ptr(q_index),
             neighbors, neighbors_sq_dist
         );
     }
@@ -266,15 +259,15 @@ namespace GEO {
         index_t left_node_index;
         index_t right_node_index;
         coord_index_t coord;
-        index_t m;      
+        index_t m;
         double val;
-        
+
         get_node(
             node_index, b, e,
             left_node_index, right_node_index,
             coord, m, val
         );
-        
+
         double cut_diff = query_point[coord] - val;
 
         // If the query point is on the left side
@@ -285,7 +278,7 @@ namespace GEO {
                 double bbox_max_save = bbox_max[coord];
                 bbox_max[coord] = val;
                 get_nearest_neighbors_recursive(
-                    left_node_index, b, m, 
+                    left_node_index, b, m,
                     bbox_min, bbox_max, box_dist, query_point, NN
                 );
                 bbox_max[coord] = bbox_max_save;
@@ -308,7 +301,7 @@ namespace GEO {
                 double bbox_min_save = bbox_min[coord];
                 bbox_min[coord] = val;
                 get_nearest_neighbors_recursive(
-                    right_node_index, m, e, 
+                    right_node_index, m, e,
                     bbox_min, bbox_max, box_dist, query_point, NN
                 );
                 bbox_min[coord] = bbox_min_save;
@@ -321,7 +314,7 @@ namespace GEO {
                 double bbox_min_save = bbox_min[coord];
                 bbox_min[coord] = val;
                 get_nearest_neighbors_recursive(
-                    right_node_index, m, e, 
+                    right_node_index, m, e,
                     bbox_min, bbox_max, box_dist, query_point, NN
                 );
                 bbox_min[coord] = bbox_min_save;
@@ -339,7 +332,7 @@ namespace GEO {
                 double bbox_max_save = bbox_max[coord];
                 bbox_max[coord] = val;
                 get_nearest_neighbors_recursive(
-                    left_node_index, b, m, 
+                    left_node_index, b, m,
                     bbox_min, bbox_max, box_dist, query_point, NN
                 );
                 bbox_max[coord] = bbox_max_save;
@@ -350,7 +343,7 @@ namespace GEO {
     void KdTree::get_nearest_neighbors_leaf(
         index_t node_index, index_t b, index_t e,
         const double* query_point,
-        NearestNeighbors& NN        
+        NearestNeighbors& NN
     ) const {
         geo_argused(node_index);
         NN.nb_visited += (e-b);
@@ -360,7 +353,7 @@ namespace GEO {
 
         // TODO: check generated ASM (I'd like to have AVX here).
         // We may need to dispatch according to dimension.
-        
+
         index_t local_idx[MAX_LEAF_SIZE];
         double  local_sq_dist[MAX_LEAF_SIZE];
 
@@ -414,11 +407,20 @@ namespace GEO {
             }
         }
     }
-    
+
 /****************************************************************************/
-    
+
     BalancedKdTree::BalancedKdTree(coord_index_t dim) :
-        KdTree(dim) {
+        KdTree(dim),
+        m0_(max_index_t()),
+        m1_(max_index_t()),
+        m2_(max_index_t()),
+        m3_(max_index_t()),
+        m4_(max_index_t()),
+        m5_(max_index_t()),
+        m6_(max_index_t()),
+        m7_(max_index_t()),
+        m8_(max_index_t()) {
     }
 
     BalancedKdTree::~BalancedKdTree() {
@@ -429,49 +431,53 @@ namespace GEO {
         splitting_coord_.resize(sz);
         splitting_val_.resize(sz);
 
-        // A tbb Range class can allow us to use tbb for multithreading.
-        class Range {
-        public:
-            // Root node is number 1.
-            // This is because "children at 2*n and 2*n+1" does not
-            // work with 0 !!
+        // If there are more than 16*MAX_LEAF_SIZE (=256) points,
+        // create the tree in parallel
+        if(
+            nb_points() >= (16 * MAX_LEAF_SIZE) &&
+            Process::maximum_concurrent_threads() > 1
+        ) {
+            m0_ = 0;
+            m8_ = nb_points();
+            // Create the first level of the tree
+            m4_ = split_kd_node(1, m0_, m8_);
 
-            Range(BalancedKdTree& tree, index_t b, index_t e) 
-                : tree(tree), b(b), e(e), node_index(1) {}
+            // Create the second level of the tree
+            //  (using two threads)
+            parallel(
+                [this]() { m2_ = split_kd_node(2, m0_, m4_); },
+                [this]() { m6_ = split_kd_node(3, m4_, m8_); }
+            );
 
-            bool empty() const { return b == e; }
-            bool is_divisible() const { return e - b >= 4 * MAX_LEAF_SIZE; }
+            // Create the third level of the tree
+            //  (using four threads)
+            parallel(
+                [this]() { m1_ = split_kd_node(4, m0_, m2_); },
+                [this]() { m3_ = split_kd_node(5, m2_, m4_); },
+                [this]() { m5_ = split_kd_node(6, m4_, m6_); },
+                [this]() { m7_ = split_kd_node(7, m6_, m8_); }
+            );
 
-            Range(Range& r, tbb::split) : Range(r) {
-                auto middle = tree.split_kd_node(node_index, b, e);
+            // Create the fourth level of the tree
+            //  (using eight threads)
+            parallel(
+                [this]() { create_kd_tree_recursive(8 , m0_, m1_); },
+                [this]() { create_kd_tree_recursive(9 , m1_, m2_); },
+                [this]() { create_kd_tree_recursive(10, m2_, m3_); },
+                [this]() { create_kd_tree_recursive(11, m3_, m4_); },
+                [this]() { create_kd_tree_recursive(12, m4_, m5_); },
+                [this]() { create_kd_tree_recursive(13, m5_, m6_); },
+                [this]() { create_kd_tree_recursive(14, m6_, m7_); },
+                [this]() { create_kd_tree_recursive(15, m7_, m8_); }
+            );
 
-                r.e = middle;
-                r.node_index <<= 1;
+        } else {
+            create_kd_tree_recursive(1, 0, nb_points());
+        }
 
-                b = middle;
-                node_index <<= 1;
-                node_index |= 1;
-            }
-
-            void create_single_threaded() const {
-                tree.create_kd_tree_recursive(node_index, b, e);
-            }
-
-        private:
-            BalancedKdTree& tree;
-            index_t b;
-            index_t e;
-            index_t node_index;
-        };
-        
-        struct Body {
-            void operator()(const Range& r) const {
-                r.create_single_threaded();
-            }
-        };
-
-        tbb::parallel_for(Range(*this, 0, nb_points()), Body{});
-        
+        // Root node is number 1.
+        // This is because "children at 2*n and 2*n+1" does not
+        // work with 0 !!
         return 1;
     }
 
@@ -552,12 +558,12 @@ namespace GEO {
 
     index_t AdaptiveKdTree::new_node() {
         splitting_coord_.push_back(0);
-        splitting_val_.push_back(0.0);  
+        splitting_val_.push_back(0.0);
         node_m_.push_back(0);
         node_right_child_.push_back(0);
         return nb_nodes()-1;
     }
-    
+
     index_t AdaptiveKdTree::build_tree() {
         // Create kd-tree. Local copy of the bbox is used, because it
         // is modified during traversal.
@@ -567,22 +573,22 @@ namespace GEO {
             bbox_min[c] = bbox_min_[c];
             bbox_max[c] = bbox_max_[c];
         }
-        
+
         splitting_coord_.resize(0);
         splitting_val_.resize(0);
         node_m_.resize(0);
         node_right_child_.resize(0);
-        
+
         return create_kd_tree_recursive(0, nb_points(), bbox_min, bbox_max);
     }
 
 
     index_t AdaptiveKdTree::create_kd_tree_recursive(
         index_t b, index_t e,
-        double* bbox_min, double* bbox_max                  
+        double* bbox_min, double* bbox_max
     ) {
         if(e - b <= MAX_LEAF_SIZE) {
-            return index_t(-1);
+            return NO_INDEX;
         }
 
         index_t m;
@@ -600,7 +606,7 @@ namespace GEO {
         splitting_coord_[n] = cut_dim;
         splitting_val_[n] = cut_val;
         node_m_[n] = m;
-        
+
         {
             double bbox_max_save = bbox_max[cut_dim];
             bbox_max[cut_dim] = cut_val;
@@ -627,19 +633,19 @@ namespace GEO {
             node_right_child_[n] = right_child;
             bbox_min[cut_dim] = bbox_min_save;
         }
-        
+
         return n;
     }
 
     void AdaptiveKdTree::split_kd_node(
         index_t b, index_t e,
         double* bbox_min, double* bbox_max,
-        index_t& m, coord_index_t& cut_dim, double& cut_val     
+        index_t& m, coord_index_t& cut_dim, double& cut_val
     ) {
         // Like "sliding midpoint split" in ANN.
-        
+
         const double ERR=0.001;
-        
+
         // Find length of longest box size
         double max_length = -1.0;
         for(coord_index_t d=0; d<dimension(); ++d) {
@@ -649,7 +655,7 @@ namespace GEO {
 
         // Cutting coordinate
         cut_dim=0;
-        
+
         // Find long side with most spread
         double max_spread = -1.0;
         for(coord_index_t d=0; d<dimension(); ++d) {
@@ -670,20 +676,20 @@ namespace GEO {
         get_minmax(b, e, cut_dim, coord_min, coord_max);
 
         cut_val = ideal_cut_val;
-        
+
         // Make it slide if need be.
         if(ideal_cut_val < coord_min) {
             cut_val = coord_min;
         } else if (ideal_cut_val > coord_max) {
             cut_val = coord_max;
         }
-        
+
         index_t br1,br2;
         plane_split(b,e,cut_dim,cut_val,br1,br2);
 
         index_t m0 = b + (e-b)/2;
         m = m0;
-        
+
         if(ideal_cut_val < coord_min) {
             m = b+1;
         } else if(ideal_cut_val > coord_max) {
@@ -692,9 +698,9 @@ namespace GEO {
             m = br1;
         } else if(br2 < m0) {
             m = br2;
-        } 
+        }
     }
-    
+
     void AdaptiveKdTree::plane_split(
         index_t b_in, index_t e_in, coord_index_t coord, double val,
         index_t& br1_out, index_t& br2_out
@@ -752,8 +758,7 @@ namespace GEO {
         m = node_m_[n];
         splitting_val = splitting_val_[n];
     }
-    
-    /*************************************************************************/
-    
-}
 
+    /*************************************************************************/
+
+}

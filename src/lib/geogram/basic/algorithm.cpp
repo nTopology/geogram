@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2014, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -26,39 +26,29 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine,
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
 
 #include <geogram/basic/algorithm.h>
 #include <geogram/basic/command_line.h>
+#include <geogram/basic/process.h>
 
 namespace GEO {
 
-    bool uses_parallel_algorithm() {
-        // static bool initialized = false;
-        // static bool result = false;
-        // if(!initialized) {
-        //     result =
-        //         CmdLine::get_arg_bool("sys:multithread") &&
-        //         CmdLine::get_arg_bool("algo:parallel");
-        //     initialized = true;
-        // }
-        // return result;
-        return true;
+    bool uses_parallel_algorithm(size_t size) {
+        // The CmdLine arguments sys:multithread and algo:parallel are not
+        // declared when geogram is embedded, and the lazily-initialized
+        // statics were a data race: always enabled.
+        const bool result = true;
+        bool large_enough = (size == 0 || size > 65535);
+        return result && large_enough && !Process::is_running_threads();
     }
 }
-

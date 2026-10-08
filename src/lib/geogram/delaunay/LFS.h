@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2014, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -13,7 +13,7 @@
  *  * Neither the name of the ALICE Project-Team nor the names of its
  *  contributors may be used to endorse or promote products derived from this
  *  software without specific prior written permission.
- * 
+ *
  *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -26,19 +26,13 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine, 
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX 
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
@@ -66,67 +60,66 @@ namespace GEO {
      */
     class GEOGRAM_API LocalFeatureSize {
     public:
-        /**
-         * \brief Initializes lfs computation.
-         * \param[in] nb_pts number of points
-         * \param[in] pts a sampling of the surface, represented by
-         *  a contiguous array of doubles.
-         */
-        LocalFeatureSize(index_t nb_pts, const double* pts) {
-            sliver_angle_threshold_ = 0.01;
-            init(nb_pts, pts);
-        }
+    /**
+     * \brief Initializes lfs computation.
+     * \param[in] nb_pts number of points
+     * \param[in] pts a sampling of the surface, represented by
+     *  a contiguous array of doubles.
+     */
+    LocalFeatureSize(index_t nb_pts, const double* pts) {
+        sliver_angle_threshold_ = 0.01;
+        init(nb_pts, pts);
+    }
 
-        /**
-         * \brief Computes the squared local feature size at a query point.
-         * \param[in] p the query point
-         * \return approximate squared local feature size at point \p p.
-         */
-        double squared_lfs(const double* p) const {
-            index_t v = spatial_search_->nearest_vertex(p);
-            const double* q = spatial_search_->vertex_ptr(v);
-            return
-                geo_sqr(p[0] - q[0]) +
-                geo_sqr(p[1] - q[1]) +
-                geo_sqr(p[2] - q[2]);
-        }
+    /**
+     * \brief Computes the squared local feature size at a query point.
+     * \param[in] p the query point
+     * \return approximate squared local feature size at point \p p.
+     */
+    double squared_lfs(const double* p) const {
+        index_t v = spatial_search_->nearest_vertex(p);
+        const double* q = spatial_search_->vertex_ptr(v);
+        return
+            geo_sqr(p[0] - q[0]) +
+            geo_sqr(p[1] - q[1]) +
+            geo_sqr(p[2] - q[2]);
+    }
 
-        /**
-         * \brief Gets the number of poles.
-         * \return the number of poles.
-         */
-        index_t nb_poles() const {
-            return poles_.size()/3;
-        }
+    /**
+     * \brief Gets the number of poles.
+     * \return the number of poles.
+     */
+    index_t nb_poles() const {
+        return poles_.size()/3;
+    }
 
-        /**
-         * \brief Gets a reference to a pole.
-         * \param[in] i the index of the pole
-         * \return a const pointer to the three coordinates of the
-         *  \p i th pole
-         * \pre i < nb_poles()
-         */
-        const double* pole(index_t i) const {
-            geo_debug_assert(i < nb_poles());
-            return &poles_[3*i];
-        }
-        
+    /**
+     * \brief Gets a reference to a pole.
+     * \param[in] i the index of the pole
+     * \return a const pointer to the three coordinates of the
+     *  \p i th pole
+     * \pre i < nb_poles()
+     */
+    const double* pole(index_t i) const {
+        geo_debug_assert(i < nb_poles());
+        return &poles_[3*i];
+    }
+
     protected:
-        /**
-         * \brief Constructs the internal representation used to compute
-         *  the local feature size.
-         * \param[in] nb_pts number of points
-         * \param[in] pts pointer to the points coordinates, as a contiguous
-         *  array of doubles.
-         */
-        void init(index_t nb_pts, const double* pts);
+    /**
+     * \brief Constructs the internal representation used to compute
+     *  the local feature size.
+     * \param[in] nb_pts number of points
+     * \param[in] pts pointer to the points coordinates, as a contiguous
+     *  array of doubles.
+     */
+    void init(index_t nb_pts, const double* pts);
 
     private:
-        double sliver_angle_threshold_;
-        vector<double> poles_;
-        Delaunay_var spatial_search_;
+    double sliver_angle_threshold_;
+    vector<double> poles_;
+    Delaunay_var spatial_search_;
     };
 }
 
 #endif
-

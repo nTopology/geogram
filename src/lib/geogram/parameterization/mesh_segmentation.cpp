@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2016, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -13,7 +13,7 @@
  *  * Neither the name of the ALICE Project-Team nor the names of its
  *  contributors may be used to endorse or promote products derived from this
  *  software without specific prior written permission.
- * 
+ *
  *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -26,19 +26,13 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine, 
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX 
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
@@ -47,442 +41,578 @@
 #include <geogram/mesh/mesh.h>
 #include <geogram/mesh/mesh_geometry.h>
 #include <geogram/mesh/mesh_io.h>
-#include <geogram/basic/numeric.h>
+#include <geogram/mesh/mesh_manifold_harmonics.h>
+#include <geogram/voronoi/CVT.h>
+#include <geogram/voronoi/RVD.h>
+#include <geogram/voronoi/RVD_callback.h>
+#include <geogram/voronoi/generic_RVD_polygon.h>
+#include <geogram/points/principal_axes.h>
 #include <geogram/numerics/matrix_util.h>
+#include <geogram/basic/numeric.h>
 
 #include <deque>
+#include <stack>
 
+/**************************************************************************
+ ****  SMOOTH PARTITION                                                ****
+ **************************************************************************/
+
+namespace {
+    using namespace GEO;
+
+
+    /**
+     * \brief Iterator that traverses all facets incident to
+     * a given internal vertex.
+     * \param[in] M a reference to the mesh
+     * \param[in] f a facet incident to the vertex
+     * \param[in] lv the local index of the vertex in \p f
+     * \param[in] CB the function or lambda to be called for
+     *  all facets incident to the vertex
+     */
+    inline void for_each_facet_around_internal_vertex(
+        const Mesh& M, index_t f, index_t lv,
+        std::function<void(index_t, index_t)> CB
+    ) {
+        index_t v = M.facets.vertex(f,lv);
+        index_t cur_f = f;
+        index_t cur_lv = lv;
+        index_t count = 0;
+        do {
+            CB(cur_f, cur_lv);
+            cur_f = M.facets.adjacent(cur_f,cur_lv);
+            geo_assert(cur_f != NO_INDEX);
+            cur_lv = M.facets.find_vertex(cur_f, v);
+            geo_assert(cur_lv != NO_INDEX);
+            ++count;
+            geo_assert(count < 10000); // sanity check (are we looping forever?)
+        } while(cur_f != f);
+    }
+
+    /**
+     * \brief Utility class for mesh partition smoothing
+     * \details Determines whether chart indices in the facets incident to
+     *  a given vertex could be changed to reduce chart border length
+     */
+    class SmoothVertex {
+    public:
+
+        SmoothVertex() {
+        }
+
+        /**
+         * \brief SmoothVertex constructor
+         * \param[in] M a reference to the mesh
+         * \param[in] chart a reference to the partition facet attribute
+         * \param[in] f a facet incident to the vertex
+         * \param[in] lv the local index of the vertex in \p f
+         */
+        SmoothVertex(
+            const Mesh& M,
+            Attribute<index_t>& chart,
+            index_t f,
+            index_t lv
+        ) {
+            f_ = f;
+            lv_ = lv;
+            v_ = M.facets.vertex(f_,lv_);
+            is_valid_ = true;
+            chart_id_ = NO_INDEX;
+
+            // Get chart1 and chart2 Ids
+            index_t chart1 = NO_INDEX;
+            index_t chart2 = NO_INDEX;
+            index_t prev_chart = NO_INDEX;
+            for_each_facet_around_internal_vertex(
+                M,f,lv,
+                [&](index_t cur_f, index_t cur_lv) {
+                    geo_argused(cur_lv);
+                    if(chart1 == NO_INDEX) {
+                        chart1 = chart[cur_f];
+                    } else if(chart[cur_f] != chart1 && chart2 == NO_INDEX) {
+                        chart2 = chart[cur_f];
+                    }
+                    prev_chart = chart[cur_f];
+                }
+            );
+
+            // Test that vertex is incident to at most
+            // two charts and that chart id changes at most
+            // twice when turning around the vertex
+            index_t nb_change=0;
+            index_t nb_chart1=0;
+            index_t nb_chart2=0;
+            for_each_facet_around_internal_vertex(
+                M,f,lv,
+                [&](index_t cur_f, index_t cur_lv) {
+                    geo_argused(cur_lv);
+                    if(chart[cur_f] != prev_chart) {
+                        ++nb_change;
+                    }
+                    prev_chart = chart[cur_f];
+                    if(chart[cur_f] == chart1) {
+                        ++nb_chart1;
+                    } else if(chart[cur_f] == chart2) {
+                        ++nb_chart2;
+                    } else {
+                        is_valid_ = false;
+                    }
+                }
+            );
+            is_valid_ = is_valid_ &&
+                (chart1 != NO_INDEX) &&
+                (chart2 != NO_INDEX) ;
+            is_valid_ = is_valid_ && (nb_change <= 2);
+            if(!is_valid_) {
+                return;
+            }
+            chart_id_ = (nb_chart1 > nb_chart2) ? chart1 : chart2;
+
+            // Compute delta len
+            delta_len_ = 0.0;
+            for_each_facet_around_internal_vertex(
+                M,f,lv,
+                [&](index_t cur_f, index_t cur_lv) {
+                    index_t N = M.facets.nb_vertices(cur_f);
+                    index_t prev_lv = (cur_lv == 0)   ? (N-1) : cur_lv - 1;
+                    index_t next_lv = (cur_lv == N-1) ?  0    : cur_lv + 1;
+                    index_t prev_v = M.facets.vertex(cur_f, prev_lv);
+                    index_t v      = M.facets.vertex(cur_f, cur_lv);
+                    index_t next_v = M.facets.vertex(cur_f, next_lv);
+                    vec3 prev_p = M.vertices.point(prev_v);
+                    vec3 p = M.vertices.point(v);
+                    vec3 next_p = M.vertices.point(next_v);
+                    if(chart[cur_f] !=
+                       chart[M.facets.adjacent(cur_f, cur_lv)]) {
+                        delta_len_ += Geom::distance(p, next_p);
+                    }
+                    if(chart[cur_f] != chart_id_) {
+                        delta_len_ -= Geom::distance(prev_p, p);
+                    }
+                }
+            );
+            is_valid_ = is_valid_ && delta_len_ > 0;
+        }
+
+        /**
+         * \brief used to sort a vector of SmoothVertex and
+         *  smooth them in order of priority.
+         */
+        bool operator<(const SmoothVertex& rhs) const {
+            return (delta_len_ < rhs.delta_len_) ;
+        }
+
+        /**
+         * \brief Changes chart ids in the facets incident to
+         *  this SmoothVertex.
+         * \param[in] M a reference to the mesh
+         * \param[in,out] chart a reference to the segmentation facet attribute
+         * \param[in,out] v_is_locked a vector of booleans that forbids
+         *  smoothing the neighbors of a vertex that was already smoothed
+         */
+        bool apply(
+            Mesh& M,
+            Attribute<index_t>& chart,
+            std::vector<bool>& v_is_locked
+        ) {
+            if(v_is_locked[M.facets.vertex(f_, lv_)]) {
+                return false;
+            }
+            for_each_facet_around_internal_vertex(
+                M,f_,lv_,
+                [&](index_t cur_f, index_t cur_lv) {
+                    chart[cur_f] = chart_id_;
+                    index_t N = M.facets.nb_vertices(cur_f);
+                    index_t next_lv = (cur_lv == N-1) ? 0 : cur_lv + 1;
+                    v_is_locked[M.facets.vertex(cur_f,next_lv)] = true;
+                }
+            );
+            return true;
+        }
+
+        /**
+         * \brief Tests whether this SmoothVertex can be applied.
+         * \details A SmoothVertex cannot be applied if it is incident
+         *  to more than two charts or if one of its neighbors are incident
+         *  to more than two charts, or if chart id changes more than twice
+         *  when turning around it.
+         * \retval true if it can be applied, false otherwise
+         */
+        bool is_valid() const {
+            return is_valid_ ;
+        }
+
+    public:
+        index_t f_;
+        index_t lv_;
+        index_t v_;
+        index_t chart_id_;
+        double delta_len_;
+        bool is_valid_;
+    };
+
+    /*****************************************************/
+
+    /**
+     * \brief Smoothes a mesh segmentation by changing chart ids in order
+     *  to reduce total chart border length
+     * \param[in,out] M a reference to a mesh
+     * \param[in] nb_iter number of iterations of partition smoothing
+     */
+    void mesh_smooth_segmentation(Mesh& M, index_t nb_iter=10) {
+
+        // For each vertex, store one facet incident to that vertex
+        vector<index_t> v_to_f(M.vertices.nb(), NO_INDEX);
+        for(index_t c: M.facet_corners) {
+            v_to_f[M.facet_corners.vertex(c)] =
+                M.facet_corners.adjacent_facet(c) ;
+        }
+
+        vector<bool> v_on_border(M.vertices.nb(), false);
+        for(index_t c: M.facet_corners) {
+            index_t v = M.facet_corners.vertex(c);
+            if(M.facet_corners.adjacent_facet(c) == NO_INDEX) {
+                v_on_border[v] = true;
+            }
+        }
+
+        // Remove vertices on border and vertices adjacent to a vertex
+        // on border
+        for(index_t f: M.facets) {
+            for(index_t c1: M.facets.corners(f)) {
+                index_t v1 = M.facet_corners.vertex(c1);
+                index_t c2 = M.facets.next_corner_around_facet(f,c1);
+                index_t v2 = M.facet_corners.vertex(c2);
+                if(
+                    M.facet_corners.adjacent_facet(c1) == NO_INDEX ||
+                    v_on_border[v2]
+                ) {
+                    v_to_f[v1] = NO_INDEX;
+                }
+            }
+        }
+
+        Attribute<index_t> chart(M.facets.attributes(),"chart");
+        vector<bool> v_is_locked;
+        vector<SmoothVertex> smooth_vertices;
+
+        for(index_t i=0; i<nb_iter; ++i) {
+            smooth_vertices.resize(0);
+            v_is_locked.assign(M.vertices.nb(),false);
+            for(index_t v: M.vertices) {
+                // skip vertices on border
+                //  and vertices adjacent to vertices on border
+                //  and isolated vertices
+                if(v_to_f[v] == NO_INDEX) {
+                    continue;
+                }
+                SmoothVertex sv(
+                    M, chart, v_to_f[v], M.facets.find_vertex(v_to_f[v],v)
+                );
+                if(sv.is_valid()) {
+                    smooth_vertices.push_back(sv);
+                }
+            }
+            std::sort(smooth_vertices.begin(), smooth_vertices.end()) ;
+            bool changed = false;
+            for(SmoothVertex& sv: smooth_vertices) {
+                if(sv.apply(M, chart, v_is_locked)) {
+                    changed = true;
+                }
+            }
+            if(!changed) {
+                break;
+            }
+        }
+    }
+
+
+    /**
+     * \brief Makes sure that each chart of the segmentation is
+     *  connected.
+     * \details Segmentation is stored in the "chart" facet attribute.
+     *  Generates a new chart id for each connected component of
+     *  the input charts.
+     * \return number of charts
+     */
+    index_t mesh_postprocess_segmentation(Mesh& M, bool verbose=false) {
+        Attribute<index_t> chart;
+        chart.bind_if_is_defined(M.facets.attributes(),"chart");
+        geo_assert(chart.is_bound());
+
+        // Mark facets as non-visited by negating chart id
+        for(index_t f: M.facets) {
+            signed_index_t id = -signed_index_t(chart[f])-1;
+            chart[f] = index_t(id);
+        }
+
+        std::stack<index_t> S;
+        index_t cur_chart = 0;
+        for(index_t f: M.facets) {
+            index_t f_chart = chart[f];
+            if(signed_index_t(f_chart) < 0) {
+                chart[f] = cur_chart;
+                S.push(f);
+                while(!S.empty()) {
+                    index_t cur_f = S.top();
+                    S.pop();
+                    for(index_t e=0; e<M.facets.nb_vertices(cur_f); ++e) {
+                        index_t neigh_f = M.facets.adjacent(cur_f,e);
+                        if(
+                            neigh_f != NO_INDEX &&
+                            chart[neigh_f] == f_chart
+                        ) {
+                            chart[neigh_f] = cur_chart;
+                            S.push(neigh_f);
+                        }
+                    }
+                }
+                ++cur_chart;
+            }
+        }
+        if(verbose) {
+            Logger::out("Segmentation") << cur_chart << " charts" << std::endl;
+        }
+        return cur_chart;
+    }
+}
+
+/***************************************************************************
+ ***** MESH_SEGMENT CVT                                                *****
+ ***************************************************************************/
 
 namespace {
     using namespace GEO;
 
     /**
-     * PrincipalAxes3d enables the center and inertia axes of
-     * a cloud of 3d points to be computed.
+     * \brief Helper class for mesh_segment()
+     * \details In a restricted Voronoi diagram, finds for each facet
+     *  of the mesh the id of the Voronoi cell that has the largest
+     *  intersection with the mesh.
      */
-    class PrincipalAxes3d {
+    class PartitionCB : public RVDPolygonCallback {
     public:
-        PrincipalAxes3d() {
+        PartitionCB(const Mesh* mesh) : mesh_(mesh) {
         }
 
-        void begin_points() {
-            nb_points_ = 0 ;
-            sum_weights_ = 0 ;
-            center_[0] = center_[1] = center_[2] = 0 ;
-            M_[0] = M_[1] = M_[2] = M_[3] = M_[4] = M_[5] = 0 ;
+        void begin() override {
+            facet_seed_.assign(mesh_->facets.nb(), NO_INDEX);
+            facet_RVD_area_.assign(mesh_->facets.nb(), 0.0);
         }
 
-        void end_points() {
-            center_[0] /= sum_weights_ ;
-            center_[1] /= sum_weights_ ;
-            center_[2] /= sum_weights_ ;
-            
-            // If the system is under-determined, 
-            //   return the trivial basis.
-            if(nb_points_ < 4) {
-                axis_[0] = vec3(1,0,0) ;
-                axis_[1] = vec3(0,1,0) ;
-                axis_[2] = vec3(0,0,1) ;
-                eigen_value_[0] = 1.0 ;
-                eigen_value_[1] = 1.0 ;
-                eigen_value_[2] = 1.0 ;
-            } else {
-                double x = center_[0] ;
-                double y = center_[1] ;
-                double z = center_[2] ;
-                
-                M_[0] = M_[0]/sum_weights_ - x*x ;
-                M_[1] = M_[1]/sum_weights_ - x*y ;
-                M_[2] = M_[2]/sum_weights_ - y*y ;
-                M_[3] = M_[3]/sum_weights_ - x*z ;
-                M_[4] = M_[4]/sum_weights_ - y*z ;
-                M_[5] = M_[5]/sum_weights_ - z*z ;
-                
-                if( M_[0] <= 0 ) {
-                    M_[0] = 1.e-30 ; 
-                }
-                if( M_[2] <= 0 ) {
-                    M_[2] = 1.e-30 ; 
-                }
-                if( M_[5] <= 0 ) {
-                    M_[5] = 1.e-30 ; 
-                }
-                
-                double eigen_vectors[9] ;
-                MatrixUtil::semi_definite_symmetric_eigen(M_, 3, eigen_vectors, eigen_value_) ;
-                
-                axis_[0] = vec3(
-                    eigen_vectors[0], eigen_vectors[1], eigen_vectors[2]
-                );
-                
-                axis_[1] = vec3(
-                    eigen_vectors[3], eigen_vectors[4], eigen_vectors[5]
-                );
-        
-                axis_[2] = vec3(
-                    eigen_vectors[6], eigen_vectors[7], eigen_vectors[8]
-                );
-        
-                // Normalize the eigen vectors
-                
-                for(int i=0; i<3; i++) {
-                    axis_[i] = normalize(axis_[i]) ;
-                }
+        void end() override {
+            Attribute<index_t> chart(mesh_->facets.attributes(), "chart");
+            for(index_t f:mesh_->facets) {
+                chart[f] = facet_seed_[f];
             }
         }
 
-        void point(const vec3& p, double weight = 1.0) {
-            center_[0] += p.x * weight ;
-            center_[1] += p.y * weight ;
-            center_[2] += p.z * weight ;
-            
-            double x = p.x ;
-            double y = p.y ; 
-            double z = p.z ;
-            
-            M_[0] += weight * x*x ;
-            M_[1] += weight * x*y ;
-            M_[2] += weight * y*y ;
-            M_[3] += weight * x*z ;
-            M_[4] += weight * y*z ;
-            M_[5] += weight * z*z ;
-            
-            nb_points_++ ;
-            sum_weights_ += weight ;
-        }
-        
-        vec3 center() const {
-            return vec3(center_[0], center_[1], center_[2]);
+        void operator() (
+            index_t v,
+            index_t t,
+            const GEOGen::Polygon& C
+        ) const override {
+            double A = area(C);
+            if(facet_seed_[t] == NO_INDEX || A > facet_RVD_area_[t]) {
+                facet_seed_[t] = v;
+                facet_RVD_area_[t] = A;
+            }
         }
 
-        const vec3& axis(index_t i) const {
-            return axis_[i];
+        double area(const GEOGen::Polygon& C) const {
+            double result = 0.0;
+            vec3 p0(C.vertex(0).point());
+            for(index_t i=1; i<C.nb_vertices()-1; ++i) {
+                vec3 pi(C.vertex(i).point());
+                vec3 pj(C.vertex(i+1).point());
+                result += Geom::triangle_area(p0,pi,pj);
+            }
+            return result;
         }
 
-        /* // Unused
-        double eigen_value(index_t i) const {
-            return eigen_value_[i];
-        }
-        */
-        
     private:
-        double center_[3] ;
-        vec3 axis_[3] ;
-        double eigen_value_[3] ;
-        
-        double M_[6] ;
-        int nb_points_ ;
-        double sum_weights_ ;
+        const Mesh* mesh_;
+        mutable vector<index_t> facet_seed_;
+        mutable vector<double> facet_RVD_area_;
     };
+}
+
+/***************************************************************************
+ ***** MESH_SEGMENT PPAL AXIS                                          *****
+ ***************************************************************************/
+
+namespace {
+    using namespace GEO;
 
     /**
-     * \brief Finds the facet of a mesh that is the furthest away
-     *  from a given facet.
-     * \param[in] chart a reference to a Chart
-     * \param[in] f the facet
-     * \return the facet of \p chart that is furthest away from \p f.
+     * \brief Splits a chart along one of its principal axis
+     * \details Greedily grow two charts from the two facets that
+     *  are furthest away along the specified axis
+     * \param[in] M a reference to the Mesh
+     * \param[in] axis one of 0,1,2
+     * \retval true if chart boundary touches a border
+     * \retval false otherwise
      */
-    index_t furthest_facet(Chart& chart, index_t f) {
-        vec3 p = Geom::mesh_facet_center(chart.mesh,f);
-        index_t result = f;
-        double best_dist2 = 0.0;
-        for(index_t ff=0; ff<chart.facets.size(); ++ff) {
-            index_t f2 = chart.facets[ff];
-            if(f2 != f) {
-                vec3 q = Geom::mesh_facet_center(chart.mesh,f2);
-                double cur_dist2 = distance2(p,q);
-                if(cur_dist2 >= best_dist2) {
-                    result = f2;
-                    best_dist2 = cur_dist2;
-                }
-            }
-        }
-        return result;
-    }
-    
-    void find_furthest_facet_pair_along_principal_axis(
-        Chart& chart, index_t& f0, index_t& f1,
-        index_t axis
-    ) {
-        f0 = NO_FACET;
-        f1 = NO_FACET;
-        double min_z = Numeric::max_float64() ;
-        double max_z = Numeric::min_float64() ;
+    bool split_chart_along_principal_axis(Mesh & M, index_t axis) {
+        Attribute<index_t> chart(M.facets.attributes(), "chart");
 
         PrincipalAxes3d axes ;
-        axes.begin_points() ;
-        for(index_t ff=0; ff<chart.facets.size(); ++ff) {
-            index_t f = chart.facets[ff];
-            for(index_t lv=0; lv<chart.mesh.facets.nb_vertices(f); ++lv) {
-                index_t v = chart.mesh.facets.vertex(f,lv);
-                axes.point(vec3(chart.mesh.vertices.point_ptr(v)));
+        axes.begin() ;
+        for(index_t f: M.facets) {
+            for(index_t lv=0; lv<M.facets.nb_vertices(f); ++lv) {
+                index_t v = M.facets.vertex(f,lv);
+                axes.add_point(M.vertices.point(v));
             }
         }
-        axes.end_points() ;
+        axes.end() ;
         vec3 center = axes.center() ;
+        vec3 X = axes.axis(axis) ;
 
-        // If these facets do not exist (for instance, in the case
-        //  of a torus), find two facets far away one from each other
-        //  along the longest axis.
-        // vec3 X = axes.axis(2 - axis) ;
-        vec3 X = axes.axis(axis) ;      
-        if(f0 == NO_FACET || f1 == NO_FACET || f0 == f1) {
-            for(index_t ff=0; ff<chart.facets.size(); ++ff) {
-                index_t f = chart.facets[ff];
-                vec3 p = Geom::mesh_facet_center(chart.mesh, f);
-                double z = dot(p - center, X) ;
-                if(z < min_z) {
-                    min_z = z ;
-                    f0 = f ;
-                }
-                if(z > max_z) {
-                    max_z = z ;
-                    f1 = f ;
-                }
-            } 
+        vector<double> X_coord(M.facets.nb());
+
+        for(index_t f: M.facets) {
+            X_coord[f] = dot(X,(Geom::mesh_facet_center(M,f) - center));
         }
-        if(f1 == f0) {
-            f1 = furthest_facet(chart, f0);
+
+        vector<double> axis_coord = X_coord;
+        std::sort(axis_coord.begin(), axis_coord.end());
+        double X_cutoff = axis_coord[axis_coord.size()/2];
+
+        for(index_t f: M.facets) {
+            chart[f] = (X_coord[f] > X_cutoff);;
         }
+
+        // Test whether chart boundary touches mesh border
+        // (which is what we want if we split a cylindroid
+        // or a sockoid).
+        for(index_t f: M.facets) {
+            index_t N = M.facets.nb_vertices(f);
+            for(index_t e1=0; e1<N; ++e1) {
+                index_t e2 = (e1+1)%N;
+
+                index_t adj1 = M.facets.adjacent(f,e1);
+                index_t adj2 = M.facets.adjacent(f,e2);
+
+                if(
+                    adj1 == NO_INDEX &&
+                    adj2 != NO_INDEX &&
+                    chart[adj2] != chart[f]
+                ) {
+                    return true;
+                }
+
+                if(
+                    adj2 == NO_INDEX &&
+                    adj1 != NO_INDEX &&
+                    chart[adj1] != chart[f]
+                ) {
+                    return true;
+                }
+
+            }
+
+        }
+
+        return false;
     }
-
-
-    /**
-     * \brief Comparison functor for greedy algorithms that compute mesh 
-     *  partitions.
-     */
-    class FacetDistanceCompare {
-    public:
-
-        /**
-         * \brief FacetDistanceCompare constructor.
-         * \param[in] dist_in a facet attribute attached to a surface.
-         */
-        FacetDistanceCompare(Attribute<double>& dist_in) : distance(dist_in) {
-        }
-
-        /**
-         * \brief Compares two facets.
-         * \param[in] f1 , f2 the two facets.
-         * \retval true of the stored distance of \p f1 is smaller than the 
-         *  one for \p f2.
-         * \retval false otherwise.
-         */
-        bool operator()(index_t f1, index_t f2) const {
-            return distance[f1] < distance[f2];
-        }
-        Attribute<double>& distance;
-    };
 }
 
 namespace GEO {
 
-    void split_chart_along_principal_axis(
-        Chart& chart, Chart& new_chart_1, Chart& new_chart_2, index_t axis,
-        bool verbose
+    index_t mesh_segment(
+        Mesh& M, MeshSegmenter segmenter, index_t nb_segments, bool verbose
     ) {
+        geo_assert(M.facets.are_simplices());
 
+        double anisotropy = 0.0;
+	if(segmenter == SEGMENT_GEOMETRIC_VSA_L12) {
+	    anisotropy = bbox_diagonal(M) * 100.0;
+	}
+        index_t dimension = 0;
+        index_t nb_manifold_harmonics=0;
+
+        switch(segmenter) {
+        case SEGMENT_GEOMETRIC_VSA_L2:                 break;
+        case SEGMENT_GEOMETRIC_VSA_L12:                break;
+        case SEGMENT_INERTIA_AXIS:                     break;
+        case SEGMENT_SPECTRAL_8:        dimension=8;   break;
+        case SEGMENT_SPECTRAL_20:       dimension=20;  break;
+        case SEGMENT_SPECTRAL_100:      dimension=100; break;
+        }
+
+        Attribute<double> geom_bkp;
+
+        if(segmenter == SEGMENT_INERTIA_AXIS) {
+            // Pick the axis such that the segmentation obtained
+            // by splitting along it has a chart boundary that
+            // touches the mesh boundary.
+            for(index_t axis=0; axis<3; ++axis) {
+                if(split_chart_along_principal_axis(M, 2-axis)) {
+                    break;
+                }
+            }
+            mesh_smooth_segmentation(M);
+            return mesh_postprocess_segmentation(M,verbose);
+        }
+
+        if(dimension != 0) {
+            nb_manifold_harmonics = dimension+20;
+            geom_bkp.create_vector_attribute(
+                M.vertices.attributes(), "bkp", 3
+            );
+            for(index_t v: M.vertices) {
+                geom_bkp[3*v]   = M.vertices.point_ptr(v)[0];
+                geom_bkp[3*v+1] = M.vertices.point_ptr(v)[1];
+                geom_bkp[3*v+2] = M.vertices.point_ptr(v)[2];
+            }
+            mesh_compute_manifold_harmonics(
+                M, nb_manifold_harmonics,
+                FEM_P1_LUMPED, "eigen", 0.0, true
+            );
+            Attribute<double> eigen(
+                M.vertices.attributes(), "eigen"
+            );
+            M.vertices.set_dimension(dimension);
+            for(index_t v: M.vertices) {
+                for(index_t mh=0; mh<dimension; ++mh) {
+                    M.vertices.point_ptr(v)[mh] =
+                        eigen[nb_manifold_harmonics*v + mh + 1];
+                }
+            }
+            eigen.destroy();
+        } else if(anisotropy != 0.0) {
+            compute_normals(M);
+            // smooth normals --------------.
+            //                              v
+            simple_Laplacian_smooth(M, 3, true);
+            set_anisotropy(M,anisotropy*0.02);
+        }
+
+        CentroidalVoronoiTesselation CVT(&M);
+        CVT.compute_initial_sampling(nb_segments);
         if(verbose) {
-            Logger::out("Segment")
-                << "Splitting chart " << chart.id << " : size = "
-                << chart.facets.size() << std::endl;
+            Logger::out("RVD") << "Optimizing CVT" << std::endl;
         }
-        
-        Attribute<index_t> chart_id(chart.mesh.facets.attributes(), "chart");
+        CVT.Lloyd_iterations(30);
+        CVT.Newton_iterations(10);
+        PartitionCB CB(&M);
+        CVT.RVD()->for_each_polygon(CB);
 
-        index_t f1,f2;
-        find_furthest_facet_pair_along_principal_axis(
-            chart, f1, f2, axis
-        );
-        
-        // Sanity check
-        for(index_t ff=0; ff<chart.facets.size(); ++ff) {
-            index_t f = chart.facets[ff];
-            geo_assert(chart_id[f] == chart.id);
-        }
-        
-        geo_assert(chart_id[f1] == chart.id);
-        geo_assert(chart_id[f2] == chart.id);
-
-        // Clear chart ids
-        for(index_t ff=0; ff<chart.facets.size(); ++ff) {
-            index_t f = chart.facets[ff];
-            geo_assert(chart_id[f] == chart.id);
-            chart_id[f] = index_t(-1);
-        }
-
-        
-        Attribute<double> distance(chart.mesh.facets.attributes(),"distance");
-        for(index_t ff=0; ff<chart.facets.size(); ++ff) {
-            distance[chart.facets[ff]] = Numeric::max_float64();
-        }
-        FacetDistanceCompare facet_cmp(distance);
-
-        // There is maybe a smarter way for having a priority queue with
-        // modifiable weights...
-        
-        std::multiset< index_t, FacetDistanceCompare > queue(
-            facet_cmp
-        );
-        
-        facet_cmp.distance[f1] = 0.0;      
-        facet_cmp.distance[f2] = 0.0;
-
-        chart_id[f1] = new_chart_1.id;
-        chart_id[f2] = new_chart_2.id;
-        
-        new_chart_1.facets.clear();
-        new_chart_2.facets.clear();
-        
-        queue.insert(f1);
-        queue.insert(f2);
-
-        while (!queue.empty()) {
-            index_t top = *(queue.begin());
-            queue.erase(queue.begin());
-            for(index_t c=chart.mesh.facets.corners_begin(top);
-                c<chart.mesh.facets.corners_end(top); ++c) {
-                index_t neigh = chart.mesh.facet_corners.adjacent_facet(c);
-                
-                if(
-                    neigh == index_t(-1) || (
-                        chart_id[neigh] != index_t(-1) &&
-                        chart_id[neigh] != new_chart_1.id &&
-                        chart_id[neigh] != new_chart_2.id
-                    )
-                ) {
-                    continue;
-                }
-                
-                double new_value = length(
-                    Geom::mesh_facet_center(chart.mesh,top) - 
-                    Geom::mesh_facet_center(chart.mesh,neigh)
-                ) + facet_cmp.distance[top];
-                
-                if(chart_id[neigh] == index_t(-1)) {
-                    facet_cmp.distance[neigh] = new_value;
-                    chart_id[neigh] = chart_id[top];
-                    queue.insert(neigh);
-                } else if(new_value < facet_cmp.distance[neigh]) {
-                    queue.erase(neigh);
-                    facet_cmp.distance[neigh] = new_value;
-                    chart_id[neigh] = chart_id[top];
-                    queue.insert(neigh);
-                }
+        if(nb_manifold_harmonics != 0) {
+            M.vertices.set_dimension(3);
+            for(index_t v: M.vertices) {
+                M.vertices.point_ptr(v)[0] = geom_bkp[3*v];
+                M.vertices.point_ptr(v)[1] = geom_bkp[3*v+1];
+                M.vertices.point_ptr(v)[2] = geom_bkp[3*v+2];
             }
+            geom_bkp.destroy();
+        } else if(anisotropy != 0.0) {
+            M.vertices.set_dimension(3);
         }
 
-        index_t nb1=0;
-        index_t nb2=0;
-        for(index_t ff=0; ff<chart.facets.size(); ++ff) {
-            index_t f = chart.facets[ff];
-            if(chart_id[f] == new_chart_1.id) {
-                new_chart_1.facets.push_back(f);
-                ++nb1;
-            } else {
-                geo_assert(chart_id[f] == new_chart_2.id);
-                new_chart_2.facets.push_back(f);
-                ++nb2;
-            }
-        }
-
-        if(verbose) {
-            Logger::out("Segment")
-                << "new sizes: " << nb1 << " " << nb2 << std::endl;
-        }
-        
-        chart.facets.clear();
+        mesh_smooth_segmentation(M);
+        return mesh_postprocess_segmentation(M,verbose);
     }
-
-
-    namespace Geom {
-
-        void get_mesh_bbox_2d(
-            const Mesh& mesh, Attribute<double>& tex_coord,
-            double& xmin, double& ymin,
-            double& xmax, double& ymax
-        ) {
-            xmin = Numeric::max_float64();
-            ymin = Numeric::max_float64();
-            xmax = Numeric::min_float64();
-            ymax = Numeric::min_float64();
-            for(index_t c=0; c<mesh.facet_corners.nb(); ++c) {
-                xmin = std::min(xmin, tex_coord[2*c]);
-                ymin = std::min(ymin, tex_coord[2*c+1]);
-                xmax = std::max(xmax, tex_coord[2*c]);
-                ymax = std::max(ymax, tex_coord[2*c+1]);                    
-            }
-        }
-        
-        void get_chart_bbox_2d(
-            const Chart& chart, Attribute<double>& tex_coord,
-            double& xmin, double& ymin,
-            double& xmax, double& ymax
-        ) {
-            xmin = Numeric::max_float64();
-            ymin = Numeric::max_float64();
-            xmax = Numeric::min_float64();
-            ymax = Numeric::min_float64();
-            for(index_t ff=0; ff<chart.facets.size(); ++ff) {
-                index_t f = chart.facets[ff];
-                for(
-                    index_t c = chart.mesh.facets.corners_begin(f);
-                    c<chart.mesh.facets.corners_end(f); ++c
-                ) {
-                    xmin = std::min(xmin, tex_coord[2*c]);
-                    ymin = std::min(ymin, tex_coord[2*c+1]);
-                    xmax = std::max(xmax, tex_coord[2*c]);
-                    ymax = std::max(ymax, tex_coord[2*c+1]);                
-                }
-            }
-        }
-
-        double mesh_facet_area_2d(
-            const Mesh& mesh, index_t f, Attribute<double>& tex_coord
-        ) {
-            double result = 0.0;
-            index_t c1 = mesh.facets.corners_begin(f);
-            vec2 p1(tex_coord[2*c1], tex_coord[2*c1+1]);
-            for(
-                index_t c2 = c1+1;
-                c2+1 < mesh.facets.corners_end(f); ++c2
-            ) {
-                index_t c3 = c2+1;
-                vec2 p2(tex_coord[2*c2], tex_coord[2*c2+1]);
-                vec2 p3(tex_coord[2*c3], tex_coord[2*c3+1]);
-                result += Geom::triangle_area(p1,p2,p3);
-            }
-            return result;
-        }
-        
-        double mesh_area_2d(const Mesh& mesh, Attribute<double>& tex_coord) {
-            double result = 0.0;
-            for(index_t f=0; f<mesh.facets.nb(); ++f) {
-                result += mesh_facet_area_2d(mesh, f, tex_coord);
-            }
-            return result;
-        }
-
-        
-        double chart_area_2d(const Chart& chart, Attribute<double>& tex_coord) {
-            double result = 0.0;
-            for(index_t ff=0; ff<chart.facets.size(); ++ff) {
-                index_t f = chart.facets[ff];
-                result += mesh_facet_area_2d(chart.mesh, f, tex_coord);
-            }
-            return result;
-        }
-
-        double chart_area(const Chart& chart) {
-            double result = 0.0;
-            for(index_t ff=0; ff<chart.facets.size(); ++ff) {
-                index_t f = chart.facets[ff];
-                result += Geom::mesh_facet_area(chart.mesh, f);
-            }
-            return result;
-        }
-    }
-
-    
 }
 
+/***************************************************************************/

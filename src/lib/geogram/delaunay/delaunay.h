@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2014, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -13,7 +13,7 @@
  *  * Neither the name of the ALICE Project-Team nor the names of its
  *  contributors may be used to endorse or promote products derived from this
  *  software without specific prior written permission.
- * 
+ *
  *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -26,19 +26,13 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine, 
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX 
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
@@ -98,7 +92,7 @@ namespace GEO {
             /**
              * \brief Gets the string identifying the exception
              */
-            virtual const char* what() const GEO_NOEXCEPT;
+            const char* what() const GEO_NOEXCEPT override;
         };
 
 
@@ -121,12 +115,12 @@ namespace GEO {
              */
             InvalidInput(const InvalidInput& rhs);
 
-            virtual ~InvalidInput() GEO_NOEXCEPT;
-            
+            ~InvalidInput() GEO_NOEXCEPT override;
+
             /**
              * \brief Gets the string identifying the exception
              */
-            virtual const char* what() const GEO_NOEXCEPT;
+            const char* what() const GEO_NOEXCEPT override;
 
             /**
              * \brief An implementation-dependent error code.
@@ -139,13 +133,12 @@ namespace GEO {
              */
             vector<index_t> invalid_facets;
         };
-        
+
         /**
          * \brief Creates a Delaunay triangulation of the
          *  specified dimension.
          * \param[in] dim dimension of the triangulation
          * \param[in] name name of the implementation to use:
-         * - "tetgen" - Delaunay with the Tetgen library (dimension 3 only)
          * - "BDEL" - Delaunay in 3D (dimension 3 only)
          * - "BPOW" - Weighted regular 3D triangulation (dimension 4 only)
          * - "NN" - Delaunay with NearestNeighborSearch (any dimension)
@@ -193,10 +186,7 @@ namespace GEO {
          * \param[in] vertices a pointer to the coordinates of the vertices, as
          *  a contiguous array of doubles
          */
-        virtual void set_vertices(
-            index_t nb_vertices, const double* vertices
-        );
-
+        virtual void set_vertices(index_t nb_vertices, const double* vertices);
 
         /**
          * \brief Specifies whether vertices should be reordered.
@@ -210,7 +200,6 @@ namespace GEO {
         void set_reorder(bool x) {
             do_reorder_ = x;
         }
-
 
         /**
          * \brief Specifies the bounds of each level to be used
@@ -277,7 +266,7 @@ namespace GEO {
          *  by inserting additional vertices in the mesh.
          *  It is not taken into account by all implementations.
          *  This function should be called before set_vertices().
-         * \param[in] x true if the mesh should be refined, false 
+         * \param[in] x true if the mesh should be refined, false
          *  otherwise.
          */
         void set_refine(bool x) {
@@ -308,7 +297,7 @@ namespace GEO {
         void set_quality(double qual) {
             quality_ = qual;
         }
-        
+
         /**
          * \brief Gets the constraints.
          * \return the constraints or nullptr if no constraints
@@ -343,7 +332,7 @@ namespace GEO {
          * \brief Gets a pointer to the cell-to-vertex incidence array.
          * \return a const pointer to the cell-to-vertex incidence array
          */
-        const signed_index_t* cell_to_v() const {
+        const index_t* cell_to_v() const {
             return cell_to_v_;
         }
 
@@ -351,7 +340,7 @@ namespace GEO {
          * \brief Gets a pointer to the cell-to-cell adjacency array.
          * \return a const pointer to the cell-to-cell adjacency array
          */
-        const signed_index_t* cell_to_cell() const {
+        const index_t* cell_to_cell() const {
             return cell_to_cell_;
         }
 
@@ -368,7 +357,7 @@ namespace GEO {
          * \param[in] lv local vertex index in cell \p c
          * \return the index of the lv-th vertex of cell c.
          */
-        signed_index_t cell_vertex(index_t c, index_t lv) const {
+        index_t cell_vertex(index_t c, index_t lv) const {
             geo_debug_assert(c < nb_cells());
             geo_debug_assert(lv < cell_size());
             return cell_to_v_[c * cell_v_stride_ + lv];
@@ -380,9 +369,9 @@ namespace GEO {
          * \param[in] c cell index
          * \param[in] lf local facet index
          * \return the index of the cell adjacent to \p c accros
-         *  facet \p lf if it exists, or -1 if on border
+         *  facet \p lf if it exists, or NO_INDEX if on border
          */
-        signed_index_t cell_adjacent(index_t c, index_t lf) const {
+        index_t cell_adjacent(index_t c, index_t lf) const {
             geo_debug_assert(c < nb_cells());
             geo_debug_assert(lf < cell_size());
             return cell_to_cell_[c * cell_neigh_stride_ + lf];
@@ -405,7 +394,7 @@ namespace GEO {
         bool cell_is_finite(index_t c) const {
             return !cell_is_infinite(c);
         }
-        
+
         /**
          * \brief Retrieves a local vertex index from cell index
          *  and global vertex index.
@@ -414,9 +403,9 @@ namespace GEO {
          * \return the local index of vertex \p v in cell \p c
          * \pre cell \p c is incident to vertex \p v
          */
-        index_t index(index_t c, signed_index_t v) const {
+        index_t index(index_t c, index_t v) const {
             geo_debug_assert(c < nb_cells());
-            geo_debug_assert(v < (signed_index_t) nb_vertices());
+            geo_debug_assert(v == NO_INDEX || v < nb_vertices());
             for(index_t iv = 0; iv < cell_size(); iv++) {
                 if(cell_vertex(c, iv) == v) {
                     return iv;
@@ -438,7 +427,7 @@ namespace GEO {
             geo_debug_assert(c1 < nb_cells());
             geo_debug_assert(c2 < nb_cells());
             for(index_t f = 0; f < cell_size(); f++) {
-                if(cell_adjacent(c1, f) == signed_index_t(c2)) {
+                if(cell_adjacent(c1, f) == c2) {
                     return f;
                 }
             }
@@ -452,23 +441,23 @@ namespace GEO {
          * \return the index of a cell incident to vertex \p v
          * \see stores_cicl(), set_store_cicl()
          */
-        signed_index_t vertex_cell(index_t v) const {
+        index_t vertex_cell(index_t v) const {
             geo_debug_assert(v < nb_vertices());
             geo_debug_assert(v < v_to_cell_.size());
             return v_to_cell_[v];
         }
 
-        
+
         /**
          * \brief Traverses the list of cells incident to a vertex.
          * \details Can only be used if set_stores_cicl(true) was called.
          * \param[in] c cell index
          * \param[in] lv local vertex index
-         * \return the index of the next cell around vertex \p c or -1 if
+         * \return the index of the next cell around vertex \p c or NO_INDEX if
          *  \p c was the last one in the list
          * \see stores_cicl(), set_store_cicl()
          */
-        signed_index_t next_around_vertex(index_t c, index_t lv) const {
+        index_t next_around_vertex(index_t c, index_t lv) const {
             geo_debug_assert(c < nb_cells());
             geo_debug_assert(lv < cell_size());
             return cicl_[cell_size() * c + lv];
@@ -478,15 +467,13 @@ namespace GEO {
          * \brief Gets the one-ring neighbors of vertex v.
          * \details Depending on store_neighbors_ internal flag, the
          *  neighbors are computed or copied from the previously computed
-         *  list. 
+         *  list.
          * \param[in] v vertex index
          * \param[out] neighbors indices of the one-ring neighbors of
          *  vertex \p v
          * \see stores_neighbors(), set_stores_neighbors()
          */
-        void get_neighbors(
-            index_t v, vector<index_t>& neighbors
-        ) const {
+        void get_neighbors(index_t v, vector<index_t>& neighbors) const {
             geo_debug_assert(v < nb_vertices());
             if(store_neighbors_) {
                 neighbors_.get_array(v, neighbors);
@@ -539,7 +526,7 @@ namespace GEO {
         }
 
         /**
-         * \brief Specifies whether incident tetrahedra lists 
+         * \brief Specifies whether incident tetrahedra lists
          *   should be stored.
          * \param[in] x if true, incident trahedra lists are stored,
          *   else they are not.
@@ -560,16 +547,16 @@ namespace GEO {
 
         /**
          * \brief Sets whether infinite elements should be kept.
-         * \details Internally, Delaunay implementation uses an 
+         * \details Internally, Delaunay implementation uses an
          *  infinite vertex and infinite simplices indicent to it.
          *  By default they are discarded at the end of set_vertices().
-         *  \param[in] x true if infinite elements should be kept, 
+         *  \param[in] x true if infinite elements should be kept,
          *   false otherwise
          */
         void set_keeps_infinite(bool x) {
             keep_infinite_ = x;
         }
-        
+
         /**
          * \brief Tests whether thread-safe mode is active.
          * \return true if thread-safe mode is active, false otherwise.
@@ -634,8 +621,8 @@ namespace GEO {
          * \return the region associated with \p t.
          */
         virtual index_t region(index_t t) const;
-            
-        
+
+
     protected:
         /**
          * \brief Creates a new Delaunay triangulation
@@ -653,7 +640,7 @@ namespace GEO {
         /**
          * \brief Delaunay destructor.
          */
-        virtual ~Delaunay();
+        ~Delaunay() override;
 
         /**
          * \brief Internal implementation for get_neighbors (with vector).
@@ -674,7 +661,7 @@ namespace GEO {
          */
         virtual void set_arrays(
             index_t nb_cells,
-            const signed_index_t* cell_to_v, const signed_index_t* cell_to_cell
+            const index_t* cell_to_v, const index_t* cell_to_cell
         );
 
         /**
@@ -705,7 +692,7 @@ namespace GEO {
             geo_debug_assert(c1 < nb_cells());
             geo_debug_assert(c2 < nb_cells());
             geo_debug_assert(lv < cell_size());
-            cicl_[cell_size() * c1 + lv] = signed_index_t(c2);
+            cicl_[cell_size() * c1 + lv] = c2;
         }
 
     public:
@@ -748,10 +735,10 @@ namespace GEO {
         const double* vertices_;
         index_t nb_vertices_;
         index_t nb_cells_;
-        const signed_index_t* cell_to_v_;
-        const signed_index_t* cell_to_cell_;
-        vector<signed_index_t> v_to_cell_;
-        vector<signed_index_t> cicl_;
+        const index_t* cell_to_v_;
+        const index_t* cell_to_cell_;
+        vector<index_t> v_to_cell_;
+        vector<index_t> cicl_;
         bool is_locked_;
         PackedArrays neighbors_;
         bool store_neighbors_;
@@ -759,9 +746,9 @@ namespace GEO {
 
         /**
          * \brief If true, uses BRIO reordering
-         * (in some implementations)        
+         * (in some implementations)
          */
-        bool do_reorder_; 
+        bool do_reorder_;
 
         const Mesh* constraints_;
 
@@ -772,7 +759,7 @@ namespace GEO {
          * \brief It true, circular incident tet
          * lists are stored.
          */
-        bool store_cicl_; 
+        bool store_cicl_;
 
         /**
          * \brief If true, infinite vertex and
@@ -783,7 +770,7 @@ namespace GEO {
         /**
          * \brief If keep_infinite_ is true, then
          *  finite cells are 0..nb_finite_cells_-1
-         *  and infinite cells are 
+         *  and infinite cells are
          *  nb_finite_cells_ ... nb_cells_
          */
         index_t nb_finite_cells_;
@@ -814,9 +801,8 @@ namespace GEO {
      * \see DelaunayFactory
      * \relates Delaunay
      */
-#define geo_register_Delaunay_creator(type, name) \
+#define geo_register_Delaunay_creator(type, name)               \
     geo_register_creator(GEO::DelaunayFactory, type, name)
 }
 
 #endif
-

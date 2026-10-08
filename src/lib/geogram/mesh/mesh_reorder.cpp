@@ -1,5 +1,6 @@
 /*
- *  Copyright (c) 2012-2014, Bruno Levy All rights reserved.
+ *  Copyright (c) 2000-2022 Inria
+ *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
  *  modification, are permitted provided that the following conditions are met:
@@ -25,19 +26,13 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine,
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
@@ -54,10 +49,6 @@
 #include <geogram/basic/logger.h>
 #include <geogram/basic/algorithm.h>
 #include <geogram/bibliography/bibliography.h>
-
-#include <tbb/parallel_for.h>
-
-#include <random>
 
 namespace {
 
@@ -297,17 +288,13 @@ namespace {
          */
         double center(index_t f) const {
             double result = 0.0;
-            for(
-                index_t c = mesh_.facets.corners_begin(f);
-                c < mesh_.facets.corners_end(f); ++c
-            ) {
-                result += mesh_.vertices.point_ptr(
+            double s = 1.0 / double(mesh_.facets.nb_vertices(f));
+            for(index_t c: mesh_.facets.corners(f)) {
+                result += s*mesh_.vertices.point_ptr(
                     mesh_.facet_corners.vertex(c)
                 )[COORD];
             }
             return result;
-            // TODO: should be  / double(mesh_.facets.nb_vertices(f));
-            // but this breaks one of the tests, to be investigated...
         }
 
     private:
@@ -444,9 +431,7 @@ namespace {
          */
         double center(index_t t) const {
             double result = 0.0;
-            for(
-                index_t lv = 0; lv < 4; ++lv
-            ) {
+            for(index_t lv = 0; lv < 4; ++lv) {
                 result += mesh_.vertices.point_ptr(
                     mesh_.cells.vertex(t, lv)
                 )[COORD];
@@ -588,9 +573,7 @@ namespace {
          */
         double center(index_t c) const {
             double result = 0.0;
-            for(
-                index_t lv = 0; lv < mesh_.cells.nb_vertices(c); ++lv
-            ) {
+            for(index_t lv = 0; lv < mesh_.cells.nb_vertices(c); ++lv) {
                 result += mesh_.vertices.point_ptr(
                     mesh_.cells.vertex(c, lv)
                 )[COORD];
@@ -712,9 +695,8 @@ namespace {
 
     /**
      * \brief Generic class for sorting arbitrary elements in
-     *  Hilbert and Morton orders in 3d using tbb.
-     * \details The implementation is inspired by tbb::parallel_sort and the 
-     *  old non-tbb geogram version, which was in turn inspired by:
+     *  Hilbert and Morton orders in 3d.
+     * \details The implementation is inspired by:
      *  - Christophe Delage and Olivier Devillers. Spatial Sorting.
      *   In CGAL User and Reference Manual. CGAL Editorial Board,
      *   3.9 edition, 2011
@@ -729,166 +711,51 @@ namespace {
      */
     template <template <int COORD, bool UP, class MESH> class CMP, class MESH>
     struct HilbertSort3d {
-        // tbb range class to allow for parallel_for with changing comparator.
-        class Range {
-        public:
-            Range(const MESH& M, vector<index_t>::iterator begin,
-                  vector<index_t>::iterator end) 
-                :M(M), begin(begin), end(end), phase(0), position(0)
-            {}
 
-            bool empty() const { return begin == end; }
-
-            bool is_runnable() const { return end - begin > 1; }
-
-            bool is_divisible() const { return end - begin >= 256; }
-
-            vector<index_t>::iterator compare_and_sort() {
-                auto middle = begin + (end - begin) / 2;
-                switch (COORDX * 2 + UPX) {
-                case 0:
-                {
-                    CMP<0, false, MESH> cmp(M);
-                    stdfixed::nthElement(begin, middle, end, cmp);
-                    break;
-                }
-                case 1:
-                {
-                    CMP<0, true, MESH> cmp(M);
-                    stdfixed::nthElement(begin, middle, end, cmp);
-                    break;
-                }
-                case 2:
-                {
-                    CMP<1, false, MESH> cmp(M);
-                    stdfixed::nthElement(begin, middle, end, cmp);
-                    break;
-                }
-                case 3:
-                {
-                    CMP<1, true, MESH> cmp(M);
-                    stdfixed::nthElement(begin, middle, end, cmp);
-                    break;
-                }
-                case 4:
-                {
-                    CMP<2, false, MESH> cmp(M);
-                    stdfixed::nthElement(begin, middle, end, cmp);
-                    break;
-                }
-                case 5:
-                {
-                    CMP<2, true, MESH> cmp(M);
-                    stdfixed::nthElement(begin, middle, end, cmp);
-                    break;
-                }
-                default:
-                    geo_assert_not_reached;
-                }
-                return middle;
+        /**
+         * \brief Low-level recursive spatial sorting function
+         * \details This function is recursive
+         * \param[in] M the mesh in which the elements reside
+         * \param[in] begin an iterator that points to the
+         *  first element of the sequence
+         * \param[in] end an iterator that points one position past the
+         *  last element of the sequence
+         * \param[in] limit subsequences smaller than limit are left unsorted
+         * \tparam COORDX the first coordinate, can be 0,1 or 2. The second
+         *  and third coordinates are COORDX+1 modulo 3 and COORDX+2 modulo 3
+         *  respectively
+         * \tparam UPX whether ordering along the first coordinate
+         *  is direct or inverse
+         * \tparam UPY whether ordering along the second coordinate
+         *  is direct or inverse
+         * \tparam UPZ whether ordering along the third coordinate
+         *  is direct or inverse
+         */
+        template <int COORDX, bool UPX, bool UPY, bool UPZ, class IT>
+        static void sort(
+            const MESH& M, IT begin, IT end, index_t limit = 1
+        ) {
+            const int COORDY = (COORDX + 1) % 3, COORDZ = (COORDY + 1) % 3;
+            if(end - begin <= signed_index_t(limit)) {
+                return;
             }
-
-            Range(Range& r, tbb::split) : Range(r) {
-                auto middle = compare_and_sort();
-
-                advanceCoord();
-                ++phase;
-                position <<= 1;
-                position |= 1;
-                begin = middle;
-                UPX = !UPX;
-                updateForPhase3();
-
-                r.advanceCoord();
-                ++r.phase;
-                r.position <<= 1;
-                r.end = middle;
-                r.updateForPhase3();
-            }
-
-        private:
-            void advanceCoord() {
-                COORDX = (COORDX + 1) % 3;
-                auto temp = UPX;
-                UPX = UPY;
-                UPY = UPZ;
-                UPZ = temp;
-            }
-
-            void retreatCoord() {
-                COORDX = (COORDX + 2) % 3;
-                auto temp = UPX;
-                UPX = UPZ;
-                UPZ = UPY;
-                UPY = temp;
-            }
-
-            void updateForPhase3() {
-                if (phase < 3) {
-                    return;
-                }
-                geo_assert(phase == 3);
-                phase = 0;
-                switch (position) {
-                case 0:
-                    retreatCoord();
-                    break;
-                case 1:
-                    UPX = !UPX; // We negated it in the last split, 
-                                // so undo that.
-                    advanceCoord();
-                    break;
-                case 2:
-                    UPZ = !UPZ;
-                    advanceCoord();
-                    break;
-                case 3:
-                    UPX = !UPX;
-                    UPY = !UPY; // We want to negate it.
-                    break;
-                case 4:
-                    UPZ = !UPZ;
-                    break;
-                case 5:
-                    advanceCoord();
-                    break;
-                case 6:
-                    UPX = !UPX;
-                    UPZ = !UPZ;
-                    advanceCoord();
-                    break;
-                case 7:
-                    UPY = !UPY;
-                    retreatCoord();
-                    break;
-                default:
-                    geo_assert_not_reached;
-                }
-                position = 0;
-            }
-
-            int COORDX = 0;
-            bool UPX = false;
-            bool UPY = false;
-            bool UPZ = false;
-            int phase; // Our splitting technique only repeats every 3 splits.
-            int position; // Position relative to the last phase 0.
-
-            const MESH& M;
-            vector<index_t>::iterator begin;
-            vector<index_t>::iterator end;
-        };
-
-        // tbb body class, to be called on the range.
-        struct Body {
-            void operator()(Range& r) const
-            {
-                while (r.is_runnable()) {
-                    Range splitResult(r, tbb::split{});
-                    operator()(splitResult);
-                }
-            }
-        };
+            IT m0 = begin, m8 = end;
+            IT m4 = reorder_split(m0, m8, CMP<COORDX, UPX, MESH>(M));
+            IT m2 = reorder_split(m0, m4, CMP<COORDY, UPY, MESH>(M));
+            IT m1 = reorder_split(m0, m2, CMP<COORDZ, UPZ, MESH>(M));
+            IT m3 = reorder_split(m2, m4, CMP<COORDZ, !UPZ, MESH>(M));
+            IT m6 = reorder_split(m4, m8, CMP<COORDY, !UPY, MESH>(M));
+            IT m5 = reorder_split(m4, m6, CMP<COORDZ, UPZ, MESH>(M));
+            IT m7 = reorder_split(m6, m8, CMP<COORDZ, !UPZ, MESH>(M));
+            sort<COORDZ, UPZ, UPX, UPY>(M, m0, m1);
+            sort<COORDY, UPY, UPZ, UPX>(M, m1, m2);
+            sort<COORDY, UPY, UPZ, UPX>(M, m2, m3);
+            sort<COORDX, UPX, !UPY, !UPZ>(M, m3, m4);
+            sort<COORDX, UPX, !UPY, !UPZ>(M, m4, m5);
+            sort<COORDY, !UPY, UPZ, !UPX>(M, m5, m6);
+            sort<COORDY, !UPY, UPZ, !UPX>(M, m6, m7);
+            sort<COORDZ, !UPZ, !UPX, UPY>(M, m7, m8);
+        }
 
         /**
          * \brief Sorts a sequence of elements spatially.
@@ -907,26 +774,84 @@ namespace {
             vector<index_t>::iterator b,
             vector<index_t>::iterator e,
             index_t limit = 1
-        ) 
-        {
-            geo_debug_assert(e > b);
-            geo_cite_with_info(
-                "WEB:SpatialSorting",
-                "The implementation of spatial sort in GEOGRAM is inspired by "
-                "the idea of using \\verb|std::nth_element()| and the recursive"
-                " template in the spatial sort package of CGAL"
-            );
+        ) :
+            M_(M)
+            {
+                geo_debug_assert(e >= b);
+                geo_cite_with_info(
+                    "WEB:SpatialSorting",
+                    "The implementation of spatial sort is inspired by "
+                    "the use of \\verb|std::nth_element()| and the recursive"
+                    " template in the spatial sort package of CGAL"
+                );
 
-            Range range(M, b, e);
+                // If the sequence is smaller than the limit, skip it
+                if(index_t(e - b) <= limit) {
+                    return;
+                }
 
-            // If the sequence is smaller than the limit, skip it
-            if (index_t(e - b) <= limit) {
-                return;
+                // If the sequence is smaller than 1024, use sequential sorting
+                if(index_t(e - b) < 1024) {
+                    sort<0, false, false, false>(M_, b, e);
+                    return;
+                }
+
+                // Parallel sorting (2 then 4 then 8 sorts in parallel)
+
+                // Unfortunately we cannot access consts/constexprs for template
+                // arguments in lambdas in all compilers (gcc/clang OK but not
+                // MSVC) so I'm using macros here (it is ugly, but it is not a
+                // big drama), and I prefer that instead of hardwired constants
+		// that would make the code more difficult to read.
+
+#          define COORDX 0
+#          define COORDY 1
+#          define COORDZ 2
+#          define UPX false
+#          define UPY false
+#          define UPZ false
+
+                m0_ = b;
+                m8_ = e;
+                m4_ = reorder_split(m0_, m8_, CMP<COORDX, UPX, MESH>(M));
+
+
+                parallel(
+                    [this]() { m2_ = reorder_split(m0_, m4_, CMP<COORDY,  UPY, MESH>(M_)); },
+                    [this]() { m6_ = reorder_split(m4_, m8_, CMP<COORDY, !UPY, MESH>(M_)); }
+                );
+
+                parallel(
+                    [this]() { m1_ = reorder_split(m0_, m2_, CMP<COORDZ,  UPZ, MESH>(M_)); },
+                    [this]() { m3_ = reorder_split(m2_, m4_, CMP<COORDZ, !UPZ, MESH>(M_)); },
+                    [this]() { m5_ = reorder_split(m4_, m6_, CMP<COORDZ,  UPZ, MESH>(M_)); },
+                    [this]() { m7_ = reorder_split(m6_, m8_, CMP<COORDZ, !UPZ, MESH>(M_)); }
+                );
+
+                parallel(
+                    [this]() { sort<COORDZ,  UPZ,  UPX,  UPY>(M_, m0_, m1_); },
+                    [this]() { sort<COORDY,  UPY,  UPZ,  UPX>(M_, m1_, m2_); },
+                    [this]() { sort<COORDY,  UPY,  UPZ,  UPX>(M_, m2_, m3_); },
+                    [this]() { sort<COORDX,  UPX, !UPY, !UPZ>(M_, m3_, m4_); },
+                    [this]() { sort<COORDX,  UPX, !UPY, !UPZ>(M_, m4_, m5_); },
+                    [this]() { sort<COORDY, !UPY,  UPZ, !UPX>(M_, m5_, m6_); },
+                    [this]() { sort<COORDY, !UPY,  UPZ, !UPX>(M_, m6_, m7_); },
+                    [this]() { sort<COORDZ, !UPZ, !UPX,  UPY>(M_, m7_, m8_); }
+                );
+
+#          undef COORDX
+#          undef COORDY
+#          undef COORDZ
+#          undef UPX
+#          undef UPY
+#          undef UPZ
+
             }
 
-            Range r(M, b, e);
-            tbb::parallel_for(range, Body{});
-        }
+    private:
+        const MESH& M_;
+        vector<index_t>::iterator
+        m0_, m1_, m2_, m3_, m4_, m5_, m6_, m7_, m8_;
     };
 
     /************************************************************************/
@@ -1005,21 +930,21 @@ namespace {
             index_t limit = 1
         ) :
             M_(M)
-        {
-            geo_debug_assert(e > b);
-            geo_cite_with_info(
-                "WEB:SpatialSorting",
-                "The implementation of spatial sort in GEOGRAM is inspired by "
-                "the idea of using \\verb|std::nth_element()| and the recursive"
-                " template in the spatial sort package of CGAL"
-            );
+            {
+                geo_debug_assert(e > b);
+                geo_cite_with_info(
+                    "WEB:SpatialSorting",
+                    "The implementation of spatial sort is inspired by "
+                    "the use of \\verb|std::nth_element()| and the recursive"
+                    " template in the spatial sort package of CGAL"
+                );
 
-            // If the sequence is smaller than the limit, skip it
-            if(index_t(e - b) <= limit) {
-                return;
+                // If the sequence is smaller than the limit, skip it
+                if(index_t(e - b) <= limit) {
+                    return;
+                }
+                sort<0, false, false>(M_, b, e);
             }
-            sort<0, false, false>(M_, b, e);
-        }
     private:
         const MESH& M_;
     };
@@ -1036,18 +961,18 @@ namespace {
      *  attributes).
      * \param[in] M the mesh where the vertices to be sorted reside
      * \param[out] sorted_indices the permutation to be applied
-       to the vertices
-     */
+     to the vertices
+    */
     void hilbert_vsort_3d(
         const Mesh& M, vector<index_t>& sorted_indices
     ) {
         sorted_indices.resize(M.vertices.nb());
-        for(index_t i = 0; i < M.vertices.nb(); i++) {
+        for(index_t i: M.vertices) {
             sorted_indices[i] = i;
         }
         HilbertSort3d<Hilbert_vcmp, Mesh>(
             M, sorted_indices.begin(), sorted_indices.end()
-        );        
+        );
     }
 
     /**
@@ -1064,7 +989,7 @@ namespace {
         const Mesh& M, vector<index_t>& sorted_indices
     ) {
         sorted_indices.resize(M.facets.nb());
-        for(index_t i = 0; i < M.facets.nb(); i++) {
+        for(index_t i: M.facets) {
             sorted_indices[i] = i;
         }
         HilbertSort3d<Hilbert_fcmp, Mesh>(
@@ -1085,7 +1010,7 @@ namespace {
         const Mesh& M, vector<index_t>& sorted_indices
     ) {
         sorted_indices.resize(M.cells.nb());
-        for(index_t i = 0; i < M.cells.nb(); i++) {
+        for(index_t i: M.cells) {
             sorted_indices[i] = i;
         }
         if(M.cells.are_simplices()) {
@@ -1112,7 +1037,7 @@ namespace {
         const Mesh& M, vector<index_t>& sorted_indices
     ) {
         sorted_indices.resize(M.vertices.nb());
-        for(index_t i = 0; i < M.vertices.nb(); i++) {
+        for(index_t i: M.vertices) {
             sorted_indices[i] = i;
         }
         HilbertSort3d<Morton_vcmp, Mesh>(
@@ -1133,7 +1058,7 @@ namespace {
         const Mesh& M, vector<index_t>& sorted_indices
     ) {
         sorted_indices.resize(M.facets.nb());
-        for(index_t i = 0; i < M.facets.nb(); i++) {
+        for(index_t i: M.facets) {
             sorted_indices[i] = i;
         }
         HilbertSort3d<Morton_fcmp, Mesh>(
@@ -1154,7 +1079,7 @@ namespace {
         const Mesh& M, vector<index_t>& sorted_indices
     ) {
         sorted_indices.resize(M.cells.nb());
-        for(index_t i = 0; i < M.cells.nb(); i++) {
+        for(index_t i: M.cells) {
             sorted_indices[i] = i;
         }
         if(M.cells.are_simplices()) {
@@ -1202,7 +1127,7 @@ namespace {
         vector<index_t>::iterator m = b;
         if(index_t(e - b) > threshold) {
             ++depth;
-            m = b + int(double(e - b) * ratio);
+            m = b + signed_index_t(double(e - b) * ratio);
             compute_BRIO_order_recursive(
                 nb_vertices, vertices,
                 dimension, stride,
@@ -1237,53 +1162,99 @@ namespace GEO {
 
 #ifndef GEOGRAM_PSM
 
-    void mesh_reorder(Mesh& M, MeshOrder order) {
+    void mesh_reorder(Mesh& M, MeshOrder order, MeshElementsFlags elements) {
 
         geo_assert(M.vertices.dimension() >= 3);
 
         // Step 1: reorder vertices
-        if(M.vertices.nb() != 0) {
+        if((elements & MESH_VERTICES) != 0 && M.vertices.nb() != 0) {
             vector<index_t> sorted_indices;
             switch(order) {
-                case MESH_ORDER_HILBERT:
-                    hilbert_vsort_3d(M, sorted_indices);
-                    break;
-                case MESH_ORDER_MORTON:
-                    morton_vsort_3d(M, sorted_indices);
-                    break;
+            case MESH_ORDER_HILBERT:
+                hilbert_vsort_3d(M, sorted_indices);
+                break;
+            case MESH_ORDER_MORTON:
+                morton_vsort_3d(M, sorted_indices);
+                break;
             }
             M.vertices.permute_elements(sorted_indices);
         }
 
         // Step 2: reorder facets
-        if(M.facets.nb() != 0) {
+        if(((elements & MESH_FACETS) != 0) && (M.facets.nb() != 0)) {
             vector<index_t> sorted_indices;
             switch(order) {
-                case MESH_ORDER_HILBERT:
-                    hilbert_fsort_3d(M, sorted_indices);
-                    break;
-                case MESH_ORDER_MORTON:
-                    morton_fsort_3d(M, sorted_indices);
-                    break;
+            case MESH_ORDER_HILBERT:
+                hilbert_fsort_3d(M, sorted_indices);
+                break;
+            case MESH_ORDER_MORTON:
+                morton_fsort_3d(M, sorted_indices);
+                break;
             }
             M.facets.permute_elements(sorted_indices);
         }
 
         // Step 3: reorder cells
-        if(M.cells.nb() != 0) {
+        if(((elements & MESH_CELLS) != 0) && (M.cells.nb() != 0)) {
             vector<index_t> sorted_indices;
             switch(order) {
-                case MESH_ORDER_HILBERT:
-                    hilbert_csort_3d(M, sorted_indices);
-                    break;
-                case MESH_ORDER_MORTON:
-                    morton_csort_3d(M, sorted_indices);
-                    break;
+            case MESH_ORDER_HILBERT:
+                hilbert_csort_3d(M, sorted_indices);
+                break;
+            case MESH_ORDER_MORTON:
+                morton_csort_3d(M, sorted_indices);
+                break;
             }
             M.cells.permute_elements(sorted_indices);
         }
     }
 
+    void compute_mesh_elements_spatial_order(
+	const Mesh& M, MeshElementsFlags elements,
+	vector<index_t>& sorted_indices, MeshOrder order
+    ) {
+	geo_assert(M.vertices.dimension() >= 3);
+	switch(elements) {
+	case MESH_VERTICES: {
+            switch(order) {
+            case MESH_ORDER_HILBERT:
+                hilbert_vsort_3d(M, sorted_indices);
+                break;
+            case MESH_ORDER_MORTON:
+                morton_vsort_3d(M, sorted_indices);
+                break;
+            }
+	} break;
+	case MESH_FACETS: {
+	    switch(order) {
+	    case MESH_ORDER_HILBERT:
+		hilbert_fsort_3d(M, sorted_indices);
+		break;
+	    case MESH_ORDER_MORTON:
+		morton_fsort_3d(M, sorted_indices);
+		break;
+	    }
+	} break;
+	case MESH_CELLS: {
+            switch(order) {
+            case MESH_ORDER_HILBERT:
+                hilbert_csort_3d(M, sorted_indices);
+                break;
+            case MESH_ORDER_MORTON:
+                morton_csort_3d(M, sorted_indices);
+                break;
+            }
+	} break;
+	case MESH_NONE:
+        case MESH_EDGES:
+	case MESH_ALL_ELEMENTS:
+        case MESH_FACET_CORNERS:
+        case MESH_CELL_CORNERS:
+	case MESH_CELL_FACETS:
+        case MESH_ALL_SUBELEMENTS:
+	    geo_assert_not_reached;
+	}
+    }
 #endif
 
 
@@ -1333,11 +1304,7 @@ namespace GEO {
             sorted_indices[i] = i;
         }
 
-        //The next three lines replace the following commented-out line
-        //(random_shuffle is deprecated in C++17, and they call this
-        // progess...)
-        //std::random_shuffle(sorted_indices.begin(), sorted_indices.end());
-         std::shuffle(sorted_indices.begin(), sorted_indices.end(), std::mt19937());
+	GEO::random_shuffle(sorted_indices.begin(), sorted_indices.end());
 
         compute_BRIO_order_recursive(
             nb_vertices, vertices,
@@ -1407,7 +1374,7 @@ namespace {
         PeriodicVertexArray3d(
             index_t nb_vertices,
             const double* base, index_t stride,
-            double period = 1.0
+            const vec3& period
         ) :
             base_(base),
             stride_(stride) {
@@ -1418,7 +1385,7 @@ namespace {
 
             for(index_t i=0; i<27; ++i) {
                 for(index_t j=0; j<3; ++j) {
-                    xlat_[i][j] = period * double(Periodic_translation[i][j]);
+                    xlat_[i][j] = period[j] * double(Periodic_translation[i][j]);
                 }
             }
         }
@@ -1459,7 +1426,7 @@ namespace {
          */
         PeriodicVertexMesh3d(
             index_t nb_vertices,
-            const double* base, index_t stride, double period
+            const double* base, index_t stride, const vec3& period
         ) : vertices(nb_vertices, base, stride, period) {
         }
 
@@ -1525,17 +1492,12 @@ namespace GEO {
         index_t stride,
         vector<index_t>::iterator b,
         vector<index_t>::iterator e,
-        double period
+        const vec3& period
     ) {
         geo_assert(dimension == 3); // Only implemented for 3D.
         geo_argused(sorted_indices); // Accessed through b and e.
 
-
-        //The next three lines replace the following commented-out line
-        //(random_shuffle is deprecated in C++17, and they call this
-        // progess...)
-        // std::random_shuffle(b,e);
-        std::shuffle(b,e, std::mt19937());
+	GEO::random_shuffle(b,e);
 
         PeriodicVertexMesh3d M(nb_vertices, vertices, stride, period);
         HilbertSort3d<Hilbert_vcmp_periodic, PeriodicVertexMesh3d>(
@@ -1544,4 +1506,3 @@ namespace GEO {
     }
 
 }
-

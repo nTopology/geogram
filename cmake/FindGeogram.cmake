@@ -53,20 +53,20 @@ find_library (GEOGRAM_GFX_LIBRARY
 # system search path since it may be already installed
 # in the system
 find_library (GEOGRAM_GLFW3_LIBRARY
-                NAMES glfw3 glfw geogram_glfw3
+                NAMES glfw3 glfw geogram_glfw3 glfw3dll glfwdll
                 PATHS ${GEOGRAM_SEARCH_PATHS} ${GEOGRAM_SEARCH_PATHS_SYSTEM}
                 PATH_SUFFIXES lib
 )
 
 include (FindPackageHandleStandardArgs)
 find_package_handle_standard_args(
-  GEOGRAM DEFAULT_MSG GEOGRAM_LIBRARY GEOGRAM_INCLUDE_DIR
+  Geogram DEFAULT_MSG GEOGRAM_LIBRARY GEOGRAM_INCLUDE_DIR
 )
 
 # Create an imported target for Geogram 
 If (GEOGRAM_FOUND)
   
-        set(GEOGRAM_INSTALL_PREFIX ${GEOGRAM_INCLUDE_DIR}/..)
+        set(GEOGRAM_INSTALL_PREFIX ${GEOGRAM_INCLUDE_DIR}/../..)
   
         if (NOT TARGET Geogram::geogram)
                 add_library (Geogram::geogram UNKNOWN IMPORTED)

@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2014, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -13,7 +13,7 @@
  *  * Neither the name of the ALICE Project-Team nor the names of its
  *  contributors may be used to endorse or promote products derived from this
  *  software without specific prior written permission.
- * 
+ *
  *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -26,19 +26,13 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine, 
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX 
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
@@ -58,22 +52,22 @@ namespace GEOGen {
         unsigned int nb_used = 0;
         for(unsigned int t = 0; t < max_t(); t++) {
             switch(triangles_[t].status_) {
-                case TRI_IS_FREE:
-                    nb_free++;
-                    break;
-                case TRI_IS_USED:
-                    nb_used++;
-                    break;
-                case TRI_IS_CONFLICT:
-                    nb_conflict++;
-                    break;
+            case TRI_IS_FREE:
+                nb_free++;
+                break;
+            case TRI_IS_USED:
+                nb_used++;
+                break;
+            case TRI_IS_CONFLICT:
+                nb_conflict++;
+                break;
             }
         }
         return os << "Nb tot = " << max_t()
-            << " free=" << nb_free
-            << " used=" << nb_used
-            << " conflict=" << nb_conflict
-            << std::endl;
+                  << " free=" << nb_free
+                  << " used=" << nb_used
+                  << " conflict=" << nb_conflict
+                  << std::endl;
     }
 
     Sign ConvexCell::side_exact(
@@ -85,128 +79,128 @@ namespace GEOGen {
     ) const {
 
         switch(q.sym().nb_boundary_facets()) {
-            case 0:
-            {
-                // The point q is the intersection between
-                //   three bisectors [pi b0], [pi b1] and [pi b2]
-                // (and a tet [q0 q1 q2 q3])
+        case 0:
+        {
+            // The point q is the intersection between
+            //   three bisectors [pi b0], [pi b1] and [pi b2]
+            // (and a tet [q0 q1 q2 q3])
 
-                unsigned int b0 = q.sym().bisector(0);
-                unsigned int b1 = q.sym().bisector(1);
-                unsigned int b2 = q.sym().bisector(2);
+            index_t b0 = q.sym().bisector(0);
+            index_t b1 = q.sym().bisector(1);
+            index_t b2 = q.sym().bisector(2);
 
-                if(dim == 3) {
-                    // 3d is a special case for side4()
-                    //   (intrinsic dim == ambient dim)
-                    // therefore embedding tet q0,q1,q2,q3 is not needed.
-                    return GEO::PCK::side4_3d_SOS(
-                        pi,
-                        delaunay->vertex_ptr(b0),
-                        delaunay->vertex_ptr(b1),
-                        delaunay->vertex_ptr(b2),
-                        pj
-                    );
-                } else {
-                    geo_debug_assert(cell_id() >= 0);
-                    index_t t = index_t(cell_id());
-                    return GEO::PCK::side4_SOS(
-                        pi,
-                        delaunay->vertex_ptr(b0),
-                        delaunay->vertex_ptr(b1),
-                        delaunay->vertex_ptr(b2),
-                        pj,
-                        mesh->vertices.point_ptr(mesh->cells.tet_vertex(t, 0)),
-                        mesh->vertices.point_ptr(mesh->cells.tet_vertex(t, 1)),
-                        mesh->vertices.point_ptr(mesh->cells.tet_vertex(t, 2)),
-                        mesh->vertices.point_ptr(mesh->cells.tet_vertex(t, 3)),
-                        dim
-                    );
-                }
-            } 
-
-            case 1:
-            {
-                // The point q is the intersection between
-                //   a facet (f0,f1,f2) of the surface and two
-                //   bisectors [pi b0] and [pi b1].
-
-                unsigned int b0 = q.sym().bisector(0);
-                unsigned int b1 = q.sym().bisector(1);
-                unsigned int f = q.sym().boundary_facet(0);
-
-                if(symbolic_is_surface) {
-                    index_t c = mesh->facets.corners_begin(f);
-                    const double* q0 = mesh->vertices.point_ptr(
-                        mesh->facet_corners.vertex(c)
-                    );
-                    const double* q1 = mesh->vertices.point_ptr(
-                        mesh->facet_corners.vertex(c+1)
-                    );
-                    const double* q2 = mesh->vertices.point_ptr(
-                        mesh->facet_corners.vertex(c+2)
-                    );
-                                                                                
-                    return GEO::PCK::side3_SOS(
-                        pi,
-                        delaunay->vertex_ptr(b0),
-                        delaunay->vertex_ptr(b1),
-                        pj,
-                        q0, q1, q2, dim
-                    );
-                    
-                } else {
-                    index_t t = f / 4;
-                    index_t lf = f % 4;
-                    index_t j0 = mesh->cells.tet_vertex(
-                        t, GEO::MeshCells::local_tet_facet_vertex_index(lf, 0)
-                    );
-                    index_t j1 = mesh->cells.tet_vertex(
-                        t, GEO::MeshCells::local_tet_facet_vertex_index(lf, 1)
-                    );
-                    index_t j2 = mesh->cells.tet_vertex(
-                        t, GEO::MeshCells::local_tet_facet_vertex_index(lf, 2)
-                    );
-                    
-                    return GEO::PCK::side3_SOS(
-                        pi,
-                        delaunay->vertex_ptr(b0),
-                        delaunay->vertex_ptr(b1),
-                        pj,
-                        mesh->vertices.point_ptr(j0),
-                        mesh->vertices.point_ptr(j1),
-                        mesh->vertices.point_ptr(j2),
-                        dim
-                    );
-                }
-            } 
-
-            case 2:
-            {
-                // The point q is the intersection between
-                //   two facets of the surface (i.e. an edge [e0 e1])
-                //   and one bisector [pi b0].
-                // i.e. it's a vertex of the surface.
-                index_t b0 = q.sym().bisector(0);
-                index_t e0, e1;
-                q.sym().get_boundary_edge(e0, e1);
-                return GEO::PCK::side2_SOS(
-                    pi, delaunay->vertex_ptr(b0), pj,
-                    mesh->vertices.point_ptr(e0),
-                    mesh->vertices.point_ptr(e1),
+            if(dim == 3) {
+                // 3d is a special case for side4()
+                //   (intrinsic dim == ambient dim)
+                // therefore embedding tet q0,q1,q2,q3 is not needed.
+                return GEO::PCK::side4_3d_SOS(
+                    pi,
+                    delaunay->vertex_ptr(b0),
+                    delaunay->vertex_ptr(b1),
+                    delaunay->vertex_ptr(b2),
+                    pj
+                );
+            } else {
+                geo_debug_assert(cell_id() >= 0);
+                index_t t = index_t(cell_id());
+                return GEO::PCK::side4_SOS(
+                    pi,
+                    delaunay->vertex_ptr(b0),
+                    delaunay->vertex_ptr(b1),
+                    delaunay->vertex_ptr(b2),
+                    pj,
+                    mesh->vertices.point_ptr(mesh->cells.tet_vertex(t, 0)),
+                    mesh->vertices.point_ptr(mesh->cells.tet_vertex(t, 1)),
+                    mesh->vertices.point_ptr(mesh->cells.tet_vertex(t, 2)),
+                    mesh->vertices.point_ptr(mesh->cells.tet_vertex(t, 3)),
                     dim
                 );
-            } 
+            }
+        }
 
-            case 3:
-            {
-                // The point q is the intersection between
-                //   three facets of the surface
-                //   (i.e. a vertex v0 of the surface).
-                unsigned int v0 = q.sym().get_boundary_vertex();
-                return GEO::PCK::side1_SOS(
-                    pi, pj, mesh->vertices.point_ptr(v0), dim
+        case 1:
+        {
+            // The point q is the intersection between
+            //   a facet (f0,f1,f2) of the surface and two
+            //   bisectors [pi b0] and [pi b1].
+
+            index_t b0 = q.sym().bisector(0);
+            index_t b1 = q.sym().bisector(1);
+            index_t f = q.sym().boundary_facet(0);
+
+            if(symbolic_is_surface) {
+                index_t c = mesh->facets.corners_begin(f);
+                const double* q0 = mesh->vertices.point_ptr(
+                    mesh->facet_corners.vertex(c)
                 );
-            } 
+                const double* q1 = mesh->vertices.point_ptr(
+                    mesh->facet_corners.vertex(c+1)
+                );
+                const double* q2 = mesh->vertices.point_ptr(
+                    mesh->facet_corners.vertex(c+2)
+                );
+
+                return GEO::PCK::side3_SOS(
+                    pi,
+                    delaunay->vertex_ptr(b0),
+                    delaunay->vertex_ptr(b1),
+                    pj,
+                    q0, q1, q2, dim
+                );
+
+            } else {
+                index_t t = f / 4;
+                index_t lf = f % 4;
+                index_t j0 = mesh->cells.tet_vertex(
+                    t, GEO::MeshCells::local_tet_facet_vertex_index(lf, 0)
+                );
+                index_t j1 = mesh->cells.tet_vertex(
+                    t, GEO::MeshCells::local_tet_facet_vertex_index(lf, 1)
+                );
+                index_t j2 = mesh->cells.tet_vertex(
+                    t, GEO::MeshCells::local_tet_facet_vertex_index(lf, 2)
+                );
+
+                return GEO::PCK::side3_SOS(
+                    pi,
+                    delaunay->vertex_ptr(b0),
+                    delaunay->vertex_ptr(b1),
+                    pj,
+                    mesh->vertices.point_ptr(j0),
+                    mesh->vertices.point_ptr(j1),
+                    mesh->vertices.point_ptr(j2),
+                    dim
+                );
+            }
+        }
+
+        case 2:
+        {
+            // The point q is the intersection between
+            //   two facets of the surface (i.e. an edge [e0 e1])
+            //   and one bisector [pi b0].
+            // i.e. it's a vertex of the surface.
+            index_t b0 = q.sym().bisector(0);
+            index_t e0, e1;
+            q.sym().get_boundary_edge(e0, e1);
+            return GEO::PCK::side2_SOS(
+                pi, delaunay->vertex_ptr(b0), pj,
+                mesh->vertices.point_ptr(e0),
+                mesh->vertices.point_ptr(e1),
+                dim
+            );
+        }
+
+        case 3:
+        {
+            // The point q is the intersection between
+            //   three facets of the surface
+            //   (i.e. a vertex v0 of the surface).
+            index_t v0 = q.sym().get_boundary_vertex();
+            return GEO::PCK::side1_SOS(
+                pi, pj, mesh->vertices.point_ptr(v0), dim
+            );
+        }
         }
         geo_assert_not_reached;
     }
@@ -243,14 +237,14 @@ namespace GEOGen {
         double w1 = 1.0;
         double w2 = 1.0;
         double w3 = 1.0;
-        
+
         if(vertex_weight.is_bound()) {
             w0 = vertex_weight[v0];
             w1 = vertex_weight[v1];
             w2 = vertex_weight[v2];
-            w3 = vertex_weight[v3];            
+            w3 = vertex_weight[v3];
         }
-        
+
         create_triangle(mesh->vertices.point_ptr(v0), w0, 2, 1, 3, 2, 1, 3);
         create_triangle(mesh->vertices.point_ptr(v1), w1, 3, 0, 2, 3, 0, 2);
         create_triangle(mesh->vertices.point_ptr(v2), w2, 0, 3, 1, 0, 3, 1);
@@ -289,7 +283,7 @@ namespace GEOGen {
         Mesh* mesh, bool symbolic
     ) {
         clear();
-        
+
         for(index_t f = 0; f < mesh->facets.nb(); ++f) {
             index_t v = create_vertex();
             set_vertex_id(v,-1-signed_index_t(f));
@@ -300,7 +294,7 @@ namespace GEOGen {
         for(index_t f = 0; f < mesh->facets.nb(); ++f) {
             for(index_t c = mesh->facets.corners_begin(f);
                 c < mesh->facets.corners_end(f); ++c
-            ) {
+               ) {
                 index_t v = mesh->facet_corners.vertex(c);
                 v2h[v] = GEO::MeshHalfedges::Halfedge(f, c);
             }
@@ -325,7 +319,7 @@ namespace GEOGen {
                 geo_assert(ok);
                 ++cur;
             } while(H != v2h[v]);
-            
+
             // Note: va[] order is different, because of
             //   Mesh numbering -> Triangulation numbering
             // conversion !
@@ -400,6 +394,5 @@ namespace GEOGen {
         symbolic_is_surface_ = rhs.symbolic_is_surface_;
         cell_id_ = rhs.cell_id_;
     }
-    
-}
 
+}

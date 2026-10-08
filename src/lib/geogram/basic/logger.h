@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2014, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -13,7 +13,7 @@
  *  * Neither the name of the ALICE Project-Team nor the names of its
  *  contributors may be used to endorse or promote products derived from this
  *  software without specific prior written permission.
- * 
+ *
  *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -26,19 +26,13 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine, 
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX 
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
@@ -71,7 +65,7 @@ namespace GEO {
     /**
      * \brief Stream buffer used by the LoggerStream%s
      * \details This class is used internally to implement the logger
-     * mechanism. Since it inherits a STL class, it is declared as 
+     * mechanism. Since it inherits a STL class, it is declared as
      * NO_GEOGRAM_API so that it is not exported when Windows DLLs
      * are generated (doing otherwise would generate multiply defined
      * symbols).
@@ -85,7 +79,7 @@ namespace GEO {
          * \param[in] loggerStream the LoggerStream that owns this buffer
          */
         LoggerStreamBuf(LoggerStream* loggerStream) :
-        loggerStream_(loggerStream) {
+            loggerStream_(loggerStream) {
         }
 
     private:
@@ -97,7 +91,7 @@ namespace GEO {
          * \retval -1 on failure.
          * \see LoggerStream::notify()
          */
-        virtual int sync();
+        int sync() override;
 
     private:
         LoggerStream* loggerStream_;
@@ -108,7 +102,7 @@ namespace GEO {
     /**
      * \brief Stream used by the Logger
      * \details This class is used used internally to implement logger
-     * mechanism. Since it inherits a STL class, it is declared as 
+     * mechanism. Since it inherits a STL class, it is declared as
      * NO_GEOGRAM_API so that it is not exported when Windows DLLs
      * are generated (doing otherwise would generate multiply defined
      * symbols).
@@ -125,7 +119,7 @@ namespace GEO {
         /**
          * \brief Logger stream destructor
          */
-        virtual ~LoggerStream();
+        ~LoggerStream() override;
 
     protected:
         /**
@@ -195,7 +189,7 @@ namespace GEO {
         /**
          * \brief LoggerClient destructor
          */
-        virtual ~LoggerClient();
+        ~LoggerClient() override;
     };
 
     /** Smart pointer that contains a LoggerClient object */
@@ -216,34 +210,34 @@ namespace GEO {
         /**
          * \copydoc LoggerClient::div()
          */
-        void div(const std::string& title);
+        void div(const std::string& title) override;
 
         /**
          * \copydoc LoggerClient::out()
          */
-        void out(const std::string& str);
+        void out(const std::string& str) override;
 
         /**
          * \copydoc LoggerClient::warn()
          */
-        void warn(const std::string& str);
+        void warn(const std::string& str) override;
 
         /**
          * \copydoc LoggerClient::err()
          */
-        void err(const std::string& str);
+        void err(const std::string& str) override;
 
         /**
          * \copydoc LoggerClient::status()
          * This function does actually nothing
          */
-        void status(const std::string& str);
+        void status(const std::string& str) override;
 
     protected:
         /**
          * \brief ConsoleLogger destructor
          */
-        virtual ~ConsoleLogger();
+        ~ConsoleLogger() override;
     };
 
     /************************************************************************/
@@ -271,34 +265,34 @@ namespace GEO {
         /**
          * \copydoc LoggerClient::div()
          */
-        void div(const std::string& title);
+        void div(const std::string& title) override;
 
         /**
          * \copydoc LoggerClient::out()
          */
-        void out(const std::string& str);
+        void out(const std::string& str) override;
 
         /**
          * \copydoc LoggerClient::warn()
          */
-        void warn(const std::string& str);
+        void warn(const std::string& str) override;
 
         /**
          * \copydoc LoggerClient::err()
          */
-        void err(const std::string& str);
+        void err(const std::string& str) override;
 
         /**
          * \copydoc LoggerClient::status()
          * This function does actually nothing
          */
-        void status(const std::string& str);
+        void status(const std::string& str) override;
 
     protected:
         /**
          * \brief FileLogger destructor
          */
-        virtual ~FileLogger();
+        ~FileLogger() override;
 
         /**
          * \brief Sets the log file name
@@ -384,7 +378,7 @@ namespace GEO {
          * \brief Returns the Logger single instance
          * \details This function does \b not create the Logger instance.
          * Calling instance() before initialize() has been called returns a \c
-         * null pointer. Similarly, calling instance() after terminate() 
+         * null pointer. Similarly, calling instance() after terminate()
          * has been called returns a \c null pointer.
          * \return A pointer to the Logger if initialized, null otherwise
          * \see initialize()
@@ -403,8 +397,8 @@ namespace GEO {
          * \retval false otherwise
          */
         static bool is_initialized();
-        
-       
+
+
         /**
          * \brief Creates a division in the log output
          * \details This is used to start a new "block" of output log with
@@ -490,7 +484,7 @@ namespace GEO {
          * \brief Unregisters all the registered clients.
          */
         void unregister_all_clients();
-        
+
         /**
          * \brief Checks if a client is registered
          * \param[in] client a logger client
@@ -524,7 +518,7 @@ namespace GEO {
         /**
          * \brief Sets the minimal mode
          * \details When the Logger is in minimal mode, only warning and error
-         * messages sent to it are dispatched to the registered clients. 
+         * messages sent to it are dispatched to the registered clients.
          * The minimal mode can also be set by setting the value of the property
          * "log:minimal" with set_value().
          * \param[in] flag set to true/false to turn the minimal mode on/off
@@ -541,7 +535,7 @@ namespace GEO {
         bool is_minimal() const {
             return minimal_;
         }
-        
+
         /**
          * \brief Sets the console pretty mode
          * \details When the Logger console is in pretty mode, messages are
@@ -574,7 +568,7 @@ namespace GEO {
         /**
          * \brief Logger destructor
          */
-        virtual ~Logger();
+        ~Logger() override;
 
         /** \copydoc div() */
         std::ostream& div_stream(const std::string& title);
@@ -590,6 +584,15 @@ namespace GEO {
 
         /** \copydoc status() */
         std::ostream& status_stream();
+
+        /**
+         * \brief Gets an output stream that sends messages to the standard
+         *  error.
+         * \details This one is returned by out(), err(), warn(), status()
+         *  whenever multiple threads are running. It serializes writes
+         *  line by line, so that messages from different threads are not mixed.
+         */
+        std::ostream& err_console();
 
         /**
          * \brief Receives a message from a logger stream
@@ -665,9 +668,9 @@ namespace GEO {
          * \retval false otherwise
          * \see Environment::set_value()
          */
-        virtual bool set_local_value(
+        bool set_local_value(
             const std::string& name, const std::string& value
-        );
+        ) override;
 
         /**
          * \brief Gets a Logger property
@@ -680,9 +683,27 @@ namespace GEO {
          * \retval false otherwise
          * \see Environment::get_value()
          */
-        virtual bool get_local_value(
+        bool get_local_value(
             const std::string& name, std::string& value
-        ) const;
+        ) const override;
+
+
+	/**
+	 * \brief Increases number of spaces before each message in out().
+	 * \details Used by Stopwatch
+	 */
+	void indent() {
+	    ++indent_;
+	}
+
+	/**
+	 * \brief Decreases number of spaces before each message in out().
+	 * \details Used by Stopwatch
+	 */
+	void unindent() {
+	    geo_debug_assert(indent_ != 0);
+	    --indent_;
+	}
 
     private:
         static SmartPointer<Logger> instance_;
@@ -691,6 +712,8 @@ namespace GEO {
         LoggerStream warn_;
         LoggerStream err_;
         LoggerStream status_;
+
+        std::ostream* err_console_;
 
         // features we want or don't want to log (only applies to 'out').
 
@@ -712,9 +735,12 @@ namespace GEO {
         bool pretty_;
         bool minimal_;
         bool notifying_error_;
-        
+
+	index_t indent_;
+
         friend class LoggerStream;
         friend class LoggerStreamBuf;
+	friend class Stopwatch;
     };
 
     /************************************************************************/
@@ -739,7 +765,7 @@ extern "C" {
      * formatted messages directly to the Logger:
      * - formatted text printed to stdout is sent to Logger::out()
      * - formatted text printed to stderr is sent to Logger::err()
-     * - otherwise the formatted text is printed to \p out using 
+     * - otherwise the formatted text is printed to \p out using
      *   the system fprintf.
      * \param[in] out output file
      * \param[in] format printf-like format string
@@ -783,4 +809,3 @@ extern int GEOGRAM_API geogram_fprintf(FILE* out, const char* format, ...);
 #endif
 
 #endif
-

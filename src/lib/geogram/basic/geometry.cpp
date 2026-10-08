@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2014, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -13,7 +13,7 @@
  *  * Neither the name of the ALICE Project-Team nor the names of its
  *  contributors may be used to endorse or promote products derived from this
  *  software without specific prior written permission.
- * 
+ *
  *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -26,19 +26,13 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine, 
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX 
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
@@ -102,7 +96,7 @@ namespace {
         return p1 + t1 * v1;
     }
 
-#ifdef REMOVE_ME    
+#ifdef REMOVE_ME
     /**
      * \brief Computes the intersection between the supporting lines
      *  of 2d segments specified by their extremities.
@@ -138,7 +132,7 @@ namespace {
         return m01 * a22 - m02 * a12 + m12 * a02;
     }
 #endif
-    
+
 }
 
 /****************************************************************************/
@@ -171,15 +165,15 @@ namespace GEO {
             }
             vec3 result;
             switch(min_index) {
-                case 0:
-                    result = vec3(0, -V.z, V.y);
-                    break;
-                case 1:
-                    result = vec3(V.z, 0, -V.x);
-                    break;
-                case 2:
-                    result = vec3(-V.y, V.x, 0);
-                    break;
+            case 0:
+                result = vec3(0, -V.z, V.y);
+                break;
+            case 1:
+                result = vec3(V.z, 0, -V.x);
+                break;
+            case 2:
+                result = vec3(-V.y, V.x, 0);
+                break;
             }
             return result;
         }
@@ -231,4 +225,3 @@ namespace GEO {
         }
     }
 }
-

@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2014, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -13,7 +13,7 @@
  *  * Neither the name of the ALICE Project-Team nor the names of its
  *  contributors may be used to endorse or promote products derived from this
  *  software without specific prior written permission.
- * 
+ *
  *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -26,25 +26,20 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine, 
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX 
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
 
 #include <geogram/basic/string.h>
 #include <ctype.h>
+#include <stdarg.h>
 
 namespace GEO {
 
@@ -88,7 +83,27 @@ namespace GEO {
             }
         }
 
-        bool GEOGRAM_API split_string(
+        void split_string(
+            const std::string& in,
+            const std::string& separator,
+            std::vector<std::string>& out,
+            bool skip_empty_fields
+        ) {
+            size_t length = in.length();
+            size_t start = 0;
+            while(start < length) {
+                size_t end = in.find(separator, start);
+                if(end == std::string::npos) {
+                    end = length;
+                }
+                if(!skip_empty_fields || (end - start > 0)) {
+                    out.push_back(in.substr(start, end - start));
+                }
+                start = end + separator.length();
+            }
+        }
+
+        bool split_string(
             const std::string& in,
             char separator,
             std::string& left,
@@ -101,10 +116,28 @@ namespace GEO {
                 return false;
             }
             left = in.substr(0,p);
-            right = in.substr(p+1,in.length()-p);
+            right = in.substr(p+1);
             return true;
         }
-        
+
+
+        bool split_string(
+            const std::string& in,
+            const std::string& separator,
+            std::string& left,
+            std::string& right
+        ) {
+            size_t p = in.find(separator);
+            if(p == std::string::npos) {
+                left = "";
+                right = "";
+                return false;
+            }
+            left = in.substr(0,p);
+            right = in.substr(p+separator.length());
+            return true;
+        }
+
         std::string join_strings(
             const std::vector<std::string>& in,
             char separator
@@ -167,9 +200,51 @@ namespace GEO {
             return l1 > l2 && haystack.compare(l1 - l2, l1, needle) == 0;
         }
 
+        std::string format(const char* format, ...) {
+            size_t length = 0;
+
+            // Determine required length
+            va_list arg_ptr;
+            va_start(arg_ptr, format);
+            length = size_t(vsnprintf(nullptr, 0, format, arg_ptr));
+            va_end(arg_ptr);
+
+            // Create the string of required length and sprintf() into it
+            std::string result(length,'*');
+            va_start(arg_ptr, format);
+            vsnprintf(
+		const_cast<char*>(result.c_str()), length+1, format, arg_ptr
+	    );
+            va_end(arg_ptr);
+
+            return result;
+        }
+
+	std::string format_time(double seconds, bool HMS_only) {
+
+	    std::string result;
+	    if(!HMS_only) {
+		result = String::to_display_string(seconds) + "s";
+	    }
+
+	    if(seconds >= 60.0) {
+		while(!HMS_only && result.length() <= 10) {
+		    result += " ";
+		}
+		int S = int(seconds);
+		int H = S / 3600;
+		S = S % 3600;
+		int M = S / 60;
+		S = S % 60;
+		result += String::format("(%02d:%02d:%02d)",H,M,S);
+	    }
+
+	    return result;
+	}
+
         // Reference: https://stackoverflow.com/questions/148403/
         //     utf8-to-from-wide-char-conversion-in-stl
-        
+
         std::string wchar_to_UTF8(const wchar_t* in) {
             std::string out;
             unsigned int codepoint = 0;
@@ -184,7 +259,7 @@ namespace GEO {
                     } else {
                         codepoint = (unsigned int)(*in);
                     }
-                
+
                     if (codepoint <= 0x7f) {
                         out.append(1, char(codepoint));
                     } else if (codepoint <= 0x7ff) {
@@ -205,7 +280,7 @@ namespace GEO {
             }
             return out;
         }
-        
+
         /********************************************************************/
 
         ConversionError::ConversionError(
@@ -219,4 +294,3 @@ namespace GEO {
         }
     }
 }
-

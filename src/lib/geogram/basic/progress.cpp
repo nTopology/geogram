@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2014, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -13,7 +13,7 @@
  *  * Neither the name of the ALICE Project-Team nor the names of its
  *  contributors may be used to endorse or promote products derived from this
  *  software without specific prior written permission.
- * 
+ *
  *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -26,19 +26,13 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine, 
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX 
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
@@ -149,20 +143,20 @@ namespace {
     public:
         /** \copydoc GEO::ProgressClient::begin() */
         void begin() override {
-            const ProgressTask* task = Progress::current_task();
+            const ProgressTask* task = Progress::current_progress_task();
             CmdLine::ui_progress(task->task_name(), 0, 0);
         }
 
         /** \copydoc GEO::ProgressClient::progress(index_t,index_t) */
         void progress(index_t step, index_t percent) override {
-            const ProgressTask* task = Progress::current_task();
+            const ProgressTask* task = Progress::current_progress_task();
             CmdLine::ui_progress(task->task_name(), step, percent);
         }
 
         /** \copydoc GEO::ProgressClient::end(bool) */
         void end(bool canceled) override {
-            const ProgressTask* task = Progress::current_task();
-            double elapsed = SystemStopwatch::now() - task->start_time();
+            const ProgressTask* task = Progress::current_progress_task();
+            double elapsed = Stopwatch::now() - task->start_time();
             if(canceled) {
                 CmdLine::ui_progress_canceled(
                     task->task_name(), elapsed, task->percent()
@@ -203,7 +197,7 @@ namespace GEO {
             progress_client_ = client;
         }
 
-        const ProgressTask* current_task() {
+        const ProgressTask* current_progress_task() {
             return progress_tasks_.empty() ? nullptr : progress_tasks_.top();
         }
 
@@ -233,7 +227,7 @@ namespace GEO {
         const std::string& task_name, index_t max_steps, bool quiet
     ) :
         task_name_(task_name),
-        start_time_(SystemStopwatch::now()),
+        start_time_(Stopwatch::now()),
         quiet_(quiet),
         max_steps_(std::max(index_t(1), max_steps)),
         step_(0),
@@ -248,7 +242,7 @@ namespace GEO {
         const std::string& task_name, index_t max_steps
     ) :
         task_name_(task_name),
-        start_time_(SystemStopwatch::now()),
+        start_time_(Stopwatch::now()),
         quiet_(Logger::instance()->is_quiet()),
         max_steps_(std::max(index_t(1), max_steps)),
         step_(0),
@@ -259,7 +253,7 @@ namespace GEO {
         }
     }
 
-    
+
     ProgressTask::~ProgressTask() {
         if(!quiet_) {
             end_task(this);
@@ -267,7 +261,7 @@ namespace GEO {
     }
 
     void ProgressTask::reset() {
-        start_time_ = SystemStopwatch::now();
+        start_time_ = Stopwatch::now();
         reset_task(this);
         progress(0);
     }
@@ -284,8 +278,9 @@ namespace GEO {
     }
 
     void ProgressTask::progress(index_t step) {
-        if(step_ != step) {
+        if(step != step_) {
             step_ = step;
+            step_ = std::min(step_, max_steps_);
             update();
         }
     }
@@ -295,10 +290,13 @@ namespace GEO {
     }
 
     void ProgressTask::update() {
-        percent_ = std::min(index_t(100), index_t(step_ * 100 / max_steps_));
-        if(!quiet_) {
-            task_progress(step_, percent_);
+        index_t new_percent =
+            std::min(index_t(100), index_t(step_ * 100 / max_steps_));
+        if(new_percent != percent_) {
+            percent_ = new_percent;
+            if(!quiet_) {
+                task_progress(step_, percent_);
+            }
         }
     }
 }
-

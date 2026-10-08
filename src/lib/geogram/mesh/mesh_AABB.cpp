@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2014, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -13,7 +13,7 @@
  *  * Neither the name of the ALICE Project-Team nor the names of its
  *  contributors may be used to endorse or promote products derived from this
  *  software without specific prior written permission.
- * 
+ *
  *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -26,19 +26,13 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine, 
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX 
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
@@ -49,151 +43,13 @@
 #include <geogram/mesh/mesh_repair.h>
 #include <geogram/numerics/predicates.h>
 #include <geogram/basic/geometry_nd.h>
+#include <geogram/basic/algorithm.h>
 
-#ifdef __SSE2__ 
-#include <emmintrin.h>
-#endif
-
-#ifdef __AVX2__
-#include <immintrin.h>
-#endif
+#include <stack>
 
 namespace {
 
     using namespace GEO;
-
-    /**
-     * \brief Computes the axis-aligned bounding box of a mesh facet.
-     * \param[in] M the mesh
-     * \param[out] B the bounding box of the facet
-     * \param[in] f the index of the facet in mesh \p M
-     */
-    void get_facet_bbox(
-        const Mesh& M, Box& B, index_t f
-    ) {
-        index_t c = M.facets.corners_begin(f);
-        const double* p = M.vertices.point_ptr(M.facet_corners.vertex(c));
-        for(coord_index_t coord = 0; coord < 3; ++coord) {
-            B.xyz_min[coord] = p[coord];
-            B.xyz_max[coord] = p[coord];
-        }
-        for(++c; c < M.facets.corners_end(f); ++c) {
-            p = M.vertices.point_ptr(M.facet_corners.vertex(c));
-            for(coord_index_t coord = 0; coord < 3; ++coord) {
-                B.xyz_min[coord] = std::min(B.xyz_min[coord], p[coord]);
-                B.xyz_max[coord] = std::max(B.xyz_max[coord], p[coord]);
-            }
-        }
-    }
-
-
-    /**
-     * \brief Computes the axis-aligned bounding box of a mesh tetrahedron.
-     * \param[in] M the mesh
-     * \param[out] B the bounding box of the facet
-     * \param[in] t the index of the tetrahedron in mesh \p M
-     */
-    void get_tet_bbox(
-        const Mesh& M, Box& B, index_t t
-    ) {
-        const double* p = M.vertices.point_ptr(M.cells.vertex(t,0));
-        for(coord_index_t coord = 0; coord < 3; ++coord) {
-            B.xyz_min[coord] = p[coord];
-            B.xyz_max[coord] = p[coord];
-        }
-        for(index_t lv=1; lv<4; ++lv) {
-            p = M.vertices.point_ptr(M.cells.vertex(t,lv));
-            for(coord_index_t coord = 0; coord < 3; ++coord) {
-                B.xyz_min[coord] = std::min(B.xyz_min[coord], p[coord]);
-                B.xyz_max[coord] = std::max(B.xyz_max[coord], p[coord]);
-            }
-        }
-    }
-
-    /**
-     * \brief Computes the axis-aligned bounding box of a mesh cell
-     * \param[in] M the mesh
-     * \param[out] B the bounding box of the facet
-     * \param[in] c the index of the cell in mesh \p M
-     */
-    void get_cell_bbox(
-        const Mesh& M, Box& B, index_t c
-    ) {
-        const double* p = M.vertices.point_ptr(M.cells.vertex(c,0));
-        for(coord_index_t coord = 0; coord < 3; ++coord) {
-            B.xyz_min[coord] = p[coord];
-            B.xyz_max[coord] = p[coord];
-        }
-        for(index_t lv=1; lv<M.cells.nb_vertices(c); ++lv) {
-            p = M.vertices.point_ptr(M.cells.vertex(c,lv));
-            for(coord_index_t coord = 0; coord < 3; ++coord) {
-                B.xyz_min[coord] = std::min(B.xyz_min[coord], p[coord]);
-                B.xyz_max[coord] = std::max(B.xyz_max[coord], p[coord]);
-            }
-        }
-    }
-    
-    /**
-     * \brief Computes the maximum node index in a subtree
-     * \param[in] node_index node index of the root of the subtree
-     * \param[in] b first facet index in the subtree
-     * \param[in] e one position past the last facet index in the subtree
-     * \return the maximum node index in the subtree rooted at \p node_index
-     */
-    index_t max_node_index(index_t node_index, index_t b, index_t e) {
-        geo_debug_assert(e > b);
-        if(b + 1 == e) {
-            return node_index;
-        }
-        index_t m = b + (e - b) / 2;
-        index_t childl = 2 * node_index;
-        index_t childr = 2 * node_index + 1;
-        return std::max(
-            max_node_index(childl, b, m),
-            max_node_index(childr, m, e)
-        );
-    }
-
-    /**
-     * \brief Computes the hierarchy of bounding boxes recursively.
-     * \details This function is generic and can be used to compute
-     *  a bbox hierarchy of arbitrary elements.
-     * \param[in] M the mesh
-     * \param[in] bboxes the array of bounding boxes
-     * \param[in] node_index the index of the root of the subtree
-     * \param[in] b first element index in the subtree
-     * \param[in] e one position past the last element index in the subtree
-     * \param[in] get_bbox a function that computes the bbox of an element
-     * \tparam GET_BBOX a function (or a functor) with the following arguments:
-     *  - mesh: a const reference to the mesh
-     *  - box: a reference where the computed bounding box of the element 
-     *   will be stored
-     *  - element: the index of the element
-     */
-    template <class GET_BBOX>
-    void init_bboxes_recursive(
-        const Mesh& M, vector<Box>& bboxes,
-        index_t node_index,
-        index_t b, index_t e,
-        const GET_BBOX& get_bbox
-    ) {
-        geo_debug_assert(node_index < bboxes.size());
-        geo_debug_assert(b != e);
-        if(b + 1 == e) {
-            get_bbox(M, bboxes[node_index], b);
-            return;
-        }
-        index_t m = b + (e - b) / 2;
-        index_t childl = 2 * node_index;
-        index_t childr = 2 * node_index + 1;
-        geo_debug_assert(childl < bboxes.size());
-        geo_debug_assert(childr < bboxes.size());
-        init_bboxes_recursive(M, bboxes, childl, b, m, get_bbox);
-        init_bboxes_recursive(M, bboxes, childr, m, e, get_bbox);
-        geo_debug_assert(childl < bboxes.size());
-        geo_debug_assert(childr < bboxes.size());
-        bbox_union(bboxes[node_index], bboxes[childl], bboxes[childr]);
-    }
 
     /**
      * \brief Finds the nearest point in a mesh facet from a query point.
@@ -203,7 +59,6 @@ namespace {
      * \param[out] nearest_p the point of facet \p f nearest to \p p
      * \param[out] squared_dist the squared distance between
      *  \p p and \p nearest_p
-     * \pre the mesh \p M is triangulated
      */
     void get_point_facet_nearest_point(
         const Mesh& M,
@@ -212,17 +67,18 @@ namespace {
         vec3& nearest_p,
         double& squared_dist
     ) {
-        geo_debug_assert(M.facets.nb_vertices(f) == 3);
-        index_t c = M.facets.corners_begin(f);
-        const vec3& p1 = Geom::mesh_vertex(M, M.facet_corners.vertex(c));
-        ++c;
-        const vec3& p2 = Geom::mesh_vertex(M, M.facet_corners.vertex(c));
-        ++c;
-        const vec3& p3 = Geom::mesh_vertex(M, M.facet_corners.vertex(c));
-        double lambda1, lambda2, lambda3;  // barycentric coords, not used.
-        squared_dist = Geom::point_triangle_squared_distance(
-            p, p1, p2, p3, nearest_p, lambda1, lambda2, lambda3
-        );
+	squared_dist = Numeric::max_float64();
+	for(auto [ p1, p2, p3] : M.facets.triangle_points(f)) {
+	    double lambda1, lambda2, lambda3;  // barycentric coords,unused.
+	    vec3 cur_nearest_p;
+	    double cur_squared_dist = Geom::point_triangle_squared_distance(
+		p, p1, p2, p3, cur_nearest_p, lambda1, lambda2, lambda3
+	    );
+	    if(cur_squared_dist < squared_dist) {
+		squared_dist = cur_squared_dist;
+		nearest_p = cur_nearest_p;
+	    }
+	}
     }
 
     /**
@@ -297,21 +153,17 @@ namespace {
      * \param[in] M a const reference to the mesh
      * \param[in] t the index of the tetrahedron in \p M
      * \param[in] p a const reference to the point
-     * \param[in] exact specifies whether exact predicates should be used
-     * \retval true if the tetrahedron \p t or its boundary contains 
+     * \retval true if the tetrahedron \p t or its boundary contains
      *  the point \p p
      * \retval false otherwise
      */
     bool mesh_tet_contains_point(
-        const Mesh& M, index_t t, const vec3& p, bool exact = true
+        const Mesh& M, index_t t, const vec3& p
     ) {
-        // Inexact mode is not implemented yet.
-        geo_argused(exact);
-
-        const vec3& p0 = Geom::mesh_vertex(M, M.cells.vertex(t,0));
-        const vec3& p1 = Geom::mesh_vertex(M, M.cells.vertex(t,1));
-        const vec3& p2 = Geom::mesh_vertex(M, M.cells.vertex(t,2));
-        const vec3& p3 = Geom::mesh_vertex(M, M.cells.vertex(t,3));
+        const vec3& p0 = M.cells.point(t,0);
+        const vec3& p1 = M.cells.point(t,1);
+        const vec3& p2 = M.cells.point(t,2);
+        const vec3& p3 = M.cells.point(t,3);
 
         Sign s[4];
         s[0] = PCK::orient_3d(p, p1, p2, p3);
@@ -327,147 +179,130 @@ namespace {
 
 
     /**
-     * \brief Tests whether a segment intersects a triangle.
-     * \param[in] q1 , q2 the two extremities of the segment.
-     * \param[in] p1 , p2 , p3 the three vertices of the triangle.
-     * \retval true if [q1,q2] has an intersection with (p1, p2, p3).
-     * \retval false otherwise.
+     * \brief Tests whether a mesh triangle contains a given point
+     * \param[in] M a const reference to the mesh
+     * \param[in] t the index of the triangle in \p M
+     * \param[in] p a const reference to the point
+     * \retval true if the triangle \p t or its boundary contains
+     *  the point \p p
+     * \retval false otherwise
      */
-    bool segment_triangle_intersection(
-        const vec3& q1, const vec3& q2,
-        const vec3& p1, const vec3& p2, const vec3& p3
+    bool mesh_triangle_contains_point(
+        const Mesh& M, index_t t, const vec2& p
     ) {
+        index_t i = M.facets.vertex(t,0);
+        index_t j = M.facets.vertex(t,1);
+        index_t k = M.facets.vertex(t,2);
+        vec2 p0 = M.vertices.point<2>(i);
+        vec2 p1 = M.vertices.point<2>(j);
+        vec2 p2 = M.vertices.point<2>(k);
 
-        //   If the segment does not straddle the supporting plane of the
-        // triangle, then there is no intersection.
-        vec3 N = cross(p2-p1, p3-p1);
-        if(dot(q1-p1,N)*dot(q2-p1,N) > 0.0) {
-            return false;
-        }
+        Sign s[3];
+        s[0] = PCK::orient_2d(p,  p1, p2);
+        s[1] = PCK::orient_2d(p0, p,  p2);
+        s[2] = PCK::orient_2d(p0, p1, p );
 
-        //  The three tetrahedra formed by the segment and the three edges
-        // of the triangle should have the same sign, else there is no
-        // intersection.
-        int s1 = geo_sgn(Geom::tetra_signed_volume(q1,q2,p1,p2));
-        int s2 = geo_sgn(Geom::tetra_signed_volume(q1,q2,p2,p3));
-        if(s1 != s2) {
-            return false;
-        }
-        int s3 = geo_sgn(Geom::tetra_signed_volume(q1,q2,p3,p1));
-        return (s2 == s3);
+        return (
+            (s[0] >= 0 && s[1] >= 0 && s[2] >= 0 ) ||
+            (s[0] <= 0 && s[1] <= 0 && s[2] <= 0 )
+        );
     }
 
     /**
-     * \brief Tests whether a segment intersects a triangle and has
-     *   an intersection nearer than the intersection computed so far.
-     * \param[in] q1 , q2 the two extremities of the segment.
-     * \param[in] p1 , p2 , p3 the three vertices of the triangle.
-     * \param[in,out] nearest_t coordinate along [q1,q2] of the nearest
-     *  intersection computed so far.
-     * \retval true if [q1,q2] has an intersection with (p1, p2, p3) that
-     *  is nearer than the intersection computed so far.
-     * \retval false otherwise.
+     * \brief Computes the intersection between a ray and a triangle.
+     * \param[in] O origin of the ray.
+     * \param[in] D direction vector of the ray.
+     * \param[in] A , B , C the three vertices of the triangle.
+     * \param[out] t the intersection point is O + t D when it exists.
+     * \param[out] u , v the intersection point is A + u (B-A) + v (C-A).
+     *   when it exists.
+     * \param[out] N the normal to the triangle.
+     * \param[in] bidirectional if set, computes a line-triangle intersection
+     *  (intersections before \p O are also reported)
+     * \retval true if there is an intersection point
+     * \retval false otherwise
      */
-    bool segment_triangle_nearest_intersection(
-        const vec3& q1, const vec3& q2,
-        const vec3& p1, const vec3& p2, const vec3& p3,
-        double& nearest_t
+    bool ray_triangle_intersection(
+        const vec3& O, const vec3& D,
+        const vec3& A, const vec3& B, const vec3& C,
+        double& t, double& u, double& v, vec3& N,
+	bool bidirectional = false
     ) {
-        if(!segment_triangle_intersection(q1,q2,p1,p2,p3)) {
-            return false;
-        }
-
-
-        // TODO: there is probably simpler/faster
-        // for instance:
-        // | p1 p2 p3 (tq2 + (1-t)q1) |
-        // | 1  1  1  1               | = 0
-
-
-        // Normal vector of the triangle
-        
-        vec3 N = cross(p2-p1,p3-p1);
-
-        // Plane equation: dot(N,p) = dot(N,p1)
-        // dot(q1 + t(q2-q1),N) = dot(p1, N)
-        // dot(q1,N) + t dot(q2-q1,N) = dot(p1,N)
-        // t = (dot(p1,N) - dot(q1,N)) / (dot(q2,N) - dot(q1,N))
-
-        double denom = dot(q2,N) - dot(q1,N);
-        if(::fabs(denom) < 1e-20) {
-            return false;
-        }
-
-        double t = (dot(p1,N) - dot(q1,N)) / denom;
-              
-        
-        if(t < 0.0 || t > 1.0 || t > nearest_t) {
-            return false;
-        }
-        nearest_t = t;
-        return true;
-    }
-
-    
-    /**
-     * \brief Tests whether there is an intersection between a segment
-     *  and a mesh facet.
-     * \param[in] q1 , q2 the extremities of the segment
-     * \param[in] M the mesh
-     * \param[in] f the facet
-     */
-    bool segment_mesh_facet_intersection(
-        const vec3& q1, const vec3& q2,
-        const Mesh& M,
-        index_t f
-    ) {
-        index_t c = M.facets.corners_begin(f);
-        const vec3& p1 = Geom::mesh_vertex(M, M.facet_corners.vertex(c));
-        ++c;
-        while(c+1 != M.facets.corners_end(f)) {
-            const vec3& p2 = Geom::mesh_vertex(M, M.facet_corners.vertex(c));
-            const vec3& p3 = Geom::mesh_vertex(M, M.facet_corners.vertex(c+1));
-            if(segment_triangle_intersection(q1, q2, p1, p2, p3)) {
-                return true;
-            }
-            ++c;
-        }
-        return false;
-    }
-
-    /**
-     * \brief Tests whether there is an intersection between a segment
-     *  and a mesh facet.
-     * \param[in] q1 , q2 the extremities of the segment
-     * \param[in] M the mesh
-     * \param[in] f the facet
-     * \param[in,out] nearest_t coordinate along [q1,q2] of the
-     *  nearest intersection so far
-     * \param[in,out] nearest_f index of the nearest intersected
-     *  facet so far
-     */
-    bool segment_mesh_facet_nearest_intersection(
-        const vec3& q1, const vec3& q2,
-        const Mesh& M, index_t f,
-        double& nearest_t, index_t& nearest_f
-    ) {
-        index_t c = M.facets.corners_begin(f);
-        const vec3& p1 = Geom::mesh_vertex(M, M.facet_corners.vertex(c));
-        ++c;
-        while(c+1 != M.facets.corners_end(f)) {
-            const vec3& p2 = Geom::mesh_vertex(M, M.facet_corners.vertex(c));
-            const vec3& p3 = Geom::mesh_vertex(M, M.facet_corners.vertex(c+1));
-            if(
-                segment_triangle_nearest_intersection(
-                    q1, q2, p1, p2, p3, nearest_t
-                )
-            ) {
-                nearest_f = f;
-                return true;
-            }
-            ++c;
-        }
-        return false;
+        // M\"oller and Trumbore,
+        // Fast, Minimum Storage Ray-Triangle Intersection,
+        // Journal of Graphics Tools, vol. 2, 1997, p. 21-28
+        // (with small adaptations: branchless, and reusing the normal vector)
+        //
+        // Let E1 = B-A; E2 = C-A, write ray eqn (1) and triangle eqn (2), then
+        //  write equality between (1) and (2) at intersection point (3):
+        //
+        // (1) O + tD = A + uE1 + vE2
+        // (2) uE1 + vE2 -tD = O-A
+        //
+        //                [u]
+        // (3) [E1|E2|-D] [v] = O-A
+        //                [t]
+        //
+        //  (where [E1|E2|-D] is the 3x3 matrix with E1,E2,-D as its columns)
+        //
+        //  Using Cramer's formula for the solution of:
+        //
+        //    [a11 a12 a13][x1]   [b1]
+        //    [a12 a22 a23][x2] = [b2]
+        //    [a31 a32 a33][x3]   [b3]
+        //
+        //  gives:
+        //
+        //        |b1 a12 a13|   |a11 a12 a13|
+        //   x1 = |b2 a22 a23| / |a21 a22 a23|
+        //        |b3 a32 a33|   |a31 a32 a33|
+        //
+        //        |a11 b1 a13|   |a11 a12 a13|
+        //   x2 = |a21 b2 a23| / |a21 a22 a23|
+        //        |a31 b3 a33|   |a31 a32 a33|
+        //
+        //        |a11 a12 b1|   |a11 a12 a13|
+        //   x3 = |a21 a22 b2| / |a21 a22 a23|
+        //        |a31 a32 b3|   |a31 a32 a33|
+        //
+        // Now we get:
+        //
+        //   u = (O-A,E2,-D) / (E1,E2,-D)
+        //   v = (E1,O-A,-D) / (E1,E2,-D)
+        //   t = (E1,E2,O-A) / (E1,E2,-D)
+        //
+        // where (A,B,C) denotes the determinant of the 3x3 matrix
+        //  with A,B,C as its column vectors.
+        //
+        // Now we use the following identities:
+        //   (A,B,C) = dot(A,cross(B,C))  (develop the det w.r.t. first column)
+        //   (B,A,C) = -(A,B,C)           (swapping two cols changes sign)
+        //   (B,C,A) =  (A,B,C)           (circular perm does not change sign)
+        //
+        // Now we get:
+        //
+        // u = -(E2,O-A,D)  / (D,E1,E2)
+        // v =  (E1,O-A,D)  / (D,E1,E2)
+        // t = -(O-A,E1,E2) / (D,E1,E2)
+        //
+        // Using N=cross(E1,E2); AO = O-A; DAO = cross(D,AO)
+        vec3 E1(B-A);
+        vec3 E2(C-A);
+        N = cross(E1,E2);
+        double det = -dot(D,N);
+        double invdet = 1.0/det;
+        vec3 AO = O - A;
+        vec3 DAO = cross(AO,D);
+        u =  dot(E2,DAO) * invdet;
+        v = -dot(E1,DAO) * invdet;
+        t =  dot(AO,N)   * invdet;
+        return (
+            (fabs(det) >= 1e-20) &&
+            (bidirectional || t >= 0.0) &&
+            (u >= 0.0) &&
+            (v >= 0.0) &&
+            ((u+v) <= 1.0)
+        );
     }
 
     inline double max3(double x1, double x2, double x3) {
@@ -483,18 +318,23 @@ namespace {
     // https://tavianator.com/fast-branchless-raybounding-box-intersections-part-2-nans/
     // http://www.flipcode.com/archives/SSE_RayBox_Intersection_Test.shtml
     // http://psgraphics.blogspot.com/2016/02/ray-box-intersection-and-fmin.html
-    
+
     /**
      * \brief Tests whether a segment intersects a box.
      * \param[in] q1 the first extremity of the segment.
      * \param[in] dirinv precomputed 1/(q2.x-q1.x), 1/(q2.y-q1.y), 1/(q2.z-q1.z)
      *   where q2 denotes the second extremity of the segment.
      * \param[in] box the box.
+     * \param[in] T the maximum acceptable value for the intersection parameter.
+     *    Can be used to early-prune boxes while traversing the tree.
+     * \param[in] bidirectional if set, computes a line-box intersection
+     *  (intersections before \p q1 are also reported)
      * \retval true if [q1,q2] intersects the box.
      * \retval false otherwise.
      */
-    bool segment_box_intersection(
-        const vec3& q1, const vec3& dirinv, const Box& box
+    bool ray_box_intersection(
+        const vec3& q1, const vec3& dirinv, const Box& box, double T = 1.0,
+	bool bidirectional = false
     ) {
         // This version: slab method.
         // Step 1: compute
@@ -503,16 +343,16 @@ namespace {
         // (tz1, tz2) : parameters of intersection with slab {zmin <= z <= zmax}
         //   (note: they are unordered, it is possible that tx1 > tx2)
         // This defines three intervals:
-        //  Ix = [ min(tx1,tx2) ... max(tx1,tx2) ] 
-        //  Iy = [ min(ty1,ty2) ... max(ty1,ty2) ] 
+        //  Ix = [ min(tx1,tx2) ... max(tx1,tx2) ]
+        //  Iy = [ min(ty1,ty2) ... max(ty1,ty2) ]
         //  Iz = [ min(tz1,tz2) ... max(tz1,tz2) ]
         // The intersection between [q1,q2] and the slab {xmin <= x <= xmax} is
         //  the set of points {q1 + t(q2-q1)} where t in Ix
-        
+
         // Q: what does it do if one of the fracs is zero ?
         //   normally the tests with inf do what they should
         //   (to be tested)
-        
+
         double tx1 = dirinv.x*(box.xyz_min[0] - q1.x);
         double tx2 = dirinv.x*(box.xyz_max[0] - q1.x);
 
@@ -522,51 +362,68 @@ namespace {
         double tz1 = dirinv.z*(box.xyz_min[2] - q1.z);
         double tz2 = dirinv.z*(box.xyz_max[2] - q1.z);
 
-        // now compute the intersection of the three intervals 
+        // now compute the intersection of the three intervals
         //      Ix /\ Iy /\ Iz
         //   this gives us the range of t that corresponds to points in the
         //   box (because the box is the intersection of the 3 slabs)
         // it starts at the maximum of the left bounds of the 3 intervals
         // it stops at the minimum of the right bounds of the 3 intervals
-        
+
         double tmin =
             max3(std::min(tx1,tx2), std::min(ty1,ty2), std::min(tz1,tz2));
-        
+
         double tmax =
-            min3(std::max(tx1,tx2), std::max(ty1,ty2), std::max(tz1,tz2));      
+            min3(std::max(tx1,tx2), std::max(ty1,ty2), std::max(tz1,tz2));
 
         // There is no intersection if the interval is empty (tmin > tmax)
-        // or if the interval is outside [0,1]
-        
-        return (tmax >= 0.0) && (tmin < tmax) && (tmin <= 1.0);
+        // or if the interval is outside [0,T]
+        // Note: the test is tmin <= tmax, because a bbox can be infinitely
+        // thin (for instance, the bbox of a triangle orthogonal to one
+        // of the axes).
+
+        return (bidirectional || tmax >= 0.0) && (tmin <= tmax) && (tmin <= T);
     }
-
-
 }
 
 /****************************************************************************/
 
 namespace GEO {
 
-    MeshFacetsAABB::MeshFacetsAABB(
-        Mesh& M, bool reorder
-    ) :
-        mesh_(M) {
-        if(!M.facets.are_simplices()) {
-            mesh_repair(
-                M, MeshRepairMode(MESH_REPAIR_TRIANGULATE | MESH_REPAIR_QUIET)
-            );
+    /************************************************************************/
+
+    void MeshFacetsAABB::initialize(Mesh& M, AABBReorderMode reorder_mode) {
+        mesh_ = &M;
+        if(mesh_->facets.nb() == 0) {
+            return;
         }
-        if(reorder) {
-            mesh_reorder(mesh_, MESH_ORDER_MORTON);
-        }
-        bboxes_.resize(
-            max_node_index(
-                1, 0, mesh_.facets.nb()
-            ) + 1 // <-- this is because size == max_index + 1 !!!
-        );
-        init_bboxes_recursive(
-            mesh_, bboxes_, 1, 0, mesh_.facets.nb(), get_facet_bbox
+	switch(reorder_mode) {
+	case AABB_NOREORDER:
+	    break;
+	case AABB_INPLACE:
+	    reorder_.clear();
+            mesh_reorder(*mesh_, MESH_ORDER_MORTON, MESH_FACETS);
+	    break;
+	case AABB_INDIRECT:
+	    compute_mesh_elements_spatial_order(
+		*mesh_, MESH_FACETS, reorder_, MESH_ORDER_MORTON
+	    );
+	    break;
+	}
+        AABB::initialize(
+            mesh_->facets.nb(),
+            [this](Box& B, index_t f) {
+                // Get facet bbox
+                for(coord_index_t coord = 0; coord < 3; ++coord) {
+                    B.xyz_min[coord] = Numeric::max_float64();
+                    B.xyz_max[coord] = -Numeric::max_float64();
+                }
+		for(const vec3& p: mesh_->facets.points(f)) {
+                    for(coord_index_t coord = 0; coord < 3; ++coord) {
+                        B.xyz_min[coord] = std::min(B.xyz_min[coord], p[coord]);
+                        B.xyz_max[coord] = std::max(B.xyz_max[coord], p[coord]);
+                    }
+		}
+            }
         );
     }
 
@@ -581,8 +438,9 @@ namespace GEO {
         // For a large mesh (20M facets) this gains up to 10%
         // performance as compared to picking nearest_f randomly.
         index_t b = 0;
-        index_t e = mesh_.facets.nb();
+        index_t e = mesh_->facets.nb();
         index_t n = 1;
+
         while(e != b + 1) {
             index_t m = b + (e - b) / 2;
             index_t childl = 2 * n;
@@ -598,12 +456,10 @@ namespace GEO {
                 n = childr;
             }
         }
-        nearest_f = b;
+        nearest_f = element_in_leaf(b);
 
-        index_t v = mesh_.facet_corners.vertex(
-            mesh_.facets.corners_begin(nearest_f)
-        );
-        nearest_point = Geom::mesh_vertex(mesh_, v);
+	index_t v = mesh_->facets.vertex(nearest_f, 0);
+        nearest_point = mesh_->vertices.point(v);
         sq_dist = Geom::distance2(p, nearest_point);
     }
 
@@ -617,13 +473,14 @@ namespace GEO {
         // If node is a leaf: compute point-facet distance
         // and replace current if nearer
         if(b + 1 == e) {
+	    index_t f = element_in_leaf(b);
             vec3 cur_nearest_point;
             double cur_sq_dist;
             get_point_facet_nearest_point(
-                mesh_, p, b, cur_nearest_point, cur_sq_dist
+                *mesh_, p, f, cur_nearest_point, cur_sq_dist
             );
             if(cur_sq_dist < sq_dist) {
-                nearest_f = b;
+                nearest_f = f;
                 nearest_point = cur_nearest_point;
                 sq_dist = cur_sq_dist;
             }
@@ -672,121 +529,592 @@ namespace GEO {
     }
 
 
-    bool MeshFacetsAABB::segment_intersection(const vec3& q1, const vec3& q2) const {
-        vec3 dirinv(
-            1.0/(q2.x-q1.x),
-            1.0/(q2.y-q1.y),
-            1.0/(q2.z-q1.z)
-        );
-        return segment_intersection_recursive(q1, q2, dirinv, 1, 0, mesh_.facets.nb());
+    void MeshFacetsAABB::nearest_facet_recursive_filtered(
+        const vec3& p,
+        index_t& nearest_f, vec3& nearest_point, double& sq_dist,
+        index_t n, index_t b, index_t e,
+	std::function<bool(index_t)> filter
+    ) const {
+        geo_debug_assert(e > b);
+
+        // If node is a leaf: compute point-facet distance
+        // and replace current if nearer
+        if(b + 1 == e) {
+	    index_t f = element_in_leaf(b);
+	    if(filter(f)) {
+		vec3 cur_nearest_point;
+		double cur_sq_dist;
+		get_point_facet_nearest_point(
+		    *mesh_, p, f, cur_nearest_point, cur_sq_dist
+		);
+		if(cur_sq_dist < sq_dist) {
+		    nearest_f = f;
+		    nearest_point = cur_nearest_point;
+		    sq_dist = cur_sq_dist;
+		}
+	    }
+            return;
+        }
+        index_t m = b + (e - b) / 2;
+        index_t childl = 2 * n;
+        index_t childr = 2 * n + 1;
+
+        double dl = point_box_signed_squared_distance(p, bboxes_[childl]);
+        double dr = point_box_signed_squared_distance(p, bboxes_[childr]);
+
+        // Traverse the "nearest" child first, so that it has more chances
+        // to prune the traversal of the other child.
+        if(dl < dr) {
+            if(dl < sq_dist) {
+                nearest_facet_recursive_filtered(
+                    p,
+                    nearest_f, nearest_point, sq_dist,
+                    childl, b, m,
+		    filter
+                );
+            }
+            if(dr < sq_dist) {
+                nearest_facet_recursive_filtered(
+                    p,
+                    nearest_f, nearest_point, sq_dist,
+                    childr, m, e,
+		    filter
+                );
+            }
+        } else {
+            if(dr < sq_dist) {
+                nearest_facet_recursive_filtered(
+                    p,
+                    nearest_f, nearest_point, sq_dist,
+                    childr, m, e,
+		    filter
+                );
+            }
+            if(dl < sq_dist) {
+                nearest_facet_recursive_filtered(
+                    p,
+                    nearest_f, nearest_point, sq_dist,
+                    childl, b, m,
+		    filter
+                );
+            }
+        }
     }
 
-    bool MeshFacetsAABB::segment_intersection_recursive(
-        const vec3& q1, const vec3& q2, const vec3& dirinv, index_t n, index_t b, index_t e
+    bool MeshFacetsAABB::ray_intersection(
+        const Ray& R, double tmax, index_t ignore_f
     ) const {
-        if(!segment_box_intersection(q1, dirinv, bboxes_[n])) {
+        vec3 dirinv(
+            1.0/R.direction.x,
+            1.0/R.direction.y,
+            1.0/R.direction.z
+        );
+        return ray_intersection_recursive(
+            R, dirinv, tmax, ignore_f, 1, 0, mesh_->facets.nb()
+        );
+    }
+
+    bool MeshFacetsAABB::ray_nearest_intersection(
+        const Ray& R, Intersection& I
+    ) const {
+        index_t f = I.f;
+        vec3 dirinv(
+            1.0/R.direction.x,
+            1.0/R.direction.y,
+            1.0/R.direction.z
+        );
+        ray_nearest_intersection_recursive(
+            R, dirinv, I, f, 1, 0, mesh_->facets.nb(), 0
+        );
+        if(I.f != f) {
+            I.p = R.origin + I.t * R.direction;
+            return true;
+        }
+        return false;
+    }
+
+    void MeshFacetsAABB::ray_all_intersections(
+        const Ray& R,
+        std::function<void(const Intersection&)> action
+    ) const {
+        vec3 dirinv(
+            1.0/R.direction.x,
+            1.0/R.direction.y,
+            1.0/R.direction.z
+        );
+        ray_all_intersections_recursive(
+            R, dirinv, action,
+            1, 0, mesh_->facets.nb()
+        );
+    }
+
+    void MeshFacetsAABB::line_all_intersections(
+        const vec3& O, const vec3& D,
+        std::function<void(const Intersection&)> action
+    ) const {
+        vec3 dirinv(
+            1.0/D.x,
+            1.0/D.y,
+            1.0/D.z
+        );
+        line_all_intersections_recursive(
+            O, D, dirinv, action,
+            1, 0, mesh_->facets.nb()
+        );
+    }
+
+    bool MeshFacetsAABB::ray_intersection_recursive(
+        const Ray& R, const vec3& dirinv, double tmax, index_t ignore_f,
+        index_t n, index_t b, index_t e
+    ) const {
+        if(!ray_box_intersection(R.origin, dirinv, bboxes_[n], tmax)) {
             return false;
         }
         if(b + 1 == e) {
-            return segment_mesh_facet_intersection(q1, q2, mesh_, b);
+            index_t f = element_in_leaf(b);
+            if(f == ignore_f) {
+                return false;
+            }
+	    for(auto [ p1, p2, p3] : mesh_->facets.triangle_points(f)) {
+                vec3 N;
+                double t,u,v;
+                if(
+                    ray_triangle_intersection(
+                        R.origin, R.direction, p1, p2, p3, t, u, v, N
+                    ) && t < tmax
+                ) {
+                    return true;
+                }
+	    }
+            return false;
         }
         index_t m = b + (e - b) / 2;
         index_t childl = 2 * n;
         index_t childr = 2 * n + 1;
         return (
-            segment_intersection_recursive(q1, q2, dirinv, childl, b, m) ||
-            segment_intersection_recursive(q1, q2, dirinv, childr, m, e)
+            ray_intersection_recursive(R,dirinv,tmax,ignore_f, childl,b,m) ||
+            ray_intersection_recursive(R,dirinv,tmax,ignore_f, childr,m,e)
         );
     }
 
-    bool MeshFacetsAABB::segment_nearest_intersection(
-        const vec3& q1, const vec3& q2, double& t, index_t& f
-    ) const {
-        vec3 dirinv(
-            1.0/(q2.x-q1.x),
-            1.0/(q2.y-q1.y),
-            1.0/(q2.z-q1.z)
-        );
-        f = index_t(-1);
-        t = Numeric::max_float64();
-        segment_nearest_intersection_recursive(
-            q1, q2, dirinv, 1, 0, mesh_.facets.nb(), t, f
-        );
-        return (f != index_t(-1));
+    bool MeshFacetsAABB::contains(const vec3& p) const {
+	vec3 D = normalize(
+	    vec3(
+		Numeric::random_float64(),
+		Numeric::random_float64(),
+		Numeric::random_float64()
+	    )
+	);
+	index_t nb_intersections = 0;
+	ray_all_intersections(
+	    Ray(p, 1e6*D),
+	    [&nb_intersections](const MeshFacetsAABB::Intersection&) {
+		++nb_intersections;
+	    }
+	);
+	return (nb_intersections & 1) != 0;
     }
-    
-    void MeshFacetsAABB::segment_nearest_intersection_recursive(
-        const vec3& q1, const vec3& q2, const vec3& dirinv, index_t n, index_t b, index_t e,
-        double& t, index_t& f
+
+    void MeshFacetsAABB::ray_nearest_intersection_recursive(
+        const Ray& R, const vec3& dirinv, Intersection& I, index_t ignore_f,
+        index_t n, index_t b, index_t e, index_t coord
     ) const {
-        if(!segment_box_intersection(q1, dirinv, bboxes_[n])) {
+        if(!ray_box_intersection(R.origin, dirinv, bboxes_[n], I.t)) {
             return;
         }
         if(b + 1 == e) {
-            segment_mesh_facet_nearest_intersection(q1, q2, mesh_, b, t, f);
+            index_t f = element_in_leaf(b);
+            if(f == ignore_f) {
+                return;
+            }
+	    for( auto [ v1, v2, v3] : mesh_->facets.triangles(f)) {
+		const vec3& p1 = mesh_->vertices.point(v1);
+		const vec3& p2 = mesh_->vertices.point(v2);
+		const vec3& p3 = mesh_->vertices.point(v3);
+                vec3 N;
+                double t,u,v;
+                if(
+		    ray_triangle_intersection(
+			R.origin,R.direction,p1,p2,p3,t,u,v,N
+		    ) && t<I.t
+                ) {
+                    I.t = t;
+                    I.u = u;
+                    I.v = v;
+                    I.N = N;
+                    I.i = v1;
+                    I.j = v2;
+                    I.k = v3;
+                    I.f = f;
+                }
+	    }
             return;
         }
         index_t m = b + (e - b) / 2;
         index_t childl = 2 * n;
         index_t childr = 2 * n + 1;
-        segment_nearest_intersection_recursive(q1, q2, dirinv, childl, b, m, t, f);
-        segment_nearest_intersection_recursive(q1, q2, dirinv, childr, m, e, t, f);
-    }
-    
-    
-/****************************************************************************/
-
-    MeshCellsAABB::MeshCellsAABB(Mesh& M, bool reorder) : mesh_(M) {
-        if(reorder) {
-            mesh_reorder(mesh_, MESH_ORDER_MORTON);
-        }
-        bboxes_.resize(
-            max_node_index(
-                1, 0, mesh_.cells.nb()
-            ) + 1 // <-- this is because size == max_index + 1 !!!
-        );
-        if(mesh_.cells.are_simplices()) {
-            init_bboxes_recursive(
-                mesh_, bboxes_, 1, 0, mesh_.cells.nb(), get_tet_bbox
+        if(dirinv[coord] < 0.0) {
+            ray_nearest_intersection_recursive(
+                R, dirinv, I, ignore_f, childr, m, e, (coord+1)%3
+            );
+            ray_nearest_intersection_recursive(
+                R, dirinv, I, ignore_f, childl, b, m, (coord+1)%3
             );
         } else {
-            init_bboxes_recursive(
-                mesh_, bboxes_, 1, 0, mesh_.cells.nb(), get_cell_bbox
+            ray_nearest_intersection_recursive(
+                R, dirinv, I, ignore_f, childl, b, m, (coord+1)%3
+            );
+            ray_nearest_intersection_recursive(
+                R, dirinv, I, ignore_f, childr, m, e, (coord+1)%3
             );
         }
+    }
+
+
+    void MeshFacetsAABB::ray_all_intersections_recursive(
+        const Ray& R, const vec3& dirinv,
+        std::function<void(const Intersection&)> action,
+        index_t n, index_t b, index_t e
+    ) const {
+        Intersection I;
+        if(!ray_box_intersection(R.origin, dirinv, bboxes_[n], I.t)) {
+            return;
+        }
+        if(b + 1 == e) {
+            index_t f = element_in_leaf(b);
+	    for( auto [ v1, v2, v3] : mesh_->facets.triangles(f)) {
+		const vec3& p1 = mesh_->vertices.point(v1);
+		const vec3& p2 = mesh_->vertices.point(v2);
+		const vec3& p3 = mesh_->vertices.point(v3);
+                vec3 N;
+                if(
+		    ray_triangle_intersection(
+			R.origin,R.direction,p1,p2,p3,I.t,I.u,I.v,I.N
+		    )
+		) {
+                    I.i = v1;
+                    I.j = v2;
+                    I.k = v3;
+                    I.f = f;
+                    action(I);
+                }
+	    }
+            return;
+        }
+        index_t m = b + (e - b) / 2;
+        index_t childl = 2 * n;
+        index_t childr = 2 * n + 1;
+        ray_all_intersections_recursive(R, dirinv, action, childr, m, e);
+        ray_all_intersections_recursive(R, dirinv, action, childl, b, m);
+    }
+
+    void MeshFacetsAABB::line_all_intersections_recursive(
+        const vec3& O, const vec3& D, const vec3& dirinv,
+        std::function<void(const Intersection&)> action,
+        index_t n, index_t b, index_t e
+    ) const {
+	static constexpr bool bidirectional = true;
+        Intersection I;
+        if(!ray_box_intersection(O, dirinv, bboxes_[n], I.t, bidirectional)) {
+            return;
+        }
+        if(b + 1 == e) {
+            index_t f = element_in_leaf(b);
+	    for( auto [ v1, v2, v3] : mesh_->facets.triangles(f)) {
+		const vec3& p1 = mesh_->vertices.point(v1);
+		const vec3& p2 = mesh_->vertices.point(v2);
+		const vec3& p3 = mesh_->vertices.point(v3);
+                vec3 N;
+                if(
+		    ray_triangle_intersection(
+			O,D,p1,p2,p3,I.t,I.u,I.v,I.N,bidirectional
+		    )
+		) {
+                    I.i = v1;
+                    I.j = v2;
+                    I.k = v3;
+                    I.f = f;
+                    action(I);
+                }
+	    }
+            return;
+        }
+        index_t m = b + (e - b) / 2;
+        index_t childl = 2 * n;
+        index_t childr = 2 * n + 1;
+        line_all_intersections_recursive(O, D, dirinv, action, childr, m, e);
+        line_all_intersections_recursive(O, D, dirinv, action, childl, b, m);
+    }
+
+    void MeshFacetsAABB::self_bbox_intersections_parallel(
+	std::function<void(index_t, index_t)> action, bool concurrent
+    ) const {
+
+	// the parameter of a job that computes the intersection
+	// between two subtrees.
+	struct Job {
+	    index_t node1; index_t b1; index_t e1;
+	    index_t node2; index_t b2; index_t e2;
+	};
+
+	// maximum number of facets in a job that will be
+	// run in parallel
+	static constexpr index_t max_job_size = 1024;
+
+	std::stack<Job> S;
+	std::vector<Job> jobs;
+	S.push({1,0,mesh_->facets.nb(),1,0,mesh_->facets.nb()});
+
+	// De-recursified version of the algorithm in self_intersect_recursive()
+	while(!S.empty()) {
+	    Job J = S.top();
+	    S.pop();
+
+            // Since we are intersecting the AABBTree with *itself*,
+            // we can prune half of the cases by skipping the test
+            // whenever node2's facet index interval is greater than
+            // node1's facet index interval.
+	    if(J.e2 <= J.b1) {
+		continue;
+	    }
+
+            // The acceleration is here:
+	    if(
+		(J.node1 != J.node2) &&
+		!bboxes_overlap(bboxes_[J.node1], bboxes_[J.node2])
+	    ) {
+		continue;
+	    }
+
+            // Simple case: leaf - leaf intersection.
+	    if(J.b1 + 1 == J.e1 && J.b2 + 1 == J.e2) {
+		if(J.b1 != J.b2) {
+		    action(element_in_leaf(J.b1), element_in_leaf(J.b2));
+		}
+		continue;
+	    }
+
+	    // If job is small enough, push it to the list
+	    // of jobs to be run in parallel
+	    if(J.e1 - J.b1 <= max_job_size && J.e2 - J.b2 <= max_job_size) {
+		jobs.push_back(J);
+		continue;
+	    }
+
+            // If node2 has more elements than node1, then
+            //   intersect node2's two children with node1
+            // else
+            //   intersect node1's two children with node2
+	    if(J.e2 - J.b2 > J.e1 - J.b1) {
+		index_t m2 = J.b2 + (J.e2 - J.b2) / 2;
+		index_t node2_l = 2 * J.node2;
+		index_t node2_r = 2 * J.node2 + 1;
+		S.push({J.node1, J.b1, J.e1, node2_l, J.b2, m2});
+		S.push({J.node1, J.b1, J.e1, node2_r, m2, J.e2});
+	    } else {
+		index_t m1 = J.b1 + (J.e1 - J.b1) / 2;
+		index_t node1_l = 2 * J.node1;
+		index_t node1_r = 2 * J.node1 + 1;
+		S.push({node1_l, J.b1, m1, J.node2, J.b2, J.e2});
+		S.push({node1_r, m1, J.e1, J.node2, J.b2, J.e2});
+	    }
+	}
+
+	// Random shuffling avoids configurations with some cores that
+	// have all the hard work to do while other ones finish early
+	GEO::random_shuffle(jobs.begin(), jobs.end());
+
+	if(concurrent) {
+	    parallel_for(
+		0, index_t(jobs.size()),
+		[&](index_t i) {
+		    const Job& J = jobs[i];
+		    self_intersect_recursive(
+			action,
+			J.node1, J.b1, J.e1,
+			J.node2, J.b2, J.e2
+		    );
+		}
+	    );
+	} else {
+	    // Temporarily memorize intersecting pairs in a per-thread vector
+	    // (inserting in same vector generates too much contention)
+	    vector<vector<std::pair<index_t,index_t>>> all_candidates(
+		Process::maximum_concurrent_threads()
+	    );
+	    parallel_for_slice(
+		0, index_t(jobs.size()),
+		[&](index_t b, index_t e) {
+		    index_t t = Thread::current()->id();
+		    for(index_t i=b; i<e; ++i) {
+			const Job& J = jobs[i];
+			self_intersect_recursive(
+			    [&](index_t f1, index_t f2) {
+				all_candidates[t].push_back({f1,f2});
+			    },
+			    J.node1, J.b1, J.e1,
+			    J.node2, J.b2, J.e2
+			);
+		    }
+		}
+	    );
+
+	    // Call the action for each pair of intersecting boxes
+	    for(const auto& candidates: all_candidates) {
+		for(const auto& F1F2: candidates) {
+		    action(F1F2.first, F1F2.second);
+		}
+	    }
+	}
+    }
+
+/****************************************************************************/
+
+    void MeshCellsAABB::initialize(Mesh& M, AABBReorderMode reorder_mode) {
+        mesh_ = &M;
+	switch(reorder_mode) {
+	case AABB_NOREORDER:
+	    break;
+	case AABB_INPLACE:
+	    reorder_.clear();
+            mesh_reorder(*mesh_, MESH_ORDER_MORTON);
+	    break;
+	case AABB_INDIRECT:
+	    compute_mesh_elements_spatial_order(
+		*mesh_, MESH_CELLS, reorder_, MESH_ORDER_MORTON
+	    );
+	    break;
+	}
+	AABB::initialize(
+	    mesh_->cells.nb(),
+	    [this](Box& B, index_t c) {
+		// Get cell bbox
+		for(coord_index_t coord = 0; coord < 3; ++coord) {
+		    B.xyz_min[coord] = Numeric::max_float64();
+		    B.xyz_max[coord] = -Numeric::max_float64();
+		}
+		for(const vec3& p: mesh_->cells.points(c)) {
+		    for(coord_index_t coord = 0; coord < 3; ++coord) {
+			B.xyz_min[coord] = std::min(
+			    B.xyz_min[coord], p[coord]
+			);
+			B.xyz_max[coord] = std::max(
+			    B.xyz_max[coord], p[coord]
+			);
+		    }
+		}
+	    }
+	);
     }
 
     index_t MeshCellsAABB::containing_tet_recursive(
-        const vec3& p, bool exact,
-        index_t n, index_t b, index_t e        
+        const vec3& p,
+        index_t n, index_t b, index_t e
     ) const {
 
         if(!bboxes_[n].contains(p)) {
             return NO_TET;
         }
-        
+
         if(e==b+1) {
-            if(mesh_tet_contains_point(mesh_, b, p, exact)) {
-                return b;
+	    index_t t = element_in_leaf(b);
+            if(mesh_tet_contains_point(*mesh_, t, p)) {
+                return t;
             } else {
                 return NO_TET;
             }
         }
-        
+
         index_t m = b + (e - b) / 2;
         index_t childl = 2 * n;
         index_t childr = 2 * n + 1;
 
         index_t result = containing_tet_recursive(
-            p, exact, childl, b, m
+            p, childl, b, m
         );
         if(result == NO_TET) {
-            result = containing_tet_recursive(p, exact, childr, m, e);
+            result = containing_tet_recursive(p, childr, m, e);
         }
         return result;
     }
-    
-/****************************************************************************/
-        
-}
 
+/****************************************************************************/
+
+    MeshFacetsAABB2d::MeshFacetsAABB2d() {
+    }
+
+    MeshFacetsAABB2d::MeshFacetsAABB2d(Mesh& M, bool reorder) {
+        initialize(M, reorder);
+    }
+
+    void MeshFacetsAABB2d::initialize(Mesh& M, bool reorder) {
+        bool was_2d = (M.vertices.dimension() == 2);
+        if(was_2d) {
+            // It is a bit stupid, spatial sort is just implemented
+            // in 3D for now, so if input mesh was 2D, we temporarily
+            // create z=0 coordinates for all vertices.
+            M.vertices.set_dimension(3);
+        }
+        mesh_ = &M;
+        if(reorder) {
+            mesh_reorder(*mesh_, MESH_ORDER_MORTON);
+        }
+	AABB::initialize(
+	    mesh_->facets.nb(),
+	    [this](Box2d& B, index_t f) {
+		// Get facet bbox
+		for(coord_index_t coord = 0; coord < 2; ++coord) {
+		    B.xy_min[coord] = Numeric::max_float64();
+		    B.xy_max[coord] = -Numeric::max_float64();
+		}
+		for(const vec2& p: mesh_->facets.points<2>(f)) {
+		    for(coord_index_t coord = 0; coord < 2; ++coord) {
+			B.xy_min[coord] = std::min(
+			    B.xy_min[coord], p[coord]
+			);
+			B.xy_max[coord] = std::max(
+			    B.xy_max[coord], p[coord]
+			);
+		    }
+		}
+	    }
+	);
+        if(was_2d) {
+            M.vertices.set_dimension(2);
+        }
+    }
+
+    index_t MeshFacetsAABB2d::containing_triangle_recursive(
+        const vec2& p,
+        index_t n, index_t b, index_t e
+    ) const {
+
+        if(!bboxes_[n].contains(p)) {
+            return NO_TRIANGLE;
+        }
+
+        if(e==b+1) {
+	    index_t f = element_in_leaf(b);
+            if(mesh_triangle_contains_point(*mesh_, f, p)) {
+                return b;
+            } else {
+                return NO_TRIANGLE;
+            }
+        }
+
+        index_t m = b + (e - b) / 2;
+        index_t childl = 2 * n;
+        index_t childr = 2 * n + 1;
+
+        index_t result = containing_triangle_recursive(
+            p, childl, b, m
+        );
+        if(result == NO_TRIANGLE) {
+            result = containing_triangle_recursive(p, childr, m, e);
+        }
+        return result;
+    }
+
+/****************************************************************************/
+
+}

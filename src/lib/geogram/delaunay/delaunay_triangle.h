@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2014, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -13,7 +13,7 @@
  *  * Neither the name of the ALICE Project-Team nor the names of its
  *  contributors may be used to endorse or promote products derived from this
  *  software without specific prior written permission.
- * 
+ *
  *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -26,19 +26,13 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine, 
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX 
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
@@ -60,20 +54,25 @@
 extern "C" {
 #define REAL double
 #define ANSI_DECLARATORS
-#define VOID void    
+#define VOID void
+#ifdef GEOGRAM_USE_BUILTIN_DEPS
 #include <geogram/third_party/triangle/triangle.h>
+#else
+#include <triangle.h>
+#endif
 }
 
 namespace GEO {
 
     /**
-     * \brief Implementation of Delaunay using Jonathan Shewchuk's triangle library.
+     * \brief Implementation of Delaunay using Jonathan Shewchuk's
+     *  triangle library.
      */
     class GEOGRAM_API DelaunayTriangle : public Delaunay {
     public:
         /**
          * \brief Creates a new DelaunayTriangle.
-         * \details DelaunayTetgen triangulations are only supported for
+         * \details DelaunayTriangle triangulations are only supported for
          * dimension 2. If a different dimension is specified in the
          * constructor, a InvalidDimension exception is thrown.
          * \param[in] dimension dimension of the triangulation
@@ -85,16 +84,49 @@ namespace GEO {
         /**
          * \copydoc Delaunay::set_vertices()
          */
-        virtual void set_vertices(
+        void set_vertices(
             index_t nb_vertices, const double* vertices
-        );
+        ) override;
+
+        /**
+         * \copydoc Delaunay::supports_constraints()
+         */
+        bool supports_constraints() const override;
 
         /**
          * \brief DelaunayTriangle destructor.
          */
-        virtual ~DelaunayTriangle();
+        ~DelaunayTriangle() override;
 
     protected:
+
+        /**
+         * \brief Implementation of set_vertices() used when
+         *  no constraint is defined.
+         * \param[in] nb_vertices number of vertices
+         * \param[in] vertices a const pointer to the
+         *  coordinates of the vertices, as a continuous
+         *  array of doubles.
+         */
+        void set_vertices_unconstrained(
+            index_t nb_vertices, const double* vertices
+        );
+
+        /**
+         * \brief Implementation of set_vertices() used when
+         *  constraints are defined.
+         * \details The constraints are specified by
+         *  Delaunay::set_constraints().
+         * \param[in] nb_vertices number of vertices
+         * \param[in] vertices a const pointer to the
+         *  coordinates of the vertices, as a continuous
+         *  array of doubles.
+         */
+        void set_vertices_constrained(
+            index_t nb_vertices, const double* vertices
+        );
+
+
         struct triangulateio triangle_out_ ;
         struct triangulateio triangle_in_ ;
     };
@@ -103,4 +135,3 @@ namespace GEO {
 #endif
 
 #endif
-

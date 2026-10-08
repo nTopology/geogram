@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2014, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -26,19 +26,13 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine,
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
@@ -56,6 +50,9 @@
 
 namespace GEO {
 
+    thread_local CentroidalVoronoiTesselation*
+    CentroidalVoronoiTesselation::instance_ = nullptr;
+
     CentroidalVoronoiTesselation::CentroidalVoronoiTesselation(
         Mesh* mesh, coord_index_t dim, const std::string& delaunay
     ) {
@@ -69,8 +66,8 @@ namespace GEO {
         delaunay_ = Delaunay::create(dimension_, delaunay);
         RVD_ = RestrictedVoronoiDiagram::create(delaunay_, mesh);
         mesh_ = mesh;
-        geo_assert(cvt_instance_ == nullptr);
-        cvt_instance_ = this;
+        geo_assert(instance_ == nullptr);
+        instance_ = this;
         progress_ = nullptr;
         geo_cite("Lloyd82leastsquares");
         geo_cite("Du:1999:CVT:340312.340319");
@@ -97,8 +94,8 @@ namespace GEO {
             );
         }
         mesh_ = mesh;
-        geo_assert(cvt_instance_ == nullptr);
-        cvt_instance_ = this;
+        geo_assert(instance_ == nullptr);
+        instance_ = this;
         progress_ = nullptr;
         geo_cite("Lloyd82leastsquares");
         geo_cite("Du:1999:CVT:340312.340319");
@@ -106,15 +103,15 @@ namespace GEO {
     }
 
     CentroidalVoronoiTesselation::~CentroidalVoronoiTesselation() {
-        cvt_instance_ = nullptr;
+        instance_ = nullptr;
     }
 
     bool CentroidalVoronoiTesselation::compute_initial_sampling(
-        index_t nb_samples
+        index_t nb_samples, bool verbose
     ) {
         points_.resize(dimension_ * nb_samples);
         return RVD_->compute_initial_sampling(
-            points_.data(), nb_samples
+            points_.data(), nb_samples, verbose
         );
     }
 
@@ -134,7 +131,8 @@ namespace GEO {
     }
 
     void CentroidalVoronoiTesselation::Lloyd_iterations(
-        index_t nb_iter, bool safe_mode) {
+        index_t nb_iter, bool safe_mode
+    ) {
         index_t nb_points = index_t(points_.size() / dimension_);
 
         vector<double> mg;
@@ -191,7 +189,7 @@ namespace GEO {
         if(use_RVC_centroids_) {
             mode = RestrictedVoronoiDiagram::RDTMode(
                 mode | RestrictedVoronoiDiagram::RDT_RVC_CENTROIDS
-                     | RestrictedVoronoiDiagram::RDT_PREFER_SEEDS
+                | RestrictedVoronoiDiagram::RDT_PREFER_SEEDS
             );
         }
 
@@ -330,7 +328,6 @@ namespace GEO {
         index_t nb_points = n / dimension_;
         delaunay_->set_vertices(nb_points, x);
         Memory::clear(g, n * sizeof(double));
-
         f = 0.0;
         if(!simplex_func_.is_null()) {
             RVD_->compute_integration_simplex_func_grad(
@@ -352,7 +349,7 @@ namespace GEO {
     void CentroidalVoronoiTesselation::funcgrad_CB(
         index_t n, double* x, double& f, double* g
     ) {
-        cvt_instance_->funcgrad(n, x, f, g);
+        instance_->funcgrad(n, x, f, g);
     }
 
     void CentroidalVoronoiTesselation::newiteration_CB(
@@ -362,9 +359,8 @@ namespace GEO {
         geo_argused(x);
         geo_argused(f);
         geo_argused(g);
-
         geo_argused(gnorm);
-        cvt_instance_->newiteration();
+        instance_->newiteration();
     }
 
     void CentroidalVoronoiTesselation::compute_R3_embedding() {
@@ -383,4 +379,3 @@ namespace GEO {
         }
     }
 }
-

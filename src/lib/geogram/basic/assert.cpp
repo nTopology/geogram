@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2014, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -13,7 +13,7 @@
  *  * Neither the name of the ALICE Project-Team nor the names of its
  *  contributors may be used to endorse or promote products derived from this
  *  software without specific prior written permission.
- * 
+ *
  *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -26,19 +26,13 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine, 
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX 
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
@@ -49,6 +43,7 @@
 #include <stdlib.h>
 #include <sstream>
 #include <stdexcept>
+#include <iostream>
 
 #ifdef GEO_OS_WINDOWS
 #include <intrin.h> // For __debugbreak()
@@ -58,23 +53,16 @@
 #include <signal.h>
 #include <sys/stat.h>
 #include <fcntl.h>
-
-#ifndef GEO_OS_ANDROID
-#ifndef GEO_OS_EMSCRIPTEN
-#include <execinfo.h>
-#endif
-#endif
-
 #endif
 
 namespace GEO {
 
     namespace {
 #ifdef GEO_DEBUG
-        AssertMode assert_mode_ = ASSERT_ABORT;        
+        AssertMode assert_mode_ = ASSERT_ABORT;
 #else
         AssertMode assert_mode_ = ASSERT_THROW;
-#endif        
+#endif
         bool aborting = false;
     }
 
@@ -87,6 +75,10 @@ namespace GEO {
     }
 
     void geo_abort() {
+#ifdef GEO_OS_WINDOWS
+	std::cerr << "Aborting, press any key to continue" << std::endl;
+	std::getchar();
+#endif
         // Avoid assert in assert !!
         if(aborting) {
             Process::brute_force_kill();
@@ -100,9 +92,9 @@ namespace GEO {
         __debugbreak();
 #else
         geo_abort();
-#endif  
+#endif
     }
-    
+
     void geo_assertion_failed(
         const std::string& condition_string,
         const std::string& file, int line
@@ -113,6 +105,7 @@ namespace GEO {
         os << "Line: " << line;
 
         Logger::err("Assert") << os.str() << std::endl;
+        Process::print_stack_trace();
 
         if(assert_mode_ == ASSERT_THROW) {
             throw std::runtime_error(os.str());
@@ -129,7 +122,7 @@ namespace GEO {
     ) {
         std::ostringstream os;
         os << "Range assertion failed: " << value
-            << " in [ " << min_value << " ... " << max_value << " ].\n";
+           << " in [ " << min_value << " ... " << max_value << " ].\n";
         os << "File: " << file << ",\n";
         os << "Line: " << line;
 
@@ -159,4 +152,3 @@ namespace GEO {
         }
     }
 }
-

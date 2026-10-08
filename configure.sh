@@ -5,17 +5,6 @@
 # Release and Debug modes.
 
 
-echo
-echo ============= Checking for CMake ============
-echo
-
-if (cmake --version); then
-    echo "Found CMake"
-    echo
-else
-    echo "Error: CMake not found, please install it (see http://www.cmake.org/)"
-    exit 1
-fi
 
 # Parse command line arguments
 
@@ -30,6 +19,7 @@ while [ -n "$1" ]; do
         --with-*=*)
             cmake_option=`echo "$1" | sed 's/--with-\([^=]*\)=\(.*\)$/-DVORPALINE_WITH_\U\1\E:STRING="\2"/'`
             cmake_options="$cmake_options $cmake_option"
+	    echo '==============================>' $cmake_option
             shift
             ;;
 
@@ -38,7 +28,12 @@ while [ -n "$1" ]; do
             cmake_options="$cmake_options $cmake_option"
             shift
             ;;
-        
+
+        --show-platform)
+	    SHOW_PLATFORM=1
+	    shift
+	    ;;
+
         --help-platforms)
             echo "Supported platforms:"
             for i in `find cmake/platforms/* -type d`
@@ -130,11 +125,17 @@ if [ -z "$os" ]; then
         Linux*i586*|Linux*i686*)
             os=Linux32-gcc-dynamic
             ;;
+        Linux*aarch64*)
+            os=Linux64-gcc-aarch64
+            ;;
+        Linux*riscv64*)
+            os=Linux64-nonx86-gcc-dynamic
+            ;;
+        Linux*loongarch64*)
+            os=Linux64-nonx86-gcc-dynamic
+            ;;
         Darwin*)
             os=Darwin-clang-dynamic
-            ;;
-        Linux*aarch64*Android)
-            os=Android-aarch64-gcc-dynamic
             ;;
         *)
             echo "Error: OS not supported: $os"
@@ -142,6 +143,25 @@ if [ -z "$os" ]; then
             ;;
     esac
 fi
+
+if [ $SHOW_PLATFORM ]
+then
+   echo $os
+   exit 1
+fi
+
+echo
+echo ============= Checking for CMake ============
+echo
+
+if (cmake --version); then
+    echo "Found CMake"
+    echo
+else
+    echo "Error: CMake not found, please install it (see http://www.cmake.org/)"
+    exit 1
+fi
+
 
 #  Import plaform specific environment
 

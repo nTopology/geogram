@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2014, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -13,7 +13,7 @@
  *  * Neither the name of the ALICE Project-Team nor the names of its
  *  contributors may be used to endorse or promote products derived from this
  *  software without specific prior written permission.
- * 
+ *
  *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -26,19 +26,13 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine, 
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX 
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
@@ -115,7 +109,7 @@ namespace {
         }
 
         /**
-         * \brief Finds all the neighbors nearer than tolerance from 
+         * \brief Finds all the neighbors nearer than tolerance from
          * a given point.
          * \details Called in parallel using parallel_for().
          * \param[in] i index of the query point
@@ -230,7 +224,7 @@ namespace GEO {
             if(nb_points == 0) {
                 return 0;
             }
-            
+
             if(stride == 0) {
                 stride = dim;
             }
@@ -238,9 +232,9 @@ namespace GEO {
                 dim, nn_algo
             );
             NN->set_points(nb_points, points, stride);
-            old2new.resize(nb_points, index_t(-1));
+            old2new.resize(nb_points, NO_INDEX);
             Colocate colocate_obj(NN, old2new, tolerance);
-            
+
             if(CmdLine::get_arg_bool("sys:multithread")) {
                 tbb_parallel_for(
                     0, nb_points,
@@ -280,7 +274,7 @@ namespace GEO {
             if(nb_points == 0) {
                 return 0;
             }
-            
+
             ComparePoints compare_points(points, dim, stride);
             vector<index_t> sorted_indices(nb_points);
             for(index_t i = 0; i < nb_points; i++) {
@@ -289,7 +283,7 @@ namespace GEO {
             GEO::sort(
                 sorted_indices.begin(), sorted_indices.end(), compare_points
             );
-            old2new.assign(nb_points, index_t(-1));
+            old2new.assign(nb_points, NO_INDEX);
 
             index_t nb_distinct = 0;
 
@@ -313,4 +307,3 @@ namespace GEO {
         }
     }
 }
-

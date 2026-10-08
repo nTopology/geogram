@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2014, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -26,19 +26,13 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine,
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
@@ -77,8 +71,7 @@ namespace {
      *   Shewchuk's version.
      */
     inline Sign orient_2d_inexact(
-        const double* p0, const double* p1,
-        const double* p2
+	const double* p0, const double* p1, const double* p2
     ) {
         double a11 = p1[0] - p0[0] ;
         double a12 = p1[1] - p0[1] ;
@@ -166,18 +159,17 @@ namespace GEO {
         verbose_debug_mode_ = CmdLine::get_arg_bool("dbg:delaunay_verbose");
         debug_mode_ = (debug_mode_ || verbose_debug_mode_);
         benchmark_mode_ = CmdLine::get_arg_bool("dbg:delaunay_benchmark");
+        has_empty_cells_ = false;
+        abort_if_empty_cell_ = false;
     }
 
     Delaunay2d::~Delaunay2d() {
     }
 
-    void Delaunay2d::set_vertices(
-        index_t nb_vertices, const double* vertices
-    ) {
-        Stopwatch* W = nullptr;
-        if(benchmark_mode_) {
-            W = new Stopwatch("DelInternal");
-        }
+    void Delaunay2d::set_vertices(index_t nb_vertices, const double* vertices) {
+        has_empty_cells_ = false;
+	Stopwatch W("DelInternal", benchmark_mode_);
+
         cur_stamp_ = 0;
         if(weighted_) {
             heights_.resize(nb_vertices);
@@ -224,17 +216,17 @@ namespace GEO {
 
         double sorting_time = 0;
         if(benchmark_mode_) {
-            sorting_time = W->elapsed_time();
+            sorting_time = W.elapsed_time();
             Logger::out("DelInternal1") << "BRIO sorting:"
-                                       << sorting_time
-                                       << std::endl;
+                                        << sorting_time
+                                        << std::endl;
         }
 
-        // The indices of the vertices of the first tetrahedron.
+        // The indices of the vertices of the first triangle.
         index_t v0, v1, v2;
         if(!create_first_triangle(v0, v1, v2)) {
             Logger::warn("Delaunay2d") << "All the points are colinear"
-                << std::endl;
+                                       << std::endl;
             return;
         }
 
@@ -245,7 +237,12 @@ namespace GEO {
             // Do not re-insert the first four vertices.
             if(v != v0 && v != v1 && v != v2) {
                 index_t new_hint = insert(v, hint);
-                if(new_hint != NO_TRIANGLE) {
+                if(new_hint == NO_TRIANGLE) {
+                    has_empty_cells_ = true;
+                    if(abort_if_empty_cell_) {
+                        return;
+                    }
+                } else {
                     hint = new_hint;
                 }
             }
@@ -253,10 +250,9 @@ namespace GEO {
 
         if(benchmark_mode_) {
             Logger::out("DelInternal2") << "Core insertion algo:"
-                                       << W->elapsed_time() - sorting_time
-                                       << std::endl;
+                                        << W.elapsed_time() - sorting_time
+                                        << std::endl;
         }
-        delete W;
 
         if(debug_mode_) {
             check_combinatorics(verbose_debug_mode_);
@@ -267,8 +263,8 @@ namespace GEO {
         // (remove free and virtual tetrahedra).
         //   Since cell_next_ is not used at this point,
         // we reuse it for storing the conversion array that
-        // maps old tet indices to new tet indices
-        // Note: tet_is_real() uses the previous value of
+        // maps old trgl indices to new trgl indices
+        // Note: trgl_is_real() uses the previous value of
         // cell_next(), but we are processing indices
         // in increasing order and since old2new[t] is always
         // smaller or equal to t, we never overwrite a value
@@ -288,30 +284,30 @@ namespace GEO {
                         Memory::copy(
                             &cell_to_v_store_[nb_triangles * 3],
                             &cell_to_v_store_[t * 3],
-                            3 * sizeof(signed_index_t)
+                            3 * sizeof(index_t)
                         );
                         Memory::copy(
                             &cell_to_cell_store_[nb_triangles * 3],
                             &cell_to_cell_store_[t * 3],
-                            3 * sizeof(signed_index_t)
+                            3 * sizeof(index_t)
                         );
                     }
                     old2new[t] = nb_triangles;
                     ++nb_triangles;
                 } else {
-                    old2new[t] = index_t(-1);
+                    old2new[t] = NO_INDEX;
                     ++nb_triangles_to_delete;
                 }
             }
             cell_to_v_store_.resize(3 * nb_triangles);
             cell_to_cell_store_.resize(3 * nb_triangles);
             for(index_t i = 0; i < 3 * nb_triangles; ++i) {
-                signed_index_t t = cell_to_cell_store_[i];
-                geo_debug_assert(t >= 0);
-                t = signed_index_t(old2new[t]);
-                // Note: t can be equal to -1 when a real tet is
+                index_t t = cell_to_cell_store_[i];
+                geo_debug_assert(t != NO_INDEX);
+                t = old2new[t];
+                // Note: t can be equal to -1 when a real trgl is
                 // adjacent to a virtual one (and this is how the
-                // rest of Vorpaline expects to see tets on the
+                // rest of Vorpaline expects to see trgls on the
                 // border).
                 cell_to_cell_store_[i] = t;
             }
@@ -357,10 +353,10 @@ namespace GEO {
                 --infinite_ptr;
             }
             for(index_t i = 0; i < 3 * nb_triangles; ++i) {
-                signed_index_t t = cell_to_cell_store_[i];
-                geo_debug_assert(t >= 0);
-                t = signed_index_t(old2new[t]);
-                geo_debug_assert(t >= 0);
+                index_t t = cell_to_cell_store_[i];
+                geo_debug_assert(t != NO_INDEX);
+                t = old2new[t];
+                geo_debug_assert(t != NO_INDEX);
                 cell_to_cell_store_[i] = t;
             }
         }
@@ -381,6 +377,11 @@ namespace GEO {
             nb_triangles,
             cell_to_v_store_.data(), cell_to_cell_store_.data()
         );
+
+        // Not mandatory, but doing so makes it possible to
+        // use locate() in derived classes outside of
+        // set_vertices().
+        cell_next_.assign(cell_next_.size(),NO_INDEX);
     }
 
     index_t Delaunay2d::nearest_vertex(const double* p) const {
@@ -408,28 +409,26 @@ namespace GEO {
 
         // Find the nearest vertex among t's vertices
         for(index_t lv = 0; lv < 3; ++lv) {
-            signed_index_t v = triangle_vertex(t, lv);
-            // If the tetrahedron is virtual, then the first vertex
+            index_t v = triangle_vertex(t, lv);
+            // If the triangle is virtual, then the first vertex
             // is the vertex at infinity and is skipped.
-            if(v < 0) {
+            if(v == NO_INDEX) {
                 continue;
             }
-            double cur_sq_dist = Geom::distance2(p, vertex_ptr(index_t(v)), 2);
+            double cur_sq_dist = Geom::distance2(p, vertex_ptr(v), 2);
             if(cur_sq_dist < sq_dist) {
                 sq_dist = cur_sq_dist;
-                result = index_t(v);
+                result = v;
             }
         }
         return result;
     }
 
-
-
     index_t Delaunay2d::locate_inexact(
         const double* p, index_t hint, index_t max_iter
     ) const {
 
-        // If no hint specified, find a tetrahedron randomly
+        // If no hint specified, find a triangle randomly
         while(hint == NO_TRIANGLE) {
             hint = index_t(Numeric::random_int32()) % max_t();
             if(triangle_is_free(hint)) {
@@ -440,13 +439,13 @@ namespace GEO {
         geo_debug_assert(!triangle_is_free(hint));
         geo_debug_assert(!triangle_is_in_list(hint));
 
-        //  Always start from a real tet. If the tet is virtual,
+        //  Always start from a real trgl. If the trgl is virtual,
         // find its real neighbor (always opposite to the
         // infinite vertex)
         if(triangle_is_virtual(hint)) {
             for(index_t lf = 0; lf < 3; ++lf) {
                 if(triangle_vertex(hint, lf) == VERTEX_AT_INFINITY) {
-                    hint = index_t(triangle_adjacent(hint, lf));
+                    hint = triangle_adjacent(hint, lf);
                     geo_debug_assert(hint != NO_TRIANGLE);
                     break;
                 }
@@ -465,19 +464,17 @@ namespace GEO {
 
             for(index_t le = 0; le < 3; ++le) {
 
-                signed_index_t s_t_next = triangle_adjacent(t,le);
+                index_t t_next = triangle_adjacent(t,le);
 
-                //  If the opposite tet is -1, then it means that
+                //  If the opposite trgl is -1, then it means that
                 // we are trying to locate() (e.g. called from
-                // nearest_vertex) within a tetrahedralization
-                // from which the infinite tets were removed.
-                if(s_t_next == -1) {
+                // nearest_vertex) within a triangulation
+                // from which the infinite trgls were removed.
+                if(t_next == NO_INDEX) {
                     return NO_TRIANGLE;
                 }
 
-                index_t t_next = index_t(s_t_next);
-
-                //   If the candidate next tetrahedron is the
+                //   If the candidate next triangle is the
                 // one we came from, then we know already that
                 // the orientation is positive, thus we examine
                 // the next candidate (or exit the loop if they
@@ -501,10 +498,10 @@ namespace GEO {
                     continue;
                 }
 
-                //  If the opposite tet is a virtual tet, then
+                //  If the opposite trgl is a virtual trgl, then
                 // the point has a positive orientation relative
                 // to the facet on the border of the convex hull,
-                // thus t_next is a tet in conflict and we are
+                // thus t_next is a trgl in conflict and we are
                 // done.
                 if(triangle_is_virtual(t_next)) {
                     return t_next;
@@ -522,16 +519,15 @@ namespace GEO {
 
         //   If we reach this point, we did not find a valid successor
         // for walking (a face for which p has negative orientation),
-        // thus we reached the tet for which p has all positive
-        // face orientations (i.e. the tet that contains p).
+        // thus we reached the trgl for which p has all positive
+        // face orientations (i.e. the trgl that contains p).
 
         return t;
     }
 
 
     index_t Delaunay2d::locate(
-        const double* p, index_t hint, bool thread_safe,
-        Sign* orient
+        const double* p, index_t hint, bool thread_safe, Sign* orient
     ) const {
 
         //   Try improving the hint by using the
@@ -539,24 +535,24 @@ namespace GEO {
         // (a little bit) performance (a few
         // percent in total Delaunay computation
         // time), but it is better than nothing...
-        //   Note: there is a maximum number of tets
+        //   Note: there is a maximum number of trgls
         // traversed by locate_inexact()  (2500)
         // since there exists configurations in which
         // locate_inexact() loops forever !
 
         hint = locate_inexact(p, hint, 2500);
 
-        static Process::spinlock lock;
+        static Process::spinlock locate_lock = GEOGRAM_SPINLOCK_INIT;
 
         // We need to have this spinlock because
         // of random() that is not thread-safe
         // (TODO: implement a random() function with
         //  thread local storage)
         if(thread_safe) {
-            Process::acquire_spinlock(lock);
+            Process::acquire_spinlock(locate_lock);
         }
 
-        // If no hint specified, find a tetrahedron randomly
+        // If no hint specified, find a triangle randomly
         while(hint == NO_TRIANGLE) {
             hint = index_t(Numeric::random_int32()) % max_t();
             if(triangle_is_free(hint)) {
@@ -567,13 +563,13 @@ namespace GEO {
         geo_debug_assert(!triangle_is_free(hint));
         geo_debug_assert(!triangle_is_in_list(hint));
 
-        //  Always start from a real tet. If the tet is virtual,
+        //  Always start from a real trgl. If the trgl is virtual,
         // find its real neighbor (always opposite to the
         // infinite vertex)
         if(triangle_is_virtual(hint)) {
             for(index_t le = 0; le < 3; ++le) {
                 if(triangle_vertex(hint, le) == VERTEX_AT_INFINITY) {
-                    hint = index_t(triangle_adjacent(hint, le));
+                    hint = triangle_adjacent(hint, le);
                     geo_debug_assert(hint != NO_TRIANGLE);
                     break;
                 }
@@ -604,26 +600,23 @@ namespace GEO {
             for(index_t de = 0; de < 3; ++de) {
                 index_t le = (e0 + de) % 3;
 
-                signed_index_t s_t_next = triangle_adjacent(t,le);
+                index_t t_next = triangle_adjacent(t,le);
 
                 //  If the opposite triangle is -1, then it means that
                 // we are trying to locate() (e.g. called from
-                // nearest_vertex) within a tetrahedralization
-                // from which the infinite tets were removed.
-                if(s_t_next == -1) {
+                // nearest_vertex) within a triangulation
+                // from which the infinite trgls were removed.
+                if(t_next == NO_INDEX) {
                     if(thread_safe) {
-                        Process::release_spinlock(lock);
+                        Process::release_spinlock(locate_lock);
                     }
                     return NO_TRIANGLE;
                 }
 
-                index_t t_next = index_t(s_t_next);
-
                 geo_debug_assert(!triangle_is_free(t_next));
                 geo_debug_assert(!triangle_is_in_list(t_next));
 
-
-                //   If the candidate next tetrahedron is the
+                //   If the candidate next triangle is the
                 // one we came from, then we know already that
                 // the orientation is positive, thus we examine
                 // the next candidate (or exit the loop if they
@@ -636,7 +629,7 @@ namespace GEO {
                 //   To test the orientation of p w.r.t. the facet f of
                 // t, we replace vertex number f with p in t (same
                 // convention as in CGAL).
-                // This is equivalent to tet_facet_point_orient3d(t,f,p)
+                // This is equivalent to trgl_facet_point_orient3d(t,f,p)
                 // (but less costly, saves a couple of lookups)
                 const double* pv_bkp = pv[le];
                 pv[le] = p;
@@ -650,14 +643,14 @@ namespace GEO {
                     continue;
                 }
 
-                //  If the opposite tet is a virtual tet, then
+                //  If the opposite trgl is a virtual trgl, then
                 // the point has a positive orientation relative
                 // to the facet on the border of the convex hull,
-                // thus t_next is a tet in conflict and we are
+                // thus t_next is a trgl in conflict and we are
                 // done.
                 if(triangle_is_virtual(t_next)) {
                     if(thread_safe) {
-                        Process::release_spinlock(lock);
+                        Process::release_spinlock(locate_lock);
                     }
                     for(index_t tle = 0; tle < 3; ++tle) {
                         orient[tle] = POSITIVE;
@@ -675,11 +668,11 @@ namespace GEO {
 
         //   If we reach this point, we did not find a valid successor
         // for walking (a face for which p has negative orientation),
-        // thus we reached the tet for which p has all positive
-        // face orientations (i.e. the tet that contains p).
+        // thus we reached the trgl for which p has all positive
+        // face orientations (i.e. the trgl that contains p).
 
         if(thread_safe) {
-            Process::release_spinlock(lock);
+            Process::release_spinlock(locate_lock);
         }
         return t;
     }
@@ -693,7 +686,7 @@ namespace GEO {
         first = last = END_OF_LIST;
 
         //  Generate a unique stamp from current vertex index,
-        // used for marking tetrahedra.
+        // used for marking triangles
         set_triangle_mark_stamp(v);
 
         // Pointer to the coordinates of the point to be inserted
@@ -704,7 +697,7 @@ namespace GEO {
         // Test whether the point already exists in
         // the triangulation. The point already exists
         // if it's located on three faces of the
-        // tetrahedron returned by locate().
+        // triangle returned by locate().
         int nb_zero =
             (orient[0] == ZERO) +
             (orient[1] == ZERO) +
@@ -717,7 +710,7 @@ namespace GEO {
         //  Weighted triangulations can have dangling
         // vertices. Such vertices p are characterized by
         // the fact that p is not in conflict with the
-        // tetrahedron returned by locate().
+        // triangle returned by locate().
         if(weighted_ && !triangle_is_conflict(t, p)) {
             return;
         }
@@ -725,7 +718,7 @@ namespace GEO {
         // Note: points on edges and on facets are
         // handled by the way triangle_is_in_conflict()
         // is implemented, that naturally inserts
-        // the correct tetrahedra in the conflict list.
+        // the correct triangles in the conflict list.
 
 
         // Mark t as conflict
@@ -740,13 +733,13 @@ namespace GEO {
         if(!weighted_ && nb_zero != 0) {
             for(index_t le = 0; le < 3; ++le) {
                 if(orient[le] == ZERO) {
-                    index_t t2 = index_t(triangle_adjacent(t, le));
+                    index_t t2 = triangle_adjacent(t, le);
                     add_triangle_to_list(t2, first, last);
                 }
             }
             for(index_t le = 0; le < 3; ++le) {
                 if(orient[le] == ZERO) {
-                    index_t t2 = index_t(triangle_adjacent(t, le));
+                    index_t t2 = triangle_adjacent(t, le);
                     find_conflict_zone_iterative(
                         p,t2,t_bndry,e_bndry,first,last
                     );
@@ -772,7 +765,7 @@ namespace GEO {
             S_.pop();
 
             for(index_t le = 0; le < 3; ++le) {
-                index_t t2 = index_t(triangle_adjacent(t, le));
+                index_t t2 = triangle_adjacent(t, le);
 
                 if(
                     triangle_is_in_list(t2) || // known as conflict
@@ -790,7 +783,7 @@ namespace GEO {
 
                 //   At this point, t is in conflict
                 // and t2 is not in conflict.
-                // We keep a reference to a tet on the boundary
+                // We keep a reference to a trgl on the boundary
                 t_bndry = t;
                 e_bndry = le;
                 // Mark t2 as visited (but not conflict)
@@ -805,24 +798,24 @@ namespace GEO {
 
         index_t t = t1;
         index_t e = t1ebord;
-        index_t t_adj = index_t(triangle_adjacent(t,e));
+        index_t t_adj = triangle_adjacent(t,e);
 
-        geo_debug_assert(t_adj != index_t(-1));
+        geo_debug_assert(t_adj != NO_INDEX);
 
         geo_debug_assert(triangle_is_in_list(t));
         geo_debug_assert(!triangle_is_in_list(t_adj));
 
 
-        index_t new_t_first = index_t(-1);
-        index_t new_t_prev  = index_t(-1);
+        index_t new_t_first = NO_INDEX;
+        index_t new_t_prev  = NO_INDEX;
 
         do {
 
-            signed_index_t v1 = triangle_vertex(t, (e+1)%3);
-            signed_index_t v2 = triangle_vertex(t, (e+2)%3);
+            index_t v1 = triangle_vertex(t, (e+1)%3);
+            index_t v2 = triangle_vertex(t, (e+2)%3);
 
             // Create new triangle
-            index_t new_t = new_triangle(signed_index_t(v_in), v1, v2);
+            index_t new_t = new_triangle(v_in, v1, v2);
 
             //   Connect new triangle to triangle on the other
             // side of the conflict zone.
@@ -833,15 +826,15 @@ namespace GEO {
 
             // Move to next triangle
             e = (e + 1)%3;
-            t_adj = index_t(triangle_adjacent(t,e));
+            t_adj = triangle_adjacent(t,e);
             while(triangle_is_in_list(t_adj)) {
                 t = t_adj;
                 e = (find_triangle_vertex(t,v2) + 2)%3;
-                t_adj = index_t(triangle_adjacent(t,e));
-                geo_debug_assert(t_adj != index_t(-1));
+                t_adj = triangle_adjacent(t,e);
+                geo_debug_assert(t_adj != NO_INDEX);
             }
 
-            if(new_t_prev == index_t(-1)) {
+            if(new_t_prev == NO_INDEX) {
                 new_t_first = new_t;
             } else {
                 set_triangle_adjacent(new_t_prev, 1, new_t);
@@ -860,34 +853,34 @@ namespace GEO {
     }
 
     index_t Delaunay2d::insert(index_t v, index_t hint) {
-       index_t t_bndry = NO_TRIANGLE;
-       index_t e_bndry = index_t(-1);
-       index_t first_conflict = NO_TRIANGLE;
-       index_t last_conflict  = NO_TRIANGLE;
+        index_t t_bndry = NO_TRIANGLE;
+        index_t e_bndry = NO_INDEX;
+        index_t first_conflict = NO_TRIANGLE;
+        index_t last_conflict  = NO_TRIANGLE;
 
-       const double* p = vertex_ptr(v);
+        const double* p = vertex_ptr(v);
 
-       Sign orient[3];
-       index_t t = locate(p, hint, false, orient);
-       find_conflict_zone(
-           v,t,orient,t_bndry,e_bndry,first_conflict,last_conflict
-       );
+        Sign orient[3];
+        index_t t = locate(p, hint, false, orient);
+        find_conflict_zone(
+            v,t,orient,t_bndry,e_bndry,first_conflict,last_conflict
+        );
 
-       // The conflict list can be empty if:
-       //  - Vertex v already exists in the triangulation
-       //  - The triangulation is weighted and v is not visible
-       if(first_conflict == END_OF_LIST) {
-           return NO_TRIANGLE;
-       }
+        // The conflict list can be empty if:
+        //  - Vertex v already exists in the triangulation
+        //  - The triangulation is weighted and v is not visible
+        if(first_conflict == END_OF_LIST) {
+            return NO_TRIANGLE;
+        }
 
-       index_t new_triangle = stellate_conflict_zone(v,t_bndry,e_bndry);
+        index_t new_triangle = stellate_conflict_zone(v,t_bndry,e_bndry);
 
-       // Recycle the tetrahedra of the conflict zone.
-       cell_next_[last_conflict] = first_free_;
-       first_free_ = first_conflict;
+        // Recycle the triangles of the conflict zone.
+        cell_next_[last_conflict] = first_free_;
+        first_free_ = first_conflict;
 
-       // Return one of the newly created triangles
-       return new_triangle;
+        // Return one of the newly created triangles
+        return new_triangle;
     }
 
     bool Delaunay2d::create_first_triangle(
@@ -916,7 +909,9 @@ namespace GEO {
         Sign s = ZERO;
         while(
             iv2 < nb_vertices() &&
-            (s = PCK::orient_2d(vertex_ptr(iv0), vertex_ptr(iv1), vertex_ptr(iv2))) == ZERO
+            (s = PCK::orient_2d(
+		vertex_ptr(iv0), vertex_ptr(iv1), vertex_ptr(iv2)
+	    )) == ZERO
         ) {
             ++iv2;
         }
@@ -928,18 +923,14 @@ namespace GEO {
         }
 
         // Create the first triangle
-        index_t t0 = new_triangle(
-            signed_index_t(iv0),
-            signed_index_t(iv1),
-            signed_index_t(iv2)
-        );
+        index_t t0 = new_triangle(iv0, iv1, iv2);
 
         // Create the first three virtual triangles surrounding it
         index_t t[3];
         for(index_t e = 0; e < 3; ++e) {
-            // In reverse order since it is an adjacent tetrahedron
-            signed_index_t v1 = triangle_vertex(t0, triangle_edge_vertex(e,1));
-            signed_index_t v2 = triangle_vertex(t0, triangle_edge_vertex(e,0));
+            // In reverse order since it is an adjacent triangle
+            index_t v1 = triangle_vertex(t0, triangle_edge_vertex(e,1));
+            index_t v2 = triangle_vertex(t0, triangle_edge_vertex(e,0));
             t[e] = new_triangle(VERTEX_AT_INFINITY, v1, v2);
         }
 
@@ -952,7 +943,7 @@ namespace GEO {
         // Interconnect the three virtual triangles along their common
         // edges
         for(index_t e = 0; e < 3; ++e) {
-            // In reverse order since it is an adjacent tetrahedron
+            // In reverse order since it is an adjacent triangle
             index_t lv1 = triangle_edge_vertex(e,1);
             index_t lv2 = triangle_edge_vertex(e,0);
             set_triangle_adjacent(t[e], 1, t[lv1]);
@@ -966,15 +957,15 @@ namespace GEO {
 
     void Delaunay2d::show_triangle(index_t t) const {
         std::cerr << "tri"
-            << (triangle_is_in_list(t) ? '*' : ' ')
-            << t
-            << ", v=["
-            << triangle_vertex(t, 0)
-            << ' '
-            << triangle_vertex(t, 1)
-            << ' '
-            << triangle_vertex(t, 2)
-            << "]  adj=[";
+                  << (triangle_is_in_list(t) ? '*' : ' ')
+                  << t
+                  << ", v=["
+                  << triangle_vertex(t, 0)
+                  << ' '
+                  << triangle_vertex(t, 1)
+                  << ' '
+                  << triangle_vertex(t, 2)
+                  << "]  adj=[";
         show_triangle_adjacent(t, 0);
         show_triangle_adjacent(t, 1);
         show_triangle_adjacent(t, 2);
@@ -992,16 +983,16 @@ namespace GEO {
     }
 
     void Delaunay2d::show_triangle_adjacent(index_t t, index_t le) const {
-        signed_index_t adj = triangle_adjacent(t, le);
-        if(adj != -1) {
-            std::cerr << (triangle_is_in_list(index_t(adj)) ? '*' : ' ');
+        index_t adj = triangle_adjacent(t, le);
+        if(adj != NO_INDEX) {
+            std::cerr << (triangle_is_in_list(adj) ? '*' : ' ');
         }
         std::cerr << adj;
         std::cerr << ' ';
     }
 
     void Delaunay2d::show_list(
-        index_t first, const std::string& list_name
+	index_t first, const std::string& list_name
     ) const {
         index_t t = first;
         std::cerr << "tri list: " << list_name << std::endl;
@@ -1021,32 +1012,32 @@ namespace GEO {
         for(index_t t = 0; t < max_t(); ++t) {
             if(triangle_is_free(t)) {
 /*
-                if(verbose) {
-                    std::cerr << "-Deleted tri: ";
-                    show_tri(t);
-                }
+  if(verbose) {
+  std::cerr << "-Deleted tri: ";
+  show_tri(t);
+  }
 */
             } else {
 /*
-                if(verbose) {
-                    std::cerr << "Checking tri: ";
-                    show_tet(t);
-                }
+  if(verbose) {
+  std::cerr << "Checking tri: ";
+  show_tri(t);
+  }
 */
                 for(index_t le = 0; le < 3; ++le) {
-                    if(triangle_adjacent(t, le) == -1) {
+                    if(triangle_adjacent(t, le) == NO_INDEX) {
                         std::cerr << le << ":Missing adjacent tri"
-                            << std::endl;
+                                  << std::endl;
                         ok = false;
-                    } else if(triangle_adjacent(t, le) == signed_index_t(t)) {
+                    } else if(triangle_adjacent(t, le) == t) {
                         std::cerr << le << ":Tri is adjacent to itself"
-                            << std::endl;
+                                  << std::endl;
                         ok = false;
                     } else {
-                        index_t t2 = index_t(triangle_adjacent(t, le));
+                        index_t t2 = triangle_adjacent(t, le);
                         bool found = false;
                         for(index_t le2 = 0; le2 < 3; ++le2) {
-                            if(triangle_adjacent(t2, le2) == signed_index_t(t)) {
+                            if(triangle_adjacent(t2, le2) == t) {
                                 found = true;
                             }
                         }
@@ -1060,20 +1051,20 @@ namespace GEO {
                 }
                 index_t nb_infinite = 0;
                 for(index_t lv = 0; lv < 3; ++lv) {
-                    if(triangle_vertex(t, lv) == -1) {
+                    if(triangle_vertex(t, lv) == NO_INDEX) {
                         ++nb_infinite;
                     }
                 }
                 if(nb_infinite > 1) {
                     ok = false;
                     std::cerr << "More than one infinite vertex"
-                        << std::endl;
+                              << std::endl;
                 }
             }
             for(index_t lv = 0; lv < 3; ++lv) {
-                signed_index_t v = triangle_vertex(t, lv);
-                if(v >= 0) {
-                    v_has_triangle[index_t(v)] = true;
+                index_t v = triangle_vertex(t, lv);
+                if(v != NO_INDEX) {
+                    v_has_triangle[v] = true;
                 }
             }
         }
@@ -1081,7 +1072,7 @@ namespace GEO {
             if(!v_has_triangle[v]) {
                 if(verbose) {
                     std::cerr << "Vertex " << v
-                        << " is isolated (duplicated ?)" << std::endl;
+                              << " is isolated (duplicated ?)" << std::endl;
                 }
             }
         }
@@ -1096,12 +1087,11 @@ namespace GEO {
         bool ok = true;
         for(index_t t = 0; t < max_t(); ++t) {
             if(!triangle_is_free(t)) {
-                signed_index_t v0 = triangle_vertex(t, 0);
-                signed_index_t v1 = triangle_vertex(t, 1);
-                signed_index_t v2 = triangle_vertex(t, 2);
+                index_t v0 = triangle_vertex(t, 0);
+                index_t v1 = triangle_vertex(t, 1);
+                index_t v2 = triangle_vertex(t, 2);
                 for(index_t v = 0; v < nb_vertices(); ++v) {
-                    signed_index_t sv = signed_index_t(v);
-                    if(sv == v0 || sv == v1 || sv == v2) {
+                    if(v == v0 || v == v1 || v == v2) {
                         continue;
                     }
                     if(triangle_is_conflict(t, vertex_ptr(v))) {
@@ -1109,7 +1099,7 @@ namespace GEO {
                         if(verbose) {
                             std::cerr << "Tri " << t <<
                                 " is in conflict with vertex " << v
-                                    << std::endl;
+                                      << std::endl;
 
                             std::cerr << "  offending tri: ";
                             show_triangle(t);
@@ -1137,4 +1127,3 @@ namespace GEO {
     RegularWeightedDelaunay2d::~RegularWeightedDelaunay2d() {
     }
 }
-

@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2014, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -13,7 +13,7 @@
  *  * Neither the name of the ALICE Project-Team nor the names of its
  *  contributors may be used to endorse or promote products derived from this
  *  software without specific prior written permission.
- * 
+ *
  *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -26,19 +26,13 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine, 
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX 
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
@@ -50,10 +44,6 @@
 
 #ifdef GEOGRAM_WITH_PDEL
 #include <geogram/delaunay/parallel_delaunay_3d.h>
-#endif
-
-#ifdef GEOGRAM_WITH_TETGEN
-#include <geogram/delaunay/delaunay_tetgen.h>
 #endif
 
 #ifdef GEOGRAM_WITH_TRIANGLE
@@ -120,26 +110,22 @@ namespace GEO {
         error_code(rhs.error_code),
         invalid_facets(rhs.invalid_facets) {
     }
-    
+
     Delaunay::InvalidInput::~InvalidInput() GEO_NOEXCEPT {
     }
-    
+
     const char* Delaunay::InvalidInput::what() const GEO_NOEXCEPT {
         return std::logic_error::what();
     }
-    
+
     /************************************************************************/
 
     void Delaunay::initialize() {
 
-#ifdef GEOGRAM_WITH_TETGEN
-        geo_register_Delaunay_creator(DelaunayTetgen, "tetgen");
-#endif
-
 #ifdef GEOGRAM_WITH_TRIANGLE
         geo_register_Delaunay_creator(DelaunayTriangle, "triangle");
 #endif
-        
+
         geo_register_Delaunay_creator(Delaunay3d, "BDEL");
 
 #ifdef GEOGRAM_WITH_PDEL
@@ -149,15 +135,13 @@ namespace GEO {
 
         geo_register_Delaunay_creator(Delaunay2d, "BDEL2d");
         geo_register_Delaunay_creator(RegularWeightedDelaunay2d, "BPOW2d");
-        
-#ifndef GEOGRAM_PSM       
+
+#ifndef GEOGRAM_PSM
         geo_register_Delaunay_creator(Delaunay_NearestNeighbors, "NN");
-#endif       
+#endif
     }
 
-    Delaunay* Delaunay::create(
-        coord_index_t dim, const std::string& name_in
-    ) {
+    Delaunay* Delaunay::create(coord_index_t dim, const std::string& name_in) {
 
         std::string name = name_in;
         if(name == "default") {
@@ -179,17 +163,17 @@ namespace GEO {
         }
 
 #ifdef GEOGRAM_PSM
-       Logger::err("Delaunay")
+        Logger::err("Delaunay")
             << "Could not create Delaunay triangulation"
             << std::endl;
-       return nullptr;
-#else       
+        return nullptr;
+#else
         Logger::warn("Delaunay")
             << "Falling back to NN mode"
             << std::endl;
 
         return new Delaunay_NearestNeighbors(dim);
-#endif       
+#endif
     }
 
     Delaunay::Delaunay(coord_index_t dimension) {
@@ -216,17 +200,9 @@ namespace GEO {
     Delaunay::~Delaunay() {
     }
 
-    void Delaunay::set_vertices(
-        index_t nb_vertices, const double* vertices
-    ) {
+    void Delaunay::set_vertices(index_t nb_vertices, const double* vertices) {
         nb_vertices_ = nb_vertices;
         vertices_ = vertices;
-        if(nb_vertices_ < index_t(dimension()) + 1) {
-            Logger::warn("Delaunay") << "Only "
-                << nb_vertices
-                << " vertices, may be not enough !"
-                << std::endl;
-        }
     }
 
     void Delaunay::set_BRIO_levels(const vector<index_t>& levels) {
@@ -236,7 +212,7 @@ namespace GEO {
 
     void Delaunay::set_arrays(
         index_t nb_cells,
-        const signed_index_t* cell_to_v, const signed_index_t* cell_to_cell
+        const index_t* cell_to_v, const index_t* cell_to_cell
     ) {
         nb_cells_ = nb_cells;
         cell_to_v_ = cell_to_v;
@@ -288,27 +264,27 @@ namespace GEO {
     }
 
     void Delaunay::get_neighbors_internal(
-        index_t v, vector<index_t>& neighbors
+	index_t v, vector<index_t>& neighbors
     ) const {
         // Step 1: traverse the incident cells list, and insert
         // all neighbors (may be duplicated)
         neighbors.resize(0);
-        signed_index_t vt = v_to_cell_[v];
-        if(vt != -1) { // Happens when there are duplicated vertices.
-            index_t t = index_t(vt);
+        index_t vt = v_to_cell_[v];
+        if(vt != NO_INDEX) { // Happens when there are duplicated vertices.
+            index_t t = vt;
             do {
-                index_t lvit = index(t, signed_index_t(v));
+                index_t lvit = index(t, v);
                 // In the current cell, test all edges incident
                 // to current vertex 'it'
                 for(index_t lv = 0; lv < cell_size(); lv++) {
                     if(lvit != lv) {
-                        signed_index_t neigh = cell_vertex(t, lv);
-                        geo_debug_assert(neigh != -1);
-                        neighbors.push_back(index_t(neigh));
+                        index_t neigh = cell_vertex(t, lv);
+                        geo_debug_assert(neigh != NO_INDEX);
+                        neighbors.push_back(neigh);
                     }
                 }
-                t = index_t(next_around_vertex(t, index(t, signed_index_t(v))));
-            } while(t != index_t(vt));
+                t = next_around_vertex(t, index(t, v));
+            } while(t != vt);
         }
 
         // Step 2: Sort the neighbors and remove all duplicates
@@ -331,23 +307,23 @@ namespace GEO {
 
         // Note: if keeps_infinite is set, then infinite vertex
         // tet chaining is at t2v_[nb_vertices].
-        
-        if(keeps_infinite()) {  
-            v_to_cell_.assign(nb_vertices()+1, -1);
+
+        if(keeps_infinite()) {
+            v_to_cell_.assign(nb_vertices()+1, NO_INDEX);
             for(index_t c = 0; c < nb_cells(); c++) {
                 for(index_t lv = 0; lv < cell_size(); lv++) {
-                    signed_index_t v = cell_vertex(c, lv);
-                    if(v == -1) {
-                        v = signed_index_t(nb_vertices());
+                    index_t v = cell_vertex(c, lv);
+                    if(v == NO_INDEX) {
+                        v = nb_vertices();
                     }
-                    v_to_cell_[v] = signed_index_t(c);
+                    v_to_cell_[v] = c;
                 }
             }
         } else {
-            v_to_cell_.assign(nb_vertices(), -1);           
+            v_to_cell_.assign(nb_vertices(), NO_INDEX);
             for(index_t c = 0; c < nb_cells(); c++) {
                 for(index_t lv = 0; lv < cell_size(); lv++) {
-                    v_to_cell_[cell_vertex(c, lv)] = signed_index_t(c);
+                    v_to_cell_[cell_vertex(c, lv)] = c;
                 }
             }
         }
@@ -360,54 +336,54 @@ namespace GEO {
         cicl_.resize(cell_size() * nb_cells());
 
         for(index_t v = 0; v < nb_vertices(); ++v) {
-            signed_index_t t = v_to_cell_[v];
-            if(t != -1) {
-                index_t lv = index(index_t(t), signed_index_t(v));
-                set_next_around_vertex(index_t(t), lv, index_t(t));
+            index_t t = v_to_cell_[v];
+            if(t != NO_INDEX) {
+                index_t lv = index(t, v);
+                set_next_around_vertex(t, lv, t);
             }
         }
-        
+
         if(keeps_infinite()) {
 
             {
                 // Process the infinite vertex at index nb_vertices().
-                signed_index_t t = v_to_cell_[nb_vertices()];
-                if(t != -1) {
-                    index_t lv = index(index_t(t), -1);
-                    set_next_around_vertex(index_t(t), lv, index_t(t));
+                index_t t = v_to_cell_[nb_vertices()];
+                if(t != NO_INDEX) {
+                    index_t lv = index(t, NO_INDEX);
+                    set_next_around_vertex(t, lv, t);
                 }
             }
 
             for(index_t t = 0; t < nb_cells(); ++t) {
                 for(index_t lv = 0; lv < cell_size(); ++lv) {
-                    signed_index_t v = cell_vertex(t, lv);
-                    index_t vv = (v == -1) ? nb_vertices() : index_t(v);
-                    if(v_to_cell_[vv] != signed_index_t(t)) {
-                        index_t t1 = index_t(v_to_cell_[vv]);
-                        index_t lv1 = index(t1, signed_index_t(v));
-                        index_t t2 = index_t(next_around_vertex(t1, lv1));
+                    index_t v = cell_vertex(t, lv);
+                    index_t vv = (v == NO_INDEX) ? nb_vertices() : v;
+                    if(v_to_cell_[vv] != t) {
+                        index_t t1 = v_to_cell_[vv];
+                        index_t lv1 = index(t1, v);
+                        index_t t2 = next_around_vertex(t1, lv1);
                         set_next_around_vertex(t1, lv1, t);
                         set_next_around_vertex(t, lv, t2);
                     }
                 }
             }
-            
-            
+
+
         } else {
             for(index_t t = 0; t < nb_cells(); ++t) {
                 for(index_t lv = 0; lv < cell_size(); ++lv) {
-                    index_t v = index_t(cell_vertex(t, lv));
-                    if(v_to_cell_[v] != signed_index_t(t)) {
-                        index_t t1 = index_t(v_to_cell_[v]);
-                        index_t lv1 = index(t1, signed_index_t(v));
-                        index_t t2 = index_t(next_around_vertex(t1, lv1));
+                    index_t v = cell_vertex(t, lv);
+                    if(v_to_cell_[v] != t) {
+                        index_t t1 = v_to_cell_[v];
+                        index_t lv1 = index(t1, v);
+                        index_t t2 = next_around_vertex(t1, lv1);
                         set_next_around_vertex(t1, lv1, t);
                         set_next_around_vertex(t, lv, t2);
                     }
                 }
             }
         }
-        
+
         is_locked_ = false;
     }
 
@@ -428,7 +404,7 @@ namespace GEO {
     bool Delaunay::cell_is_infinite(index_t c) const {
         geo_debug_assert(c < nb_cells());
         for(index_t lv=0; lv < cell_size(); ++lv) {
-            if(cell_vertex(c,lv) == -1) {
+            if(cell_vertex(c,lv) == NO_INDEX) {
                 return true;
             }
         }
@@ -438,7 +414,6 @@ namespace GEO {
     index_t Delaunay::region(index_t t) const {
         geo_argused(t);
         geo_debug_assert(t < nb_cells());
-        return index_t(-1);
+        return NO_INDEX;
     }
 }
-

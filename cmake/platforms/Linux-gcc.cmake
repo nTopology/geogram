@@ -17,12 +17,10 @@ set(FULL_WARNINGS
 execute_process(COMMAND ${CMAKE_C_COMPILER} -dumpversion OUTPUT_VARIABLE GCC_VERSION)
 
 if (GCC_VERSION VERSION_GREATER 4.3 OR GCC_VERSION VERSION_EQUAL 4.3)
-    message(STATUS "GCC version >= 4.3, activating sign conversion warnings")
     set(FULL_WARNINGS ${FULL_WARNINGS} -Wsign-conversion)
 endif()
 
 if (GCC_VERSION VERSION_GREATER 4.6 OR GCC_VERSION VERSION_EQUAL 4.6)
-    message(STATUS "GCC version >= 4.6, activating double promotion warnings")
     set(FULL_WARNINGS ${FULL_WARNINGS} -Wdouble-promotion)
 endif()
 
@@ -39,7 +37,7 @@ if (GCC_VERSION VERSION_GREATER 4.0)
    add_flags(CMAKE_C_FLAGS_RELEASE -D_FORTIFY_SOURCE=2)
 endif()
 
-# Enable setting FPU rounding mode (needed by FPG) and 
+# Enable setting FPU rounding mode (needed by FPG) and
 # disable automatic generation of FMAs (would break exact
 # predicates)
 add_flags(CMAKE_CXX_FLAGS -frounding-math -ffp-contract=off)
@@ -48,9 +46,6 @@ add_flags(CMAKE_C_FLAGS -frounding-math -ffp-contract=off)
 # Activate AVX2 instruction set
 #add_flags(CMAKE_CXX_FLAGS -mavx2)
 #add_flags(CMAKE_C_FLAGS -mavx2)
-
-# Activate c++ 2011
-add_flags(CMAKE_CXX_FLAGS -std=c++11)
 
 # Enable glibc parallel mode
 #add_flags(CMAKE_CXX_FLAGS -D_GLIBCXX_PARALLEL)
@@ -161,4 +156,3 @@ macro(vor_add_executable)
         target_link_libraries(${ARGV0} m pthread)
     endif()
 endmacro()
-

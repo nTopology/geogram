@@ -1,39 +1,42 @@
 /*
- *  OGF/Graphite: Geometry and Graphics Programming Library + Utilities
- *  Copyright (C) 2000 Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
+ *  All rights reserved.
  *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
+ *  Redistribution and use in source and binary forms, with or without
+ *  modification, are permitted provided that the following conditions are met:
  *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
+ *  * Redistributions of source code must retain the above copyright notice,
+ *  this list of conditions and the following disclaimer.
+ *  * Redistributions in binary form must reproduce the above copyright notice,
+ *  this list of conditions and the following disclaimer in the documentation
+ *  and/or other materials provided with the distribution.
+ *  * Neither the name of the ALICE Project-Team nor the names of its
+ *  contributors may be used to endorse or promote products derived from this
+ *  software without specific prior written permission.
  *
- *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
- *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
+ *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ *  ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+ *  LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ *  CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ *  SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ *  INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ *  CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ *  POSSIBILITY OF SUCH DAMAGE.
  *
  *  Contact: Bruno Levy
  *
- *     levy@loria.fr
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ISA Project
- *     LORIA, INRIA Lorraine, 
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX 
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
- *  Note that the GNU General Public License does not permit incorporating
- *  the Software into proprietary programs. 
  */
- 
+
 #include <geogram/image/image_library.h>
 #include <geogram/image/image.h>
 #include <geogram/image/image_serializer.h>
@@ -42,7 +45,7 @@
 #include <geogram/basic/logger.h>
 #include <geogram/basic/string.h>
 
-// For clipboard 
+// For clipboard
 #ifdef GEO_OS_WINDOWS
 #include <windows.h>
 #endif
@@ -85,7 +88,7 @@ namespace GEO {
         String::to_uppercase(upper_extension) ;
         if(
             resolve_image_serializer(extension) != nullptr ||
-            resolve_image_serializer(upper_extension) != nullptr 
+            resolve_image_serializer(upper_extension) != nullptr
         ) {
             return false ;
         }
@@ -136,23 +139,23 @@ namespace GEO {
         if(extension.length() == 0) {
             Image* result = resolve_image(file_name) ;
             if(result != nullptr) { result->acquire(); return result ; }
-            Logger::err("ImageLibrary") 
+            Logger::err("ImageLibrary")
                 << "no extension in file name and no such registered image" << std::endl ;
             return nullptr ;
         }
-        
+
         ImageSerializer* serializer = resolve_image_serializer(extension) ;
         if(serializer == nullptr) {
-            Logger::err("ImageLibrary") 
+            Logger::err("ImageLibrary")
                 << "could not find serializer for extension \'"
                 << extension << "\'" << std::endl ;
             return nullptr ;
         }
 
         if(!serializer->read_supported()) {
-            Logger::err("ImageLibrary") 
+            Logger::err("ImageLibrary")
                 << "serializer for extension \'"
-                << extension << "\' does not have a \'read\' function" 
+                << extension << "\' does not have a \'read\' function"
                 << std::endl ;
             return nullptr ;
         }
@@ -166,86 +169,86 @@ namespace GEO {
 
         std::string extension = FileSystem::extension(file_name) ;
         if(extension.length() == 0) {
-            Logger::err("ImageLibrary") 
+            Logger::err("ImageLibrary")
                 << "no extension in file name" << std::endl ;
             return false ;
         }
-        
+
         ImageSerializer* serializer = resolve_image_serializer(extension) ;
         if(serializer == nullptr) {
-            Logger::err("ImageLibrary") 
+            Logger::err("ImageLibrary")
                 << "could not find serializer for extension \'"
                 << extension << "\'" << std::endl ;
             return false ;
         }
 
         if(!serializer->write_supported()) {
-            Logger::err("ImageLibrary") 
+            Logger::err("ImageLibrary")
                 << "serializer for extension \'"
-                << extension << "\' does not have a \'write\' function" 
+                << extension << "\' does not have a \'write\' function"
                 << std::endl ;
             return false ;
         }
-        
+
         return serializer->serialize_write(file_name, image) ;
     }
 
     void ImageLibrary::copy_image_to_clipboard(Image* image) {
         geo_argused(image);
-        
+
 #ifdef GEO_OS_WINDOWS
 
         if(image->color_encoding() != Image::RGB) {
             Logger::err("ImageLibrary")
                 << "copy_image_to_clipboard() "
-                << "not implemented for this color encoding" 
+                << "not implemented for this color encoding"
                 << std::endl ;
             return ;
         }
-        
+
         // Thanks to Pierre Alliez for his help with
         // Windows clipboard programming.
-        
+
         // Step 1: Try to open Window's clipboard
         //   nullptr -> bind to current process
         if(!::OpenClipboard( nullptr )) {
             return ;
         }
-        
-        int h = image->height() ;
-        int w = image->width() ;
-        
+
+        index_t h = image->height() ;
+        index_t w = image->width() ;
+
         // Step 2: Prepare the image for Windows:
         //   flip the image and flip rgb -> bgr
         {
-            int row_len = image->width() * 3 ;
-            for(int j=0; j< h/2; j++) {
+            index_t row_len = image->width() * 3 ;
+            for(index_t j=0; j< h/2; j++) {
                 Memory::pointer row1 =
                     image->base_mem() + j * row_len ;
                 Memory::pointer row2 =
                     image->base_mem() + (h - 1 - j) * row_len ;
-                for(int i=0; i<w; i++) {
+                for(index_t i=0; i<w; i++) {
                     std::swap(row1[3*i+2], row2[3*i  ]) ;
                     std::swap(row1[3*i+1], row2[3*i+1]) ;
                     std::swap(row1[3*i  ], row2[3*i+2]) ;
                 }
             }
         }
-        
+
         // Step 3: create a shared memory segment, with
         // a DIB (Device Independent Bitmap) in it.
         HANDLE handle;
-        
-        int image_size = 3 * image->width() * image->height();
-        int size = sizeof(BITMAPINFOHEADER) + image_size ;
-        
+
+        index_t image_size = 3 * image->width() * image->height();
+        index_t size = index_t(sizeof(BITMAPINFOHEADER)) + image_size ;
+
         handle = (HANDLE)::GlobalAlloc(GHND,size);
         if(handle != nullptr) {
             char *pData = (char *) ::GlobalLock((HGLOBAL)handle);
             BITMAPINFOHEADER header ;
             header.biSize          = sizeof(BITMAPINFOHEADER);
-            header.biWidth         = image->width() ;
-            header.biHeight        = image->height() ;
+            header.biWidth         = (LONG)(image->width()) ;
+            header.biHeight        = (LONG)(image->height()) ;
             header.biPlanes        = 1 ;
             header.biBitCount      = 24 ;
             header.biCompression   = BI_RGB ;
@@ -254,7 +257,7 @@ namespace GEO {
             header.biYPelsPerMeter = 1000000 ;
             header.biClrUsed       = 0 ;
             header.biClrImportant  = 0 ;
-            ::memcpy(pData,&header,sizeof(BITMAPINFOHEADER));    
+            ::memcpy(pData,&header,sizeof(BITMAPINFOHEADER));
             ::memcpy(
                 pData+sizeof(BITMAPINFOHEADER),image->base_mem(),image_size
             ) ;
@@ -267,13 +270,13 @@ namespace GEO {
 
             // Step 5: restore the image
             {
-                int row_len = image->width() * 3 ;
-                for(int j=0; j< h/2; j++) {
+                index_t row_len = image->width() * 3 ;
+                for(index_t j=0; j< h/2; j++) {
                     Memory::pointer
                         row1 = image->base_mem() + j * row_len ;
                     Memory::pointer
                         row2 = image->base_mem() + (h - 1 - j) * row_len ;
-                    for(int i=0; i<w; i++) {
+                    for(index_t i=0; i<w; i++) {
                         std::swap(row1[3*i+2], row2[3*i  ]) ;
                         std::swap(row1[3*i+1], row2[3*i+1]) ;
                         std::swap(row1[3*i  ], row2[3*i+2]) ;
@@ -283,7 +286,7 @@ namespace GEO {
         }
 #else
         Logger::err("ImageLibrary") << "copy_image_to_clipboard() "
-                                    << "not implemented for this OS" 
+                                    << "not implemented for this OS"
                                     << std::endl ;
 #endif
     }
@@ -326,8 +329,7 @@ namespace GEO {
         return false;
     }
 
-    
+
 //_________________________________________________________
 
 }
-

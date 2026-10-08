@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2004-2014, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -13,7 +13,7 @@
  *  * Neither the name of the ALICE Project-Team nor the names of its
  *  contributors may be used to endorse or promote products derived from this
  *  software without specific prior written permission.
- * 
+ *
  *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -26,19 +26,13 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine, 
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX 
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
@@ -47,40 +41,51 @@
 #include <stdio.h>
 #include <string.h>
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
+
 /**
- * \brief Tests OpenNL solve with 
+ * \brief Tests OpenNL solve with
  *  a simple linear system.
- * \details 
- *  Solve \f$ \left[ \begin{array}{ll} 1 & 2 \\ 3 & 4 \end{array} \right] 
+ * \details
+ *  Solve \f$ \left[ \begin{array}{ll} 1 & 2 \\ 3 & 4 \end{array} \right]
  *    \left[ \begin{array}{l} x \\ y \end{array} \right]
  *  = \left[ \begin{array}{l} 5 \\ 6 \end{array} \right] \f$
  */
 static void test_simple_linear_solve(NLint solver) {
     NLboolean symmetric = NL_FALSE;
-    
-    printf("\n");    
+
+    printf("\n");
     printf("Testing linear solve\n");
     printf("====================\n");
 
 
-    
+
     switch(solver) {
     case NL_SOLVER_DEFAULT:
         printf("Using default solver (BiCGStab)\n");
         break;
     case NL_CG:
         printf("Using CG\n");
-	symmetric = NL_TRUE;
-	break;
+        symmetric = NL_TRUE;
+        break;
     case NL_GMRES:
-        printf("Using GMRES\n");        
+        printf("Using GMRES\n");
         break;
     case NL_BICGSTAB:
-        printf("Using BiCGSTAB\n");                
+        printf("Using BiCGSTAB\n");
         break;
     case NL_PERM_SUPERLU_EXT:
-        printf("(with permutation) ");
-	/* Fall through */
+        printf("Using SUPERLU with permutation\n");
+        if(nlInitExtension("SUPERLU")) {
+            printf("...SUPERLU extension successfully initialized\n");
+        } else {
+            printf("...failed to initialize SUPERLU extension\n");
+            printf("Needs Linux/shared librariess/-DGEO_DYNAMIC_LIBS\n");
+            return;
+        }
+        break;
     case NL_SUPERLU_EXT:
         printf("Using SUPERLU\n");
         if(nlInitExtension("SUPERLU")) {
@@ -113,12 +118,12 @@ static void test_simple_linear_solve(NLint solver) {
         printf("  1.0*x0 + 2.0*x1 = 5.0\n");
         printf("  3.0*x0 + 4.0*x1 = 6.0\n");
     }
-    
+
     /* Create and initialize OpenNL context */
     nlNewContext();
     nlSolverParameteri(NL_NB_VARIABLES, 2);
     nlSolverParameteri(NL_SOLVER, solver);
-    
+
     /* Build system */
     nlBegin(NL_SYSTEM);
     nlBegin(NL_MATRIX);
@@ -134,11 +139,11 @@ static void test_simple_linear_solve(NLint solver) {
     nlEnd(NL_ROW);
     nlEnd(NL_MATRIX);
     nlEnd(NL_SYSTEM);
-  
+
     /* Solve and get solution */
     printf("Solving...\n");
     nlSolve();
-    
+
 
     printf("Solution:   x0=%f   x1=%f\n", nlGetVariable(0), nlGetVariable(1));
 
@@ -188,10 +193,10 @@ static void test_least_squares_regression(
         printf("============================================\n");
     } else {
         printf("Testing least-squares regression\n");
-        printf("================================\n");        
+        printf("================================\n");
     }
 
-    
+
     nlNewContext();
     nlSolverParameteri(NL_NB_VARIABLES, 2);
     nlSolverParameteri(NL_LEAST_SQUARES, NL_TRUE);
@@ -200,9 +205,9 @@ static void test_least_squares_regression(
         printf("Using SSOR preconditioner\n");
         nlSolverParameteri(NL_PRECONDITIONER, NL_PRECOND_SSOR);
     } else {
-        printf("Using default preconditioner (Jacobi)\n");        
+        printf("Using default preconditioner (Jacobi)\n");
     }
-    
+
     nlBegin(NL_SYSTEM);
     if(origin) {
         nlLockVariable(1);
@@ -233,19 +238,19 @@ static void test_least_squares_regression(
 int main(int argc, char** argv) {
 
     nlInitialize(argc, argv);
-    
+
     test_simple_linear_solve(NL_SOLVER_DEFAULT);
     test_simple_linear_solve(NL_GMRES);
     test_simple_linear_solve(NL_BICGSTAB);
     test_simple_linear_solve(NL_SUPERLU_EXT);
     test_simple_linear_solve(NL_PERM_SUPERLU_EXT);
     test_simple_linear_solve(NL_CHOLMOD_EXT);
-    
-    test_least_squares_regression(NL_FALSE, NL_FALSE);
-    test_least_squares_regression(NL_FALSE, NL_TRUE);    
-    test_least_squares_regression(NL_TRUE, NL_FALSE);
-    test_least_squares_regression(NL_TRUE, NL_TRUE);        
 
-    
+    test_least_squares_regression(NL_FALSE, NL_FALSE);
+    test_least_squares_regression(NL_FALSE, NL_TRUE);
+    test_least_squares_regression(NL_TRUE, NL_FALSE);
+    test_least_squares_regression(NL_TRUE, NL_TRUE);
+
+
     return 0;
 }

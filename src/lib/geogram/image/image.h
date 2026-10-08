@@ -1,39 +1,42 @@
 /*
- *  OGF/Graphite: Geometry and Graphics Programming Library + Utilities
- *  Copyright (C) 2000 Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
+ *  All rights reserved.
  *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
+ *  Redistribution and use in source and binary forms, with or without
+ *  modification, are permitted provided that the following conditions are met:
  *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
+ *  * Redistributions of source code must retain the above copyright notice,
+ *  this list of conditions and the following disclaimer.
+ *  * Redistributions in binary form must reproduce the above copyright notice,
+ *  this list of conditions and the following disclaimer in the documentation
+ *  and/or other materials provided with the distribution.
+ *  * Neither the name of the ALICE Project-Team nor the names of its
+ *  contributors may be used to endorse or promote products derived from this
+ *  software without specific prior written permission.
  *
- *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
- *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
+ *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ *  ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+ *  LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ *  CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ *  SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ *  INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ *  CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ *  POSSIBILITY OF SUCH DAMAGE.
  *
  *  Contact: Bruno Levy
  *
- *     levy@loria.fr
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ISA Project
- *     LORIA, INRIA Lorraine, 
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX 
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
- *  Note that the GNU General Public License does not permit incorporating
- *  the Software into proprietary programs. 
  */
- 
+
 #ifndef H_OGF_IMAGE_TYPES_IMAGE_H
 #define H_OGF_IMAGE_TYPES_IMAGE_H
 
@@ -49,7 +52,7 @@ namespace GEO {
 
 //_________________________________________________________
 
-    
+
     /**
      * \brief An image.
      */
@@ -65,7 +68,7 @@ namespace GEO {
         };
 
         /**
-         * \brief Indicates the datatype used to 
+         * \brief Indicates the datatype used to
          *  encode each component of the colors.
          */
         enum ComponentEncoding {
@@ -99,7 +102,7 @@ namespace GEO {
         /**
          * \brief Image destructor.
          */
-        virtual ~Image();
+        ~Image() override;
 
         /**
          * \brief Some implementations get the image from some sources.
@@ -124,11 +127,11 @@ namespace GEO {
          * \param[in] axis the axis, one of (0,1,2)
          * \return the number of pixels along axis
          */
-        index_t size(index_t axis) const { 
+        index_t size(index_t axis) const {
             geo_assert(axis < 3);
             return size_[axis];
         }
-        
+
         /**
          * \brief Gets the width of the image.
          * \return the width of the image, in pixels
@@ -148,7 +151,7 @@ namespace GEO {
 
         /**
          * \brief Gets the depth of the image.
-         * \return for 3D images, the depth of the image in pixels, 
+         * \return for 3D images, the depth of the image in pixels,
          *  or 1 for 1D and 2D images.
          */
         index_t depth() const  {
@@ -170,7 +173,7 @@ namespace GEO {
         size_t components_per_pixel() const {
             return nb_components(color_encoding());
         }
-        
+
         /**
          * \brief Gets the number of pixels.
          * \return the total number of pixels in this image
@@ -222,11 +225,11 @@ namespace GEO {
 
         /**
          * \brief Sets the Colormap
-         * \param[in] colormap a pointer to the Colormap, 
+         * \param[in] colormap a pointer to the Colormap,
          *  ownership is transfered to this Image
          */
         void set_colormap(Colormap* colormap) {
-            colormap_ = colormap; 
+            colormap_ = colormap;
         }
 
         /**
@@ -348,8 +351,8 @@ namespace GEO {
         Numeric::float64* pixel_base_float64_ptr(index_t x) {
             return float64_ptr(base_mem() + x * factor_[0]);
         }
-        
-        
+
+
         /**
          * \brief Gets the address of a pixel in a 2D image.
          * \param[in] x , y the coordinates of the pixel
@@ -409,7 +412,7 @@ namespace GEO {
         Numeric::float64* pixel_base_float64_ptr(index_t x, index_t y) {
             return float64_ptr(base_mem() + x * factor_[0] + y * factor_[1]);
         }
-        
+
         /**
          * \brief Gets the address of a pixel in a 3D image.
          * \param[in] x , y , z the coordinates of the pixel
@@ -417,7 +420,7 @@ namespace GEO {
          * \pre x < width() && y < height() && z < depth()
          */
         Memory::pointer pixel_base(index_t x, index_t y, index_t z) {
-            return base_mem() + 
+            return base_mem() +
                 x * factor_[0] + y * factor_[1] + z * factor_[2];
         }
 
@@ -425,55 +428,55 @@ namespace GEO {
          * \brief Gets the address of a pixel in a 3D image as a byte pointer.
          * \param[in] x , y , z the coordinates of the pixel
          * \return a pointer to the color data associated with the pixel
-         * \pre x < width() && y < height() && z < depth() && 
+         * \pre x < width() && y < height() && z < depth() &&
          *    component_encoding() && BYTE
          */
         Memory::byte* pixel_base_byte_ptr(index_t x, index_t y, index_t z) {
-            return byte_ptr(base_mem() + 
-                x * factor_[0] + y * factor_[1] + z * factor_[2]
-            );
+            return byte_ptr(base_mem() +
+                            x * factor_[0] + y * factor_[1] + z * factor_[2]
+                           );
         }
 
         /**
          * \brief Gets the address of a pixel in a 3D image as an int16 pointer.
          * \param[in] x , y , z the coordinates of the pixel
          * \return a pointer to the color data associated with the pixel
-         * \pre x < width() && y < height() && z < depth() && 
+         * \pre x < width() && y < height() && z < depth() &&
          *    component_encoding() && INT16
          */
         Numeric::int16* pixel_base_int16_ptr(index_t x, index_t y, index_t z) {
-            return int16_ptr(base_mem() + 
-                x * factor_[0] + y * factor_[1] + z * factor_[2]
-            );
+            return int16_ptr(base_mem() +
+                             x * factor_[0] + y * factor_[1] + z * factor_[2]
+                            );
         }
 
         /**
          * \brief Gets the address of a pixel in a 3D image as an int32 pointer.
          * \param[in] x , y , z the coordinates of the pixel
          * \return a pointer to the color data associated with the pixel
-         * \pre x < width() && y < height() && z < depth() && 
+         * \pre x < width() && y < height() && z < depth() &&
          *    component_encoding() && INT32
          */
         Numeric::int32* pixel_base_int32_ptr(index_t x, index_t y, index_t z) {
-            return int32_ptr(base_mem() + 
-                x * factor_[0] + y * factor_[1] + z * factor_[2]
-            );
+            return int32_ptr(base_mem() +
+                             x * factor_[0] + y * factor_[1] + z * factor_[2]
+                            );
         }
 
         /**
-         * \brief Gets the address of a pixel in a 3D image as a float32 
+         * \brief Gets the address of a pixel in a 3D image as a float32
          *  pointer.
          * \param[in] x , y , z the coordinates of the pixel
          * \return a pointer to the color data associated with the pixel
-         * \pre x < width() && y < height() && z < depth() && 
+         * \pre x < width() && y < height() && z < depth() &&
          *    component_encoding() && FLOAT32
          */
         Numeric::float32* pixel_base_float32_ptr(
             index_t x, index_t y, index_t z
         ) {
-            return float32_ptr(base_mem() + 
-                x * factor_[0] + y * factor_[1] + z * factor_[2]
-            );
+            return float32_ptr(base_mem() +
+                               x * factor_[0] + y * factor_[1] + z * factor_[2]
+                              );
         }
 
         /**
@@ -481,19 +484,19 @@ namespace GEO {
          *  pointer.
          * \param[in] x , y , z the coordinates of the pixel
          * \return a pointer to the color data associated with the pixel
-         * \pre x < width() && y < height() && z < depth() && 
+         * \pre x < width() && y < height() && z < depth() &&
          *    component_encoding() && FLOAT64
          */
         Numeric::float64* pixel_base_float64_ptr(
             index_t x, index_t y, index_t z
         ) {
-            return float64_ptr(base_mem() + 
-                x * factor_[0] + y * factor_[1] + z * factor_[2]
-            );
+            return float64_ptr(base_mem() +
+                               x * factor_[0] + y * factor_[1] + z * factor_[2]
+                              );
         }
-        
+
         /**
-         * \brief Gets the number of components associated with 
+         * \brief Gets the number of components associated with
          *  a ColorEncoding.
          * \param[in] color_rep the ColorEncoding
          * \return the number of components used by \p color_rep
@@ -513,7 +516,7 @@ namespace GEO {
          * \param[in] ptr the pointer to be converted
          * \return pointer \p ptr converted to a byte pointer
          * \pre component_encoding_ == BYTE
-         * \note This function does nothing else than casting the pointer. In 
+         * \note This function does nothing else than casting the pointer. In
          *  addition, in debug mode, it tests that the color encoding is the
          *  right one (and throws an assertion failure if it is not the case).
          */
@@ -527,7 +530,7 @@ namespace GEO {
          * \param[in] ptr the pointer to be converted
          * \return pointer \p ptr converted to a 16 bits integer pointer
          * \pre component_encoding_ == INT16
-         * \note This function does nothing else than casting the pointer. In 
+         * \note This function does nothing else than casting the pointer. In
          *  addition, in debug mode, it tests that the color encoding is the
          *  right one (and throws an assertion failure if it is not the case).
          */
@@ -541,12 +544,15 @@ namespace GEO {
          * \param[in] ptr the pointer to be converted
          * \return pointer \p ptr converted to a 32 bits integer pointer
          * \pre component_encoding_ == INT32
-         * \note This function does nothing else than casting the pointer. In 
+         * \note This function does nothing else than casting the pointer. In
          *  addition, in debug mode, it tests that the color encoding is the
          *  right one (and throws an assertion failure if it is not the case).
          */
         Numeric::int32* int32_ptr(Memory::pointer ptr) const {
-            geo_debug_assert(component_encoding_ == INT32);
+            geo_debug_assert(
+		component_encoding_ == INT32 ||
+		(component_encoding_ == BYTE && bytes_per_pixel_ == 4)
+	    );
             return (Numeric::int32*)(void*)(ptr);
         }
 
@@ -556,7 +562,7 @@ namespace GEO {
          * \param[in] ptr the pointer to be converted
          * \return pointer \p ptr converted to a 32 bits floating point pointer
          * \pre component_encoding_ == FLOAT32
-         * \note This function does nothing else than casting the pointer. In 
+         * \note This function does nothing else than casting the pointer. In
          *  addition, in debug mode, it tests that the color encoding is the
          *  right one (and throws an assertion failure if it is not the case).
          */
@@ -571,7 +577,7 @@ namespace GEO {
          * \param[in] ptr the pointer to be converted
          * \return pointer \p ptr converted to a 64 bits floating point pointer
          * \pre component_encoding_ == FLOAT64
-         * \note This function does nothing else than casting the pointer. In 
+         * \note This function does nothing else than casting the pointer. In
          *  addition, in debug mode, it tests that the color encoding is the
          *  right one (and throws an assertion failure if it is not the case).
          */
@@ -637,4 +643,3 @@ namespace GEO {
 
 }
 #endif
-

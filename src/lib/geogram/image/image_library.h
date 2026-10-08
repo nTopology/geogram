@@ -1,39 +1,42 @@
 /*
- *  OGF/Graphite: Geometry and Graphics Programming Library + Utilities
- *  Copyright (C) 2000 Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
+ *  All rights reserved.
  *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
+ *  Redistribution and use in source and binary forms, with or without
+ *  modification, are permitted provided that the following conditions are met:
  *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
+ *  * Redistributions of source code must retain the above copyright notice,
+ *  this list of conditions and the following disclaimer.
+ *  * Redistributions in binary form must reproduce the above copyright notice,
+ *  this list of conditions and the following disclaimer in the documentation
+ *  and/or other materials provided with the distribution.
+ *  * Neither the name of the ALICE Project-Team nor the names of its
+ *  contributors may be used to endorse or promote products derived from this
+ *  software without specific prior written permission.
  *
- *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
- *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
+ *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ *  ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+ *  LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ *  CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ *  SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ *  INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ *  CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ *  POSSIBILITY OF SUCH DAMAGE.
  *
  *  Contact: Bruno Levy
  *
- *     levy@loria.fr
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ISA Project
- *     LORIA, INRIA Lorraine, 
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX 
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
- *  Note that the GNU General Public License does not permit incorporating
- *  the Software into proprietary programs. 
  */
- 
+
 #ifndef H_OGF_IMAGE_TYPES_IMAGE_LIBRARY_H
 #define H_OGF_IMAGE_TYPES_IMAGE_LIBRARY_H
 
@@ -74,7 +77,7 @@ namespace GEO {
         /**
          * \brief Initializes the ImageLibrary instance.
          * \details This function is automatically called during
-         *  Graphite startup. It should not be called by client
+         *  Geogram startup. It should not be called by client
          *  code.
          */
         static void initialize();
@@ -82,7 +85,7 @@ namespace GEO {
         /**
          * \brief Terminates the ImageLibrary instance.
          * \details This function is automatically called during
-         *  Graphite shutdown. It should not be called by client
+         *  Geogram shutdown. It should not be called by client
          *  code.
          */
         static void terminate();
@@ -165,24 +168,24 @@ namespace GEO {
          * \note Only implemented under Windows
          */
         void copy_image_to_clipboard(Image* image);
-        
+
         /**
          * \copydoc Environment::get_local_value()
          * \details Provides the following environment variables:
          *  - image_read_extensions
          *  - image_write_extensions
          */
-         bool get_local_value(
+        bool get_local_value(
             const std::string& name, std::string& value
         ) const override;
 
         /**
          * \copydoc Environment::set_local_value()
          */
-         bool set_local_value(
+        bool set_local_value(
             const std::string& name, const std::string& value
         ) override;
-        
+
     protected:
         ImageLibrary();
         ~ImageLibrary() override;
@@ -223,4 +226,3 @@ namespace GEO {
 
 }
 #endif
-

@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2014, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -13,7 +13,7 @@
  *  * Neither the name of the ALICE Project-Team nor the names of its
  *  contributors may be used to endorse or promote products derived from this
  *  software without specific prior written permission.
- * 
+ *
  *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -26,19 +26,13 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine, 
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX 
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
@@ -50,8 +44,8 @@
 #include <geogram/basic/assert.h>
 #include <geogram/basic/numeric.h>
 #include <geogram/basic/argused.h>
-#include <geogram/basic/atomics.h>
 #include <vector>
+#include <new>
 #include <string.h>
 #include <stdlib.h>
 
@@ -69,6 +63,19 @@
 
 #include <unistd.h>
 
+#endif
+
+// Stack size depending on OS:
+// Linux: 10 Mb
+// Windows: 1 Mb
+// Mac OSX: 512 Kb
+// GEO_HAS_BIG_STACK is defined under Linux
+// and lets some of the functions that
+// manipulate exact precision numbers
+// allocate temporaries on the stack.
+
+#ifdef GEO_OS_LINUX
+#define GEO_HAS_BIG_STACK
 #endif
 
 /**
@@ -97,9 +104,12 @@ namespace GEO {
         /** \brief Pointer to unsigned byte(s) */
         typedef byte* pointer;
 
+        /** \brief Const pointer to unsigned byte(s) */
+        typedef const byte* const_pointer;
+
         /** \brief Generic function pointer */
         typedef void (*function_pointer)();
-        
+
         /**
          * \brief Clears a memory block
          * \details Clears (set to zero) the first \p size bytes of array \p
@@ -127,13 +137,15 @@ namespace GEO {
         /**
          * \brief Converts a function pointer to a generic pointer.
          * \details In C++ it is not legal to convert between function pointers
-         *  and generic pointers using casts. Such conversion may be required when
-         *  retrieving symbols in dynamically linked libraries, or when interfacing
-         *  with scripting languages.
+         *  and generic pointers using casts. Such conversion may be
+         *  required when retrieving symbols in dynamically linked libraries,
+         *  or when interfacing with scripting languages.
+	 * \tparam FPTR function pointer type
          * \param[in] fptr the function pointer
          * \return a generic pointer with the same address as \p fptr
          */
-        inline pointer function_pointer_to_generic_pointer(function_pointer fptr) {
+	template <class FPTR=function_pointer>
+	inline pointer function_pointer_to_generic_pointer(FPTR fptr) {
             // I know this is ugly, but I did not find a simpler warning-free
             // way that is portable between all compilers.
             pointer result = nullptr;
@@ -144,16 +156,18 @@ namespace GEO {
         /**
          * \brief Converts a generic pointer to a function pointer.
          * \details In C++ it is not legal to convert between function pointers
-         *  and generic pointers using casts. Such conversion may be required when
-         *  retrieving symbols in dynamically linked libraries, or when interfacing
-         *  with scripting languages.
+         *  and generic pointers using casts. Such conversion may be required
+         *  when retrieving symbols in dynamically linked libraries, or when
+         *  interfacing with scripting languages.
+	 * \tparam FPTR function pointer type
          * \param[in] ptr the generic pointer
          * \return a function pointer with the same address as \p ptr
          */
-        inline function_pointer generic_pointer_to_function_pointer(pointer ptr) {
+        template <class FPTR = function_pointer>
+	inline FPTR generic_pointer_to_function_pointer(pointer ptr) {
             // I know this is ugly, but I did not find a simpler warning-free
             // way that is portable between all compilers.
-            function_pointer result = nullptr;
+            FPTR result = nullptr;
             ::memcpy(&result, &ptr, sizeof(pointer));
             return result;
         }
@@ -161,20 +175,60 @@ namespace GEO {
         /**
          * \brief Converts a generic pointer to a function pointer.
          * \details In C++ it is not legal to convert between function pointers
-         *  and generic pointers using casts. Such conversion may be required when
-         *  retrieving symbols in dynamically linked libraries, or when interfacing
-         *  with scripting languages.
+         *  and generic pointers using casts. Such conversion may be
+         *  required when retrieving symbols in dynamically linked libraries,
+         *  or when interfacing with scripting languages.
+	 * \tparam FPTR function pointer type
          * \param[in] ptr the generic pointer
          * \return a function pointer with the same address as \p ptr
          */
-        inline function_pointer generic_pointer_to_function_pointer(void* ptr) {
+        template <class FPTR = function_pointer>
+        inline FPTR generic_pointer_to_function_pointer(void* ptr) {
             // I know this is ugly, but I did not find a simpler warning-free
             // way that is portable between all compilers.
-            function_pointer result = nullptr;
+            FPTR result = nullptr;
             ::memcpy(&result, &ptr, sizeof(pointer));
             return result;
         }
-        
+
+
+	/**
+	 * \brief Converts a pointer to a reference
+	 * \tparam T the type for the reference
+	 * \param[in] ptr the pointer
+	 * \return a reference of type T&
+	 */
+	template <class T> inline T& pointer_as_reference(void* ptr) {
+	    // This is the recommended way of converting between pointers
+	    // of different types. Casting the pointer directly is undefined
+	    // behavior. Note: the call to memcpy() is eliminated by the
+	    // compiler (that generates the same thing as when casting the
+	    // pointer).
+	    T* T_ptr;
+	    ::memcpy(&T_ptr, &ptr, sizeof(pointer));
+	    return *T_ptr;
+	}
+
+	/**
+	 * \brief Converts a const pointer to a reference
+	 * \tparam T the type for the reference
+	 * \param[in] ptr the pointer
+	 * \return a const reference of type const T&
+	 */
+	template <class T> inline const T& pointer_as_reference(
+	    const void* ptr
+	) {
+	    // This is the recommended way of converting between pointers
+	    // of different types. Casting the pointer directly is undefined
+	    // behavior. Note: the call to memcpy() is eliminated by the
+	    // compiler (that generates the same thing as when casting the
+	    // pointer).
+	    const T* T_ptr;
+	    ::memcpy(&T_ptr, &ptr, sizeof(pointer));
+	    return *T_ptr;
+	}
+
+
         /**
          * \brief Default memory alignment for efficient vector operations
          * \details The memory alignment is given in bytes. Here is a list of
@@ -280,7 +334,7 @@ namespace GEO {
 #elif defined(GEO_COMPILER_GCC) || defined(GEO_COMPILER_CLANG)
             void* result;
             return posix_memalign(&result, alignment, size) == 0
-                   ? result : nullptr;
+                ? result : nullptr;
 #elif defined(GEO_COMPILER_MSVC)
             return _aligned_malloc(size, alignment);
 #else
@@ -302,7 +356,7 @@ namespace GEO {
             free(p);
 #elif defined(GEO_COMPILER_INTEL)
             _mm_free(p);
-#elif defined(GEO_COMPILER_GCC_FAMILY) 
+#elif defined(GEO_COMPILER_GCC_FAMILY)
             free(p);
 #elif defined(GEO_COMPILER_MSVC)
             _aligned_free(p);
@@ -333,7 +387,7 @@ namespace GEO {
 #elif defined(GEO_COMPILER_MSVC)
 #define geo_decl_aligned(var) __declspec(align(GEO_MEMORY_ALIGNMENT)) var
 #elif defined(GEO_COMPILER_EMSCRIPTEN)
-#define geo_decl_aligned(var) var        
+#define geo_decl_aligned(var) var
 #endif
 
         /**
@@ -350,32 +404,33 @@ namespace GEO {
          * geo_assume_aligned(p,alignment);
          * \endcode
          * \note Memory alignment is not supported under Android.
+	 * \note C++20 has std::assume_aligned()
          */
 #if   defined(GEO_OS_ANDROID)
 #define geo_assume_aligned(var, alignment)
 #elif defined(GEO_COMPILER_INTEL)
-#define geo_assume_aligned(var, alignment) \
-    __assume_aligned(var, alignment)
+#define geo_assume_aligned(var, alignment)      \
+        __assume_aligned(var, alignment)
 #elif defined(GEO_COMPILER_CLANG)
 #define geo_assume_aligned(var, alignment)
         // GCC __builtin_assume_aligned is not yet supported by clang-3.3
 #elif defined(GEO_COMPILER_GCC)
 #if __GNUC__ >= 4 && __GNUC_MINOR__ >= 7
-#define geo_assume_aligned(var, alignment) \
+#define geo_assume_aligned(var, alignment)                              \
         *(void**) (&var) = __builtin_assume_aligned(var, alignment)
         // the GCC way of specifying that a pointer is aligned returns
         // the aligned pointer (I can't figure out why). It needs to be
         // affected otherwise it is not taken into account (verified by
         // looking at the output of gcc -S)
 #else
-#define geo_assume_aligned(var, alignment)        
-#endif        
-#elif defined(GEO_COMPILER_MSVC) 
+#define geo_assume_aligned(var, alignment)
+#endif
+#elif defined(GEO_COMPILER_MSVC)
 #define geo_assume_aligned(var, alignment)
         // TODO: I do not know how to do that with MSVC
-#elif defined(GEO_COMPILER_EMSCRIPTEN)        
+#elif defined(GEO_COMPILER_EMSCRIPTEN)
 #define geo_assume_aligned(var, alignment)
-#elif defined(GEO_COMPILER_MINGW)        
+#elif defined(GEO_COMPILER_MINGW)
 #define geo_assume_aligned(var, alignment)
 #endif
 
@@ -396,7 +451,7 @@ namespace GEO {
 #elif defined(GEO_COMPILER_MSVC)
 #define geo_restrict __restrict
 #elif defined(GEO_COMPILER_EMSCRIPTEN)
-#define geo_restrict 
+#define geo_restrict
 #endif
 
         /**
@@ -432,8 +487,8 @@ namespace GEO {
          * \param[in] size Number of bytes to allocate.
          * \return An aligned pointer to a memory block of \p size bytes.
          */
-#define geo_aligned_alloca(size) \
-    GEO::Memory::align(alloca(size + GEO_MEMORY_ALIGNMENT - 1))
+#define geo_aligned_alloca(size)                                        \
+        GEO::Memory::align(alloca(size + GEO_MEMORY_ALIGNMENT - 1))
 
         /**
          * \brief An allocator that performs aligned memory allocations
@@ -466,15 +521,27 @@ namespace GEO {
             /** \brief Difference between two pointers */
             typedef ::std::ptrdiff_t difference_type;
 
+	    /** \brief Alignment in bytes */
+	    static constexpr int ALIGNMENT = ALIGN;
+
             /**
              * \brief Defines the same allocator for other types
              * \tparam U type of the elements to allocate
              */
             template <class U>
             struct rebind {
-                /** Equivalent allocator type to allocate elements of type \p U*/
-                typedef aligned_allocator<U> other;
+                /**Equivalent allocator type to allocate elements of type \p U*/
+                typedef aligned_allocator<U,ALIGN> other;
             };
+
+            /* \brief default constructor */
+            constexpr aligned_allocator() noexcept = default;
+
+            /* \brief conversion copy constructor */
+            template <class U, int A2> constexpr aligned_allocator(
+		const aligned_allocator<U, A2>&
+	    ) noexcept {
+	    }
 
             /**
              * \brief Gets the address of an object
@@ -497,13 +564,13 @@ namespace GEO {
             /**
              * \brief Allocates a block of storage
              * \details Attempts to allocate a block of storage with a size
-             * large enough to contain \p n elements of member type 
-             * \c value_type (an alias of the allocator's template parameter), 
-             * and returns a pointer to the first element. 
-             * The storage is aligned on ALIGN bytes, but they are \b not 
+             * large enough to contain \p n elements of member type
+             * \c value_type (an alias of the allocator's template parameter),
+             * and returns a pointer to the first element.
+             * The storage is aligned on ALIGN bytes, but they are \b not
              * constructed.
              * \param[in] nb_elt number of elements to allocate
-             * \param[in] hint Either 0 or a valer 0 or a value previously
+             * \param[in] hint Either 0 or a value previously
              * obtained by another call to allocate and not yet freed with
              * deallocate. When it is not 0, this value may be used as a hint
              * to improve performance by allocating the new block near the one
@@ -514,11 +581,31 @@ namespace GEO {
             pointer allocate(
                 size_type nb_elt, const void* hint = nullptr
             ) {
+		nb_elt = std::max(nb_elt,size_type(1));
                 geo_argused(hint);
-                pointer result = static_cast<pointer>(
-                    aligned_malloc(sizeof(T) * nb_elt, ALIGN)
-                );
-                return result;
+		while(true) {
+		    pointer result = static_cast<pointer>(
+			aligned_malloc(sizeof(T) * nb_elt, ALIGNMENT)
+		    );
+		    if(result != nullptr) {
+			return result;
+		    }
+		    // under Linux, a process requesting more mem than available
+		    // is killed (and there is nothing we can capture). Under
+		    // other OSes, the standard mechanism to let the runtime
+		    // know is as follows:
+		    // see: https://stackoverflow.com/questions/7194127/
+		    // how-should-i-write-iso-c-standard-conformant-custom-
+		    // new-and-delete-operators
+		    // (if there is a handler, call it repeatedly until
+		    // allocation succeeds, else throw a bad_alloc exception)
+		    std::new_handler handler = std::get_new_handler();
+		    if(handler != nullptr) {
+			(*handler)();
+		    } else {
+			throw std::bad_alloc();
+		    }
+		}
             }
 
             /**
@@ -545,12 +632,13 @@ namespace GEO {
              */
             size_type max_size() const {
                 ::std::allocator<char> a;
-                return std::allocator_traits<decltype(a)>::max_size(a) / sizeof(T);
+                return std::allocator_traits<decltype(a)>::max_size(a) /
+		    sizeof(T);
             }
 
             /**
              * \brief Constructs an object
-             * \details Constructs an element object on the location pointed 
+             * \details Constructs an element object on the location pointed
              *  by \p p.
              *  Notice that this does not allocate space for the element. It
              *  should already be available at p (see member allocate() to
@@ -573,18 +661,8 @@ namespace GEO {
              * \see deallocate()
              */
             void destroy(pointer p) {
+		geo_argused(p); // else MSVC complains
                 p->~value_type();
-#ifdef GEO_COMPILER_MSVC
-                (void) p; // to avoid a "unreferenced variable" warning
-#endif
-            }
-
-            /**
-             * \brief Conversion operator to different aligned_allocator
-             * \details Required when compiling under MSVC version <= 2010
-             */
-            template <class T2, int A2> operator aligned_allocator<T2, A2>() {
-                return aligned_allocator<T2,A2>();
             }
         };
 
@@ -623,10 +701,17 @@ namespace GEO {
      */
     template <class T>
     class vector : public ::std::vector<T, Memory::aligned_allocator<T> > {
-        /** 
-         * \brief Shortcut to the base class type 
+        /**
+         * \brief Shortcut to the allocator type.
+         */
+	typedef Memory::aligned_allocator<T> allocator;
+
+        /**
+         * \brief Shortcut to the base class type
          */
         typedef ::std::vector<T, Memory::aligned_allocator<T> > baseclass;
+
+
 
     public:
         /**
@@ -638,7 +723,7 @@ namespace GEO {
 
         /**
          * \brief Creates a pre-allocated vector
-         * \details Constructs a container with \p size elements. 
+         * \details Constructs a container with \p size elements.
          *  Each element is default-constructed.
          * \param[in] size Number of elements to allocate
          */
@@ -648,7 +733,7 @@ namespace GEO {
 
         /**
          * \brief Creates a pre-initialized vector
-         * \details Constructs a container with \p size elements. 
+         * \details Constructs a container with \p size elements.
          *  Each element is a copy of \p val.
          * \param[in] size Number of elements to allocate
          * \param[in] val Initial value of the elements
@@ -682,7 +767,7 @@ namespace GEO {
         /**
          * \brief Gets a vector element
          * \param[in] i index of the element
-         * \return A const reference to the element at position 
+         * \return A const reference to the element at position
          *  \p i in the vector.
          */
         const T& operator[] (index_t i) const {
@@ -703,7 +788,7 @@ namespace GEO {
         /**
          * \brief Gets a vector element
          * \param[in] i index of the element
-         * \return A const reference to the element at position \p i 
+         * \return A const reference to the element at position \p i
          *  in the vector.
          */
         const T& operator[] (signed_index_t i) const {
@@ -727,7 +812,7 @@ namespace GEO {
         /**
          * \brief Gets a vector element
          * \param[in] i index of the element
-         * \return A const reference to the element at position \p i 
+         * \return A const reference to the element at position \p i
          *  in the vector.
          */
         const T& operator[] (int i) const {
@@ -741,28 +826,34 @@ namespace GEO {
          * \return A reference to the element at position \p i in the vector.
          */
         T& operator[] (unsigned int i) {
-            geo_debug_assert(i >= 0 && index_t(i) < size());
+            geo_debug_assert(index_t(i) < size());
             return baseclass::operator[] (index_t(i));
         }
 
         /**
          * \brief Gets a vector element
          * \param[in] i index of the element
-         * \return A const reference to the element at position \p i 
+         * \return A const reference to the element at position \p i
          *  in the vector.
          */
         const T& operator[] (unsigned int i) const {
-            geo_debug_assert(i >= 0 && index_t(i) < size());
+            geo_debug_assert(index_t(i) < size());
             return baseclass::operator[] (index_t(i));
         }
-#endif  
-        
+#endif
+
         /**
          * \brief Gets a pointer to the array of elements
          * \return a pointer to the first element of the vector
          */
         T* data() {
-            return size() == 0 ? nullptr : &(*this)[0];
+            T* result = baseclass::data();
+	    // Tell the compiler that the pointer is aligned, to enable AVX
+	    // vectorization, can be useful when using vector<double>
+	    // with blas-like operations. I hope the hint will propagate to
+	    // the caller (not sure...)
+	    geo_assume_aligned(result, allocator::ALIGNMENT);
+	    return result;
         }
 
         /**
@@ -770,9 +861,25 @@ namespace GEO {
          * \return a const pointer to the first element of the vector
          */
         const T* data() const {
-            return size() == 0 ? nullptr : &(*this)[0];
+            const T* result = baseclass::data();
+	    // Tell the compiler that the pointer is aligned, to enable AVX
+	    // vectorization, can be useful when using vector<double>
+	    // with blas-like operations. I hope the hint will propagate to
+	    // the caller (not sure...)
+	    geo_assume_aligned(result, allocator::ALIGNMENT);
+	    return result;
         }
 
+
+	/**
+	 * \brief Resizes this vector to zero and deallocated
+	 *  all the memory.
+	 * \details clear() does not deallocate.
+	 */
+	void clear_and_deallocate() {
+	    vector<T> other;
+	    this->swap(other);
+	}
     };
 
     /**
@@ -816,4 +923,3 @@ namespace GEO {
 }
 
 #endif
-

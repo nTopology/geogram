@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2014, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -13,7 +13,7 @@
  *  * Neither the name of the ALICE Project-Team nor the names of its
  *  contributors may be used to endorse or promote products derived from this
  *  software without specific prior written permission.
- * 
+ *
  *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -26,19 +26,13 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine, 
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX 
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
@@ -54,20 +48,21 @@
 #include <geogram/basic/geometry.h>
 #include <stack>
 
+#include <geogram/delaunay/delaunay_sync.h>
+
 namespace GEO {
 
-    typedef Numeric::uint8 thread_index_t;
     class PeriodicDelaunay3dThread;
-    
-     
+
+
     /**
-     * \brief Multithreaded implementation of Delaunay in 3d with 
+     * \brief Multithreaded implementation of Delaunay in 3d with
      *  optional periodic boundary conditions.
      * \details Periodicity is taken into account by detecting the
      *   vertices with Voronoi cells that straddle the boundary and
-     *   duplicating them as need be (with an additional propagation to 
+     *   duplicating them as need be (with an additional propagation to
      *   have the correct neighborhoods).
-     * \see Delaunay3d, ParallelDelaunay3d 
+     * \see Delaunay3d, ParallelDelaunay3d
      */
     class GEOGRAM_API PeriodicDelaunay3d : public Delaunay, public Periodic {
     public:
@@ -99,7 +94,7 @@ namespace GEO {
             }
 
             /**
-             * \brief Tests whether a tet belongs to the set of incident 
+             * \brief Tests whether a tet belongs to the set of incident
              *  tets.
              * \param[in] t the tet to be tested
              * \retval true if the tet belongs to the set of incident tets
@@ -122,8 +117,7 @@ namespace GEO {
                 return incident_tets_set.end();
             }
         };
-        
-        
+
         /**
          * \brief Constructs a new PeriodicDelaunay3d.
          * \param[in] periodic if true, constructs a periodic triangulation.
@@ -132,16 +126,23 @@ namespace GEO {
         PeriodicDelaunay3d(bool periodic, double period=1.0);
 
         /**
+         * \brief Constructs a new PeriodicDelaunay3d.
+         * \param[in] period the edge lengths along x,y,z in the periodic domain
+	 * \param[in] periodic if true, constructs a periodic triangulation.
+         */
+        PeriodicDelaunay3d(const vec3& period, bool periodic = true);
+
+        /**
          * \copydoc Delaunay::set_vertices()
          * \note compute() needs to be called after.
          */
-        virtual void set_vertices(
+        void set_vertices(
             index_t nb_vertices, const double* vertices
-        );
+        ) override;
 
         /**
          * \brief Sets the weights.
-         * \param[in] weights pointer to the array of 
+         * \param[in] weights pointer to the array of
          *  weights. Size is the number of real vertices,
          *  i.e., the parameter nb_vertices passed to
          *  set_vertices().
@@ -159,32 +160,32 @@ namespace GEO {
          * \details Convex cell computations are used in periodic
          *  mode for determining the cells that straddle the domain
          *  boundary.
-         * \param[in] x true if exact predicates should be used 
+         * \param[in] x true if exact predicates should be used
          *  (default), false otherwise.
          */
         void use_exact_predicates_for_convex_cell(bool x) {
             convex_cell_exact_predicates_ = x;
         }
-        
+
         /**
          * \brief Gets a vertex by index.
          * \param[in] v a vertex index. Can be a virtual
          *  vertex index when in periodic mode.
          * \return the 3d point associated with the vertex.
-         *  In periodic mode, if \p v is a virtual vertex, 
+         *  In periodic mode, if \p v is a virtual vertex,
          *  then the translation is applied to the real vertex.
          */
         vec3 vertex(index_t v) const {
             if(!periodic_) {
-                geo_debug_assert(v < nb_vertices());        
+                geo_debug_assert(v < nb_vertices());
                 return vec3(vertices_ + 3*v);
             }
             index_t instance = v/nb_vertices_non_periodic_;
             v = v%nb_vertices_non_periodic_;
             vec3 result(vertices_ + 3*v);
-            result.x += double(translation[instance][0]) * period_;
-            result.y += double(translation[instance][1]) * period_;
-            result.z += double(translation[instance][2]) * period_;
+            result.x += double(translation[instance][0]) * period_.x;
+            result.y += double(translation[instance][1]) * period_.y;
+            result.z += double(translation[instance][2]) * period_.z;
             return result;
         }
 
@@ -204,18 +205,19 @@ namespace GEO {
         /**
          * \copydoc Delaunay::nearest_vertex()
          */
-        virtual index_t nearest_vertex(const double* p) const;
+        index_t nearest_vertex(const double* p) const override;
 
         /**
          * \copydoc Delaunay::set_BRIO_levels()
          */
-        virtual void set_BRIO_levels(const vector<index_t>& levels);
+        void set_BRIO_levels(const vector<index_t>& levels) override;
 
         /**
          * \brief computes the set of tetrahedra that are incident to
          *  a vertex.
          * \param[in] v the index of the vertex.
-         * \param[in,out] Workspace a reference to a PeriodicDelaunay3d::Workspace.
+         * \param[in,out] W a reference to a
+         *  PeriodicDelaunay3d::IncidentTetrahedra.
          *  On exit it contains the list of incident tets.
          */
         void get_incident_tets(index_t v, IncidentTetrahedra& W) const;
@@ -227,13 +229,14 @@ namespace GEO {
          * \param[in] i the index of the vertex of which the Laguerre cell
          *  should be computed.
          * \param[out] C the Laguerre cell.
-         * \param[in,out] W a reference to a PeriodicDelaunay3d::IncidentTetrahedra
+         * \param[in,out] W a reference to a
+         *  PeriodicDelaunay3d::IncidentTetrahedra
          */
         void copy_Laguerre_cell_from_Delaunay(
             GEO::index_t i,
             ConvexCell& C,
             IncidentTetrahedra& W
-        ) const;         
+        ) const;
 
         /**
          * \brief Copies a Laguerre cell from the triangulation.
@@ -250,7 +253,7 @@ namespace GEO {
             IncidentTetrahedra W;
             copy_Laguerre_cell_from_Delaunay(i,C,W);
         }
-        
+
         /**
          * \brief Tests whether the Laguerre diagram has empty cells.
          * \details If the Laguerre diagram has empty cells, then
@@ -273,7 +276,7 @@ namespace GEO {
          */
         void save_cells(const std::string& basename, bool clipped);
 
-   protected:
+    protected:
 
         /**
          * \brief Copies a Laguerre cell facet from the triangulation.
@@ -283,10 +286,11 @@ namespace GEO {
          * \param[in] wi the weight associated to vertex \p i
          * \param[in] Pi_len2 the squared length of vertex \p i (considered as
          *  a vector).
-         * \param[in] t a tetrahedron of the Delaunay triangulation, 
+         * \param[in] t a tetrahedron of the Delaunay triangulation,
          *  incident to vertex i
          * \param[out] C the Laguerre cell.
-         * \param[in,out] Workspace a reference to a PeriodicDelaunay3d::IncidentTetrahedra
+         * \param[in,out] W a reference to a
+         *  PeriodicDelaunay3d::IncidentTetrahedra
          * \return the local index of vertex \p i within tetrahedron \p t
          */
         GEO::index_t copy_Laguerre_cell_facet_from_Delaunay(
@@ -298,8 +302,8 @@ namespace GEO {
             ConvexCell& C,
             IncidentTetrahedra& W
         ) const;
-         
-         
+
+
         /**
          * \brief Removes unused tetrahedra.
          * \return the final number of tetrahedra.
@@ -307,54 +311,80 @@ namespace GEO {
          *  to fit the new number of tetrahedra.
          */
         index_t compress(bool shrink=true);
-        
+
         /**
          * \copydoc Delaunay::update_v_to_cell()
          * \details if update_periodic_v_to_cell_ is set to true,
          *  also updates the map periodic_v_to_cell_ that maps
          *  each virtual vertex to a tet incident to it.
          */
-        virtual void update_v_to_cell();
+        void update_v_to_cell() override;
 
         /**
          * \copydoc Delaunay::update_cicl()
          */
-        virtual void update_cicl();
+        void update_cicl() override;
 
         /**
-         * \brief Duplicates the points with Voronoi cells that cross the boundary.
+         * \brief Duplicates the points with Voronoi cells
+         *  that cross the boundary.
          */
         void handle_periodic_boundaries();
 
-        /**
-         * \brief Computes the periodic vertex instances that should be generated.
-         * \param[in] v vertex index, in 0..nb_vertices_non_periodic_-1
-         * \param[out] C the clipped Laguerre cell
-         * \param[out] use_instance the array of booleans that indicates which
-         *  instance should be generated.
-         * \param[out] cell_is_on_boundary true if the cell has an intersection with 
-         *  the cube, false otherwise.
-         * \param[out] cell_is_outside_cube true if the cell is completely outside 
-         *  the cube, false otherwise.
-         * \param[in,out] W a reference to a PeriodicDelaunay3d::IncidentTetrahedra
-         * \return the number of instances to generate.
-         */
-        index_t get_periodic_vertex_instances_to_create(
-            index_t v,
-            ConvexCell& C,
-            bool use_instance[27],
-            bool& cell_is_on_boundary,
-            bool& cell_is_outside_cube,
-            IncidentTetrahedra& W
-        );
+
+	/**
+	 * \brief Phase I of periodic boundaries handling
+	 * \details For each cell that traverses the boundary, generates
+	 *  the periodic vertices instances corresponding to the crossed
+	 *  faces of the domain, and inserts them in the list of vertices
+	 *  to be inserted (the reorder_ vector).
+	 */
+	void handle_periodic_boundaries_phase_I();
+
+	/**
+	 * \brief Tests the position of a Laguerre vertex w.r.t. a plane
+	 * \details The positive side of the plane equation corresponds to
+	 *  what is kept. In other words, the normal vector P.x, P.y, P.z
+	 *  points towards the interior of this ConvexCell.
+	 * \param[in] t a tetrahedron index. The considered Laguerre vertex
+	 *  is the dual of this tetrahedron.
+	 * \param[in] P the plane equation.
+	 * \retval true if the Laguerre vertex would be clipped by plane P
+	 * \retval false otherwise
+	 */
+	bool Laguerre_vertex_is_in_conflict_with_plane(index_t t, vec4 P) const;
+
+	/**
+	 * \brief Phase II of periodic boundaries handling
+	 * \details Adds the newly discovered neighbors of
+	 *  the vertices inserted during phase I, back-translated
+	 *  to their original domain instances in the list of
+	 *  vertices to be inserted (in the reorder_ member).
+	 */
+	void handle_periodic_boundaries_phase_II();
 
         /**
-         * \brief Insert vertices from 
-         *  reorder_[b] to reorder_[e-1]
+         * \brief Inserts vertices from reorder_[b] to reorder_[e-1] using
+	 *   multithreaded Delaunay. Called by insert_vertices() if there
+	 *   are many vertices to insert.
          * \details If an empty cells is detected, has_empty_cells_ is
          *  set and the function exits.
          */
-        void insert_vertices(index_t b, index_t e);
+	void insert_vertices(const char* phase, index_t b, index_t e);
+
+	/**
+	 * \brief Inserts vertices as indicated by a reordering vector
+	 *  and a vector of BRIO levels, as obtained using
+	 *  compute_BRIO_order_periodic() (internal function, in the .cpp)
+	 * \details used by insert_vertices() (and maybe also compute(), we shall
+	 *  see if we can). Returns immediatly if an empty cell is encountered,
+	 *  then it sets has_empty_cells_.
+	 * \param[in] levels a const reference to the vector of BRIO levels, as
+	 *  offsets in the member reordering vector reorder_.
+	 */
+	void insert_vertices_with_BRIO(
+	    const char* phase, const vector<index_t>& levels
+	);
 
         /**
          * \brief Checks the volume of Laguerre cells.
@@ -380,18 +410,22 @@ namespace GEO {
         index_t nb_threads() const {
             return index_t(threads_.size());
         }
-        
+
+	void check_max_t();
+
     private:
         friend class PeriodicDelaunay3dThread;
-        
+
         bool periodic_;
-        double period_;
-        
+        vec3 period_;
+
         const double* weights_;
-        vector<signed_index_t> cell_to_v_store_;
-        vector<signed_index_t> cell_to_cell_store_;
+        vector<index_t> cell_to_v_store_;
+        vector<index_t> cell_to_cell_store_;
         vector<index_t> cell_next_;
-        vector<thread_index_t> cell_thread_;
+
+        CellStatusArray cell_status_;
+
         ThreadGroup threads_;
         vector<index_t> reorder_;
         vector<index_t> levels_;
@@ -399,29 +433,33 @@ namespace GEO {
         /**
          * Performs additional checks (costly !)
          */
-         bool debug_mode_;
+        bool debug_mode_;
 
         /**
          * Displays the result of the additional checks.
          */
-         bool verbose_debug_mode_;
+        bool verbose_debug_mode_;
 
         /**
-         * Displays the timing of the core algorithm.
+         * Displays a synthetic summary of timings at the end of the algorithm
          */
         bool benchmark_mode_;
-        
+
+        /**
+         * Displays the detailed timing of all the phases of the algorithm
+         */
+        bool detailed_benchmark_mode_;
 
         /**
          * \brief Bitmask that indicates for each real vertex
          *  the virtual vertices that were created.
          */
-        vector<index_t> vertex_instances_;
+        vector<Numeric::uint32> vertex_instances_;
 
         bool update_periodic_v_to_cell_;
         vector<index_t> periodic_v_to_cell_rowptr_;
         vector<index_t> periodic_v_to_cell_data_;
-        
+
         /**
          * \brief Early detection of empty cells.
          */
@@ -437,8 +475,47 @@ namespace GEO {
          * \brief Use exact predicates in convex cell.
          */
         bool convex_cell_exact_predicates_;
+
+	struct Stats {
+
+	    Stats();
+
+	    void reset();
+
+	    std::string to_string() {
+		return raw_ ? to_string_raw() : to_string_pretty();
+	    }
+
+	    std::string to_string_raw() const;
+	    std::string to_string_pretty() const;
+
+            /**
+	     * If set, displays numbers without any formatting.
+	     * Set by constructor if command line argument dbg:raw_logs is set.
+	     */
+	    bool raw_;
+
+	    double  total_t_;
+
+	    double  phase_0_t_;
+
+	    double  phase_I_t_;
+	    double  phase_I_classify_t_;
+	    index_t phase_I_nb_inside_;
+	    index_t phase_I_nb_cross_;
+	    index_t phase_I_nb_outside_;
+	    double  phase_I_insert_t_;
+	    index_t phase_I_insert_nb_;
+
+	    double  phase_II_t_;
+	    double  phase_II_classify_t_;
+	    double  phase_II_insert_t_;
+	    index_t phase_II_insert_nb_;
+	} stats_;
+
+	friend class LaguerreDiagramOmegaSimple3d;
     };
-    
+
 
 }
 

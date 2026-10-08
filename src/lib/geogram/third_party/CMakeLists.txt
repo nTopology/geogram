@@ -1,17 +1,47 @@
 vor_reset_warning_level()
 
-if(WIN32)
+if(CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
   add_definitions(-D_SILENCE_STDEXT_HASH_DEPRECATION_WARNINGS)
+  add_definitions(/wd4005) # libMeshb redefines _CRT_SECURE_NO_WARNINGS
+  add_definitions(/wd4244) # libMeshb has int64->int conversion (calls to GmfStatKw)
 else()
   add_definitions(-Wno-deprecated) # PoissonRecon uses hash map
   if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
     add_definitions(-Wno-maybe-uninitialized)
+    add_definitions(-Wno-clobbered)    # libMeshb
+    add_definitions(-Wno-sign-compare) # libMeshb
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-discarded-qualifiers") #lua
   endif()
-  if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
-    add_definitions(-Wno-unknown-warning-option -Wno-zero-as-null-pointer-constant)
+  if(
+      "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang" OR
+      "${CMAKE_CXX_COMPILER_ID}" STREQUAL "AppleClang"
+  )
+    add_definitions(-Wno-unknown-warning-option)
+    add_definitions(-Wno-zero-as-null-pointer-constant)
+    add_definitions(-Wno-sign-compare)             # libMeshb
+    add_definitions(-Wno-string-plus-int)          # lua
+    add_definitions(-Wno-unused-but-set-variable)  # xatlas
+    add_definitions(-Wno-deprecated-non-prototype) # triangle
+  endif()
+  if(ANDROID)
+    add_definitions(-Wno-unused-but-set-variable)
+    add_definitions(-Wno-implicit-function-declaration)
+    add_definitions(-Wno-unused-comparison)
   endif()
 endif()
 
+
+include_directories(
+    ${PROJECT_SOURCE_DIR}/src/lib/geogram/third_party/libMeshb/sources
+)
+
+include_directories(
+    ${PROJECT_SOURCE_DIR}/src/lib/geogram/third_party
+)
+
+# Activate AMGCL support in OpenNL (algebraic multigrid solver)
+include_directories(${PROJECT_SOURCE_DIR}/src/lib/geogram/third_party/amgcl)
+add_definitions(-DNL_WITH_AMGCL)
 
 # Since we are in a CMake "object library" (i.e.,
 # a set of object files compiled with same options),
@@ -30,11 +60,15 @@ if(BUILD_SHARED_LIBS)
 endif()
 
 aux_source_directories(SOURCES "Source Files"               .)
+aux_source_directories(SOURCES "Source Files\\libMeshb"     libMeshb/sources)
 aux_source_directories(SOURCES "Source Files\\rply"         rply)
 aux_source_directories(SOURCES "Source Files\\shewchuk"     shewchuk)
-aux_source_directories(SOURCES "Source Files\\zlib"         ${ZLIB_INCLUDE_DIR})
-aux_source_directories(SOURCES "Source Files\\gzstream"     gzstream)
+if(NOT GEOGRAM_USE_EXTERNAL_ZLIB)
+    aux_source_directories(SOURCES "Source Files\\zlib"         zlib)
+endif()
 aux_source_directories(SOURCES "Source Files\\PoissonRecon" PoissonRecon)
+aux_source_directories(SOURCES "Source Files\\xatlas"       xatlas)
+aux_source_directories(SOURCES "Source Files\\OpenNL"       OpenNL)
 
 if(GEOGRAM_WITH_LUA)
    aux_source_directories(SOURCES "Source Files\\lua"          lua)
@@ -44,14 +78,20 @@ if(GEOGRAM_WITH_HLBFGS)
     aux_source_directories(SOURCES "Source Files\\HLBFGS"       HLBFGS)
 endif()
 
+
 if(GEOGRAM_WITH_TRIANGLE)
     aux_source_directories(SOURCES "Source Files\\triangle" triangle)
 endif()
 
 add_library(geogram_third_party OBJECT ${SOURCES})
 
-ntop_import(tbb)
-target_link_libraries(geogram_third_party tbb::tbb zlibstatic)
+if(ANDROID)
+  target_include_directories(geogram_third_party PRIVATE
+    ${ANDROID_NDK}/sources/android/native_app_glue
+  )
+  message(STATUS "building for Android")
+endif()
+
 
 set_target_properties(
     geogram_third_party PROPERTIES

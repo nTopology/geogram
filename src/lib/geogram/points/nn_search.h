@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2014, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -13,7 +13,7 @@
  *  * Neither the name of the ALICE Project-Team nor the names of its
  *  contributors may be used to endorse or promote products derived from this
  *  software without specific prior written permission.
- * 
+ *
  *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -26,19 +26,13 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine, 
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX 
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
@@ -140,7 +134,7 @@ namespace GEO {
         ) const = 0;
 
 
-        /** 
+        /**
          * \brief A structure to discriminate between the two
          *  versions of get_nearest_neighbors()
          */
@@ -151,7 +145,7 @@ namespace GEO {
          * \brief Finds the nearest neighbors of a point given by
          *  coordinates. Uses input neighbors and squared distance as
          *  an initialization.
-         * \details Default implementation ignores the input values. 
+         * \details Default implementation ignores the input values.
          *  Derived classes may have more efficient implementations.
          * \param[in] nb_neighbors number of neighbors to be searched.
          *  Should be smaller or equal to nb_points() (else it triggers
@@ -195,15 +189,12 @@ namespace GEO {
          * \param[in] query_point array of dimension() doubles
          * \return the index of the nearest neighbor from \p query_point
          */
-
-        index_t get_nearest_neighbor(
-            const double* query_point
-        ) const {
+        index_t get_nearest_neighbor(const double* query_point) const {
             index_t result;
             double sq_dist;
             get_nearest_neighbors(1, query_point, &result, &sq_dist);
-            geo_assert(signed_index_t(result) >= 0);
-            return index_t(result);
+	    geo_assert(result < nb_points());
+            return result;
         }
 
         /**
@@ -260,7 +251,7 @@ namespace GEO {
         /**
          * \brief NearestNeighborSearch destructor
          */
-        virtual ~NearestNeighborSearch();
+        ~NearestNeighborSearch() override;
 
     protected:
         coord_index_t dimension_;
@@ -287,16 +278,15 @@ namespace GEO {
      * \relates NearestNeighborSearch
      */
     typedef Factory1<NearestNeighborSearch, coord_index_t>
-        NearestNeighborSearchFactory;
+    NearestNeighborSearchFactory;
 
     /**
      * \brief Helper macro to register a NearestNeighborSearch implementation
      * \see NearestNeighborSearchFactory
      * \relates NearestNeighborSearch
      */
-#define geo_register_NearestNeighborSearch_creator(type, name) \
+#define geo_register_NearestNeighborSearch_creator(type, name)          \
     geo_register_creator(GEO::NearestNeighborSearchFactory, type, name)
 }
 
 #endif
-

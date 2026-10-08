@@ -16,7 +16,7 @@
 #include <geogram/mesh/mesh_io.h>
 #include <geogram/mesh/mesh_geometry.h>
 #include <geogram/mesh/mesh_preprocessing.h>
-#include <geogram/mesh/mesh_intersection.h>
+#include <geogram/mesh/mesh_surface_intersection.h>
 #include <geogram/mesh/mesh_reorder.h>
 #include <geogram/mesh/mesh_frame_field.h>
 #include <geogram/mesh/mesh_tetrahedralize.h>
@@ -47,7 +47,7 @@ namespace {
         if(min_comp_area == 0.0) {
             return;
         }
-        double nb_f_removed = M.facets.nb();
+        index_t nb_f_removed = M.facets.nb();
         remove_small_connected_components(M, min_comp_area);
         nb_f_removed -= M.facets.nb();
         if(nb_f_removed != 0) {
@@ -70,7 +70,7 @@ namespace {
 
         index_t Psmooth_iter = CmdLine::get_arg_uint("co3ne:Psmooth_iter");
         index_t nb_neigh = CmdLine::get_arg_uint("co3ne:nb_neighbors");
-        
+
         if(CmdLine::get_arg("algo:reconstruct") == "Poisson") {
             if(Psmooth_iter != 0) {
                 Co3Ne_smooth(M_in, nb_neigh, Psmooth_iter);
@@ -81,7 +81,7 @@ namespace {
                 normal.bind_if_is_defined(M_in.vertices.attributes(), "normal");
                 has_normals = (normal.is_bound() && normal.dimension() == 3);
             }
-            
+
             if(!has_normals) {
                 // TODO: add a way of making normals orientation coherent
                 // in Co3Ne_compute_normals...
@@ -120,12 +120,12 @@ namespace {
                         << "Dataset has no normals, estimating them"
                         << std::endl;
                     Logger::out("Poisson")
-                    << "(result may be not so good, normals may be incoherent)"
-                    << std::endl;
+                        << "(result may be not so good, normals may be incoherent)"
+                        << std::endl;
                     Co3Ne_compute_normals(M_in, nb_neigh, true);
                 }
             }
-            
+
             index_t depth = CmdLine::get_arg_uint("poisson:octree_depth");
             Mesh M_out;
             PoissonReconstruction recons;
@@ -138,19 +138,19 @@ namespace {
                 << "Poisson reconstruction done."
                 << std::endl;
             MeshElementsFlags what = MeshElementsFlags(
-                MESH_VERTICES | MESH_FACETS 
+                MESH_VERTICES | MESH_FACETS
             );
             M_in.copy(M_out, true, what);
         } else {
             // Remove all facets
             M_in.facets.clear();
-            
+
             double bbox_diag = bbox_diagonal(M_in);
             double epsilon = CmdLine::get_arg_percent(
                 "pre:epsilon", bbox_diag
             );
             mesh_repair(M_in, MESH_REPAIR_COLOCATE, epsilon);
-            
+
             double radius = CmdLine::get_arg_percent(
                 "co3ne:radius", bbox_diag
             );
@@ -173,45 +173,37 @@ namespace {
 
         double radius = bbox_diagonal(M_in);
         double area = Geom::mesh_area(M_in, 3);
+        double epsilon = CmdLine::get_arg_percent(
+            "pre:epsilon", radius
+        );
+        double max_area = CmdLine::get_arg_percent(
+            "pre:max_hole_area", area
+        );
+        index_t max_edges = CmdLine::get_arg_uint(
+            "pre:max_hole_edges"
+        );
+        bool remove_internal_shells =
+            CmdLine::get_arg_bool("pre:remove_internal_shells");
 
-        int nb_kills = CmdLine::get_arg_int("pre:brutal_kill_borders");
-        for(int k=0; k<nb_kills; ++k) {
-            vector<index_t> to_kill(M_in.facets.nb(), 0);
-            for(index_t f=0; f<M_in.facets.nb(); ++f) {
-                for(index_t c=M_in.facets.corners_begin(f);
-                    c<M_in.facets.corners_end(f); ++c
-                ) {
-                    if(M_in.facet_corners.adjacent_facet(c) == NO_FACET) {
-                        to_kill[f] = 1;
-                    }
-                }
-            }
-            index_t nb_facet_kill=0;
-            for(index_t i=0; i<to_kill.size(); ++i) {
-                if(to_kill[i] != 0) {
-                    ++nb_facet_kill;
-                }
-            }
-            if(nb_facet_kill != 0) {
-                Logger::out("Pre")
-                    << "Killed " << nb_facet_kill << " facet(s) on border"
-                    << std::endl;
-                M_in.facets.delete_elements(to_kill);
-                mesh_repair(M_in);
-            } else {
-                Logger::out("Pre") << "No facet on border (good)" << std::endl;
-                break;
-            }
-        }
-        
         index_t nb_bins = CmdLine::get_arg_uint("pre:vcluster_bins");
+
         if(pre && nb_bins != 0) {
             mesh_decimate_vertex_clustering(M_in, nb_bins);
+        } else if(pre && CmdLine::get_arg_bool("pre:intersect")) {
+            mesh_repair(M_in, MESH_REPAIR_DEFAULT, epsilon);
+            if(max_area != 0.0 && max_edges != 0) {
+                fill_holes(M_in, max_area, max_edges);
+            }
+            MeshSurfaceIntersection intersection(M_in);
+            intersection.set_verbose(CmdLine::get_arg_bool("sys:verbose"));
+            intersection.set_radial_sort(remove_internal_shells);
+            intersection.intersect();
+            if(remove_internal_shells) {
+                intersection.remove_internal_shells();
+            }
+            mesh_repair(M_in, MESH_REPAIR_DEFAULT, epsilon);
         } else if(pre && CmdLine::get_arg_bool("pre:repair")) {
             MeshRepairMode mode = MESH_REPAIR_DEFAULT;
-            double epsilon = CmdLine::get_arg_percent(
-                "pre:epsilon", radius
-            );
             mesh_repair(M_in, mode, epsilon);
         }
 
@@ -223,13 +215,7 @@ namespace {
             );
         }
 
-        if(pre) {
-            double max_area = CmdLine::get_arg_percent(
-                "pre:max_hole_area", area
-            );
-            index_t max_edges = CmdLine::get_arg_uint(
-                "pre:max_hole_edges"
-            );
+        if(pre && !CmdLine::get_arg_bool("pre:intersect")) {
             if(max_area != 0.0 && max_edges != 0) {
                 fill_holes(M_in, max_area, max_edges);
             }
@@ -242,15 +228,15 @@ namespace {
                 CmdLine::get_arg_uint("pre:Nsmooth_iter");
             if(nb_normal_smooth != 0) {
                 Logger::out("Nsmooth") << "Smoothing normals, "
-                    << nb_normal_smooth
-                    << " iteration(s)" << std::endl;
+                                       << nb_normal_smooth
+                                       << " iteration(s)" << std::endl;
                 simple_Laplacian_smooth(M_in, index_t(nb_normal_smooth), true);
             }
             set_anisotropy(M_in, anisotropy);
         }
 
         if(CmdLine::get_arg_bool("remesh")) {
-            unsigned int nb_removed = M_in.facets.nb();
+            index_t nb_removed = M_in.facets.nb();
             remove_small_facets(M_in, 1e-30);
             nb_removed -= M_in.facets.nb();
             if(nb_removed == 0) {
@@ -343,7 +329,7 @@ namespace {
                         index_t v = M_out.facets.vertex(f,lv);
                         normal[3*v  ] = N.x;
                         normal[3*v+1] = N.y;
-                        normal[3*v+2] = N.z;                        
+                        normal[3*v+2] = N.z;
                     }
                 }
             }
@@ -374,14 +360,14 @@ namespace {
     ) {
         Mesh M_in;
         Mesh M_out;
-	Mesh M_points;
+        Mesh M_points;
 
         Logger::div("Polyhedral meshing");
 
         if(!mesh_load(input_filename, M_in)) {
             return 1;
         }
-        
+
         if(M_in.cells.nb() == 0) {
             Logger::out("Poly") << "Mesh is not a volume" << std::endl;
             Logger::out("Poly") << "Trying to tetrahedralize" << std::endl;
@@ -391,116 +377,116 @@ namespace {
             M_in.cells.compute_borders();
         }
 
-	index_t dim = M_in.vertices.dimension();
-	index_t spec_dim = CmdLine::get_arg_uint("poly:embedding_dim");
-	if(spec_dim != 0 && spec_dim <= dim) {
-	    dim = spec_dim;
-	}
-	
+        index_t dim = M_in.vertices.dimension();
+        index_t spec_dim = CmdLine::get_arg_uint("poly:embedding_dim");
+        if(spec_dim != 0 && spec_dim <= dim) {
+            dim = spec_dim;
+        }
+
         CentroidalVoronoiTesselation CVT(&M_in, coord_index_t(dim));
         CVT.set_volumetric(true);
 
-	if(CmdLine::get_arg("poly:points_file") == "") {
+        if(CmdLine::get_arg("poly:points_file") == "") {
 
-	    Logger::div("Generate random samples");
-	    
-	    CVT.compute_initial_sampling(
-		CmdLine::get_arg_uint("remesh:nb_pts")
-	    );
+            Logger::div("Generate random samples");
 
-	    Logger::div("Optimize sampling");
+            CVT.compute_initial_sampling(
+                CmdLine::get_arg_uint("remesh:nb_pts")
+            );
 
-	    try {
-		index_t nb_iter = CmdLine::get_arg_uint("opt:nb_Lloyd_iter");
-		ProgressTask progress("Lloyd", nb_iter);
-		CVT.set_progress_logger(&progress);
-		CVT.Lloyd_iterations(nb_iter);
-	    }
-	    catch(const TaskCanceled&) {
-	    }
+            Logger::div("Optimize sampling");
 
-	    try {
-		index_t nb_iter = CmdLine::get_arg_uint("opt:nb_Newton_iter");
-		    ProgressTask progress("Newton", nb_iter);
-		CVT.set_progress_logger(&progress);
-		CVT.Newton_iterations(nb_iter);
-	    }
-	    catch(const TaskCanceled&) {
-	    }
-        
-	    CVT.set_progress_logger(nullptr);
-	} else {
-	    if(!mesh_load(CmdLine::get_arg("poly:points_file"), M_points)) {
-		return 1;
-	    }
-	    CVT.delaunay()->set_vertices(
-		M_points.vertices.nb(), M_points.vertices.point_ptr(0)
-	    );
-	}
+            try {
+                index_t nb_iter = CmdLine::get_arg_uint("opt:nb_Lloyd_iter");
+                ProgressTask progress("Lloyd", nb_iter);
+                CVT.set_progress_logger(&progress);
+                CVT.Lloyd_iterations(nb_iter);
+            }
+            catch(const TaskCanceled&) {
+            }
 
-	CVT.RVD()->set_exact_predicates(true);
-	{
-	    BuildRVDMesh callback(M_out);
-	    std::string simplify = CmdLine::get_arg("poly:simplify");
-	    if(simplify == "tets_voronoi_boundary") {
-		double angle_threshold =
-		    CmdLine::get_arg_double("poly:normal_angle_threshold");
-		callback.set_simplify_boundary_facets(true, angle_threshold);
-	    } else if(simplify == "tets_voronoi") {
-		callback.set_simplify_voronoi_facets(true);
-	    } else if(simplify == "tets") {
-		callback.set_simplify_internal_tet_facets(true);		
-	    } else if(simplify == "none") {
-		callback.set_simplify_internal_tet_facets(false);
-	    } else {
-		Logger::err("Poly")
-		    << simplify << " invalid cells simplification mode"
-		    << std::endl;
-	    }
-	    callback.set_tessellate_non_convex_facets(
-		CmdLine::get_arg_bool("poly:tessellate_non_convex_facets")
-	    );
-	    callback.set_shrink(CmdLine::get_arg_double("poly:cells_shrink"));
-	    callback.set_generate_ids(
-		CmdLine::get_arg_bool("poly:generate_ids") ||
-		FileSystem::extension(output_filename) == "ovm"
-	    );
-	    CVT.RVD()->for_each_polyhedron(callback);				
-	}
+            try {
+                index_t nb_iter = CmdLine::get_arg_uint("opt:nb_Newton_iter");
+                ProgressTask progress("Newton", nb_iter);
+                CVT.set_progress_logger(&progress);
+                CVT.Newton_iterations(nb_iter);
+            }
+            catch(const TaskCanceled&) {
+            }
 
-	if(
-	    FileSystem::extension(output_filename) == "mesh" ||
-	    FileSystem::extension(output_filename) == "meshb"
-	) {
-	    Logger::warn("Poly")
-		<< "Specified file format does not handle polygons"
-		<< " (falling back to .obj)"
-		<< std::endl;
-	    output_filename =
-		FileSystem::dir_name(output_filename) + "/" +
-		FileSystem::base_name(output_filename) + ".obj";
-	}
+            CVT.set_progress_logger(nullptr);
+        } else {
+            if(!mesh_load(CmdLine::get_arg("poly:points_file"), M_points)) {
+                return 1;
+            }
+            CVT.delaunay()->set_vertices(
+                M_points.vertices.nb(), M_points.vertices.point_ptr(0)
+            );
+        }
 
-	if(
-	    CmdLine::get_arg_bool("poly:generate_ids") &&
-	    FileSystem::extension(output_filename) != "geogram" &&
-	    FileSystem::extension(output_filename) != "geogram_ascii"
-	) {
-	    Logger::warn("Poly") << "Speficied file format does not handle ids"
-				 << " (use .geogram or .geogram_ascii instead)"
-				 << std::endl;
-	}
-	
-	{
-	    MeshIOFlags flags;
-	    flags.set_attributes(MESH_ALL_ATTRIBUTES);
-	    mesh_save(M_out, output_filename, flags);
-	}
-        
+        CVT.RVD()->set_exact_predicates(true);
+        {
+            BuildRVDMesh callback(M_out);
+            std::string simplify = CmdLine::get_arg("poly:simplify");
+            if(simplify == "tets_voronoi_boundary") {
+                double angle_threshold =
+                    CmdLine::get_arg_double("poly:normal_angle_threshold");
+                callback.set_simplify_boundary_facets(true, angle_threshold);
+            } else if(simplify == "tets_voronoi") {
+                callback.set_simplify_voronoi_facets(true);
+            } else if(simplify == "tets") {
+                callback.set_simplify_internal_tet_facets(true);
+            } else if(simplify == "none") {
+                callback.set_simplify_internal_tet_facets(false);
+            } else {
+                Logger::err("Poly")
+                    << simplify << " invalid cells simplification mode"
+                    << std::endl;
+            }
+            callback.set_tessellate_non_convex_facets(
+                CmdLine::get_arg_bool("poly:tessellate_non_convex_facets")
+            );
+            callback.set_shrink(CmdLine::get_arg_double("poly:cells_shrink"));
+            callback.set_generate_ids(
+                CmdLine::get_arg_bool("poly:generate_ids") ||
+                FileSystem::extension(output_filename) == "ovm"
+            );
+            CVT.RVD()->for_each_polyhedron(callback);
+        }
+
+        if(
+            FileSystem::extension(output_filename) == "mesh" ||
+            FileSystem::extension(output_filename) == "meshb"
+        ) {
+            Logger::warn("Poly")
+                << "Specified file format does not handle polygons"
+                << " (falling back to .obj)"
+                << std::endl;
+            output_filename =
+                FileSystem::dir_name(output_filename) + "/" +
+                FileSystem::base_name(output_filename) + ".obj";
+        }
+
+        if(
+            CmdLine::get_arg_bool("poly:generate_ids") &&
+            FileSystem::extension(output_filename) != "geogram" &&
+            FileSystem::extension(output_filename) != "geogram_ascii"
+        ) {
+            Logger::warn("Poly") << "Speficied file format does not handle ids"
+                                 << " (use .geogram or .geogram_ascii instead)"
+                                 << std::endl;
+        }
+
+        {
+            MeshIOFlags flags;
+            flags.set_attributes(MESH_ALL_ATTRIBUTES);
+            mesh_save(M_out, output_filename, flags);
+        }
+
         return 0;
     }
 
-    
+
     /**
      * \brief Generates a tetrahedral mesh.
      * \param[in] input_filename name of the input file, can be
@@ -531,19 +517,19 @@ namespace {
         }
         return 0;
     }
-    
+
 }
 
 int main(int argc, char** argv) {
     using namespace GEO;
 
-    
-    GEO::initialize();    
-    
+
+    GEO::initialize(GEO::GEOGRAM_INSTALL_ALL);
+
     try {
 
         Stopwatch total("Total time");
-        
+
         CmdLine::import_arg_group("standard");
         CmdLine::import_arg_group("pre");
         CmdLine::import_arg_group("remesh");
@@ -553,14 +539,14 @@ int main(int argc, char** argv) {
         CmdLine::import_arg_group("co3ne");
         CmdLine::import_arg_group("tet");
         CmdLine::import_arg_group("poly");
-        
+
         std::vector<std::string> filenames;
 
         if(!CmdLine::parse(argc, argv, filenames, "inputfile <outputfile>")) {
             return 1;
         }
 
-        
+
         std::string input_filename = filenames[0];
         std::string output_filename =
             filenames.size() >= 2 ? filenames[1] : std::string("out.meshb");
@@ -572,11 +558,11 @@ int main(int argc, char** argv) {
             return tetrahedral_mesher(input_filename, output_filename);
         }
 
-	
+
         if(CmdLine::get_arg_bool("poly")) {
             return polyhedral_mesher(input_filename, output_filename);
         }
-        
+
         Mesh M_in, M_out;
         {
             Stopwatch W("Load");
@@ -585,7 +571,7 @@ int main(int argc, char** argv) {
             }
         }
 
-        
+
         if(CmdLine::get_arg_bool("co3ne")) {
             reconstruct(M_in);
         }
@@ -605,7 +591,7 @@ int main(int argc, char** argv) {
         }
 
         Logger::div("remeshing");
-	{
+        {
             double gradation = CmdLine::get_arg_double("remesh:gradation");
             if(gradation != 0.0) {
                 compute_sizing_field(
@@ -630,7 +616,7 @@ int main(int argc, char** argv) {
 
         if(M_out.facets.nb() == 0) {
             Logger::err("Remesh") << "After remesh, got an empty mesh"
-                << std::endl;
+                                  << std::endl;
             return 1;
         }
 
@@ -650,4 +636,3 @@ int main(int argc, char** argv) {
 
     return 0;
 }
-

@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2014, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -13,7 +13,7 @@
  *  * Neither the name of the ALICE Project-Team nor the names of its
  *  contributors may be used to endorse or promote products derived from this
  *  software without specific prior written permission.
- * 
+ *
  *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -26,19 +26,13 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine, 
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX 
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
@@ -48,29 +42,73 @@
 #include <geogram/basic/command_line.h>
 #include <geogram/basic/argused.h>
 #include <geogram/basic/file_system.h>
+#include <geogram/basic/process.h>
+
 
 #include <stdlib.h>
 #include <stdarg.h>
 
 /*
-   Disables the warning caused by passing 'this' as an argument while
-   construction is not finished (in LoggerStream ctor).
-   As LoggerStreamBuf only stores the pointer for later use, so we can
-   ignore the fact that 'this' is not completely formed yet.
- */
+  Disables the warning caused by passing 'this' as an argument while
+  construction is not finished (in LoggerStream ctor).
+  As LoggerStreamBuf only stores the pointer for later use, so we can
+  ignore the fact that 'this' is not completely formed yet.
+*/
 #ifdef GEO_OS_WINDOWS
 #pragma warning(disable:4355)
 #endif
 
-namespace GEO {
 
-  namespace {
-    class NullBuffer : public std::streambuf
-    {
-      public:
-        int overflow(int c) { return c; }
-      };
-    }
+namespace {
+    using namespace GEO;
+
+    /**
+     * rief A stream buffer that discards everything written to it.
+     */
+    class NullBuffer : public std::streambuf {
+    public:
+        int overflow(int c) override { return c; }
+    };
+
+    /**
+     * \brief The output stream returned by Logger::err_console()
+     * \details It has a locking mechanism that avoids messages sent by different
+     *  threads to be mixed.
+     * \see Logger::err_console(), Logger::out(), Logger::err(), Logger::warn(),
+     *  Logger::status()
+     */
+    class CERRStream : public std::ostream {
+    public:
+        CERRStream() :
+            std::ostream(new CERRStreamBuff(this)),lock_(GEOGRAM_SPINLOCK_INIT) {
+        }
+        ~CERRStream() override{
+        }
+        void lock() {
+            Process::acquire_spinlock(lock_);
+        }
+        void unlock() {
+            Process::release_spinlock(lock_);
+        }
+    private:
+        Process::spinlock lock_;
+        class CERRStreamBuff : public std::stringbuf {
+        public:
+            CERRStreamBuff(CERRStream* stream) : stream_(stream) {
+            }
+            int sync() override {
+                std::cerr << this->str();
+                this->str("");
+                stream_->unlock();
+                return 0;
+            }
+        private:
+            CERRStream* stream_;
+        };
+    };
+}
+
+namespace GEO {
 
     /************************************************************************/
 
@@ -204,7 +242,7 @@ namespace GEO {
     bool Logger::is_initialized() {
         return (instance_ != nullptr);
     }
-    
+
     bool Logger::set_local_value(
         const std::string& name, const std::string& value
     ) {
@@ -218,7 +256,7 @@ namespace GEO {
             set_minimal(String::to_bool(value));
             return true;
         }
-        
+
         if(name == "log:pretty") {
             set_pretty(String::to_bool(value));
             return true;
@@ -275,7 +313,7 @@ namespace GEO {
             value = String::to_string(is_minimal());
             return true;
         }
-        
+
         if(name == "log:pretty") {
             value = String::to_string(is_pretty());
             return true;
@@ -339,7 +377,7 @@ namespace GEO {
     void Logger::set_minimal(bool flag) {
         minimal_ = flag;
     }
-    
+
     void Logger::set_pretty(bool flag) {
         pretty_ = flag;
     }
@@ -355,16 +393,20 @@ namespace GEO {
         quiet_(true),
         pretty_(true),
         minimal_(false),
-        notifying_error_(false)
+        notifying_error_(false),
+	indent_(0)
     {
         // Add a default client printing stuff to std::cout
         register_client(new ConsoleLogger());
 #ifdef GEO_DEBUG
         quiet_ = false;
-#endif        
+#endif
+        err_console_ = new CERRStream;
     }
 
     Logger::~Logger() {
+        delete err_console_;
+        err_console_ = nullptr;
     }
 
     Logger* Logger::instance() {
@@ -381,41 +423,50 @@ namespace GEO {
         return instance_;
     }
 
+    std::ostream& Logger::err_console() {
+        static_cast<CERRStream*>(err_console_)->lock();
+        return *err_console_;
+    }
+
     std::ostream& Logger::div(const std::string& title) {
-        std::ostream& result = 
+        std::ostream& result =
             (is_initialized() && !Process::is_running_threads()) ?
             instance()->div_stream(title) :
-            (std::cerr << "=====" << title << std::endl);
+            (instance()->err_console() << "=====" << title << std::endl);
         return result;
     }
 
-    std::ostream& Logger::out(const std::string&) {
-        static NullBuffer nullBuffer;
-        static std::ostream stream(&nullBuffer);
-        return stream;
+    std::ostream& Logger::out(const std::string& feature) {
+        // Informational output is disabled: it was a source of data races
+        // and of noise when geogram is embedded. Errors and warnings still
+        // go through err() and warn().
+        geo_argused(feature);
+        static NullBuffer null_buffer;
+        static std::ostream null_stream(&null_buffer);
+        return null_stream;
     }
 
     std::ostream& Logger::err(const std::string& feature) {
-        std::ostream& result = 
-            (is_initialized() && !Process::is_running_threads()) ?          
+        std::ostream& result =
+            (is_initialized() && !Process::is_running_threads()) ?
             instance()->err_stream(feature) :
-            (std::cerr << "(E)-[" << feature << "] ");
+            (instance()->err_console() << "(E)-[" << feature << "] ");
         return result;
     }
 
     std::ostream& Logger::warn(const std::string& feature) {
-        std::ostream& result = 
-            (is_initialized() && !Process::is_running_threads()) ?                  
+        std::ostream& result =
+            (is_initialized() && !Process::is_running_threads()) ?
             instance()->warn_stream(feature) :
-            (std::cerr << "(W)-[" << feature << "] ");
+            (instance()->err_console() << "(W)-[" << feature << "] ");
         return result;
     }
 
     std::ostream& Logger::status() {
-        std::ostream& result =  
-            (is_initialized() && !Process::is_running_threads()) ?                      
+        std::ostream& result =
+            (is_initialized() && !Process::is_running_threads()) ?
             instance()->status_stream() :
-            (std::cerr << "[status] ");
+            (instance()->err_console() << "[status] ");
         return result;
     }
 
@@ -423,7 +474,8 @@ namespace GEO {
         if(!quiet_) {
             current_feature_changed_ = true;
             current_feature_.clear();
-            for(auto it : clients_) {
+            LoggerClients clients = clients_; // clients_ may be modified !
+            for(auto it : clients) {
                 it->div(title);
             }
         }
@@ -461,19 +513,24 @@ namespace GEO {
     void Logger::notify_out(const std::string& message) {
         if(
             (log_everything_ &&
-                log_features_exclude_.find(current_feature_) ==
-                log_features_exclude_.end())
+             log_features_exclude_.find(current_feature_) ==
+             log_features_exclude_.end())
             || (log_features_.find(current_feature_) != log_features_.end())
         ) {
             std::string feat_msg =
                 CmdLine::ui_feature(current_feature_, current_feature_changed_)
                 + message;
 
-            for(auto it : clients_) {
+            LoggerClients clients = clients_; // clients_ may be modified !
+            for(auto it : clients) {
                 it->out(feat_msg);
             }
 
-            current_feature_changed_ = false;
+	    // There is a mechanism for not repeating feature when it is
+	    // the same as in previous message, but finally I systematically
+	    // display feature (else the log is not super easy to read,
+	    // especially when there are nested Stopwatches).
+            current_feature_changed_ = true;
         }
     }
 
@@ -483,7 +540,8 @@ namespace GEO {
             CmdLine::ui_feature(current_feature_, current_feature_changed_)
             + msg;
 
-        for(auto it : clients_) {
+        LoggerClients clients = clients_; // clients_ may be modified !
+        for(auto it : clients) {
             it->warn(feat_msg);
             it->status(msg);
         }
@@ -502,7 +560,8 @@ namespace GEO {
                       << feat_msg << std::endl;
         } else {
             notifying_error_ = true;
-            for(auto it : clients_) {
+            LoggerClients clients = clients_; // clients_ may be modified !
+            for(auto it : clients) {
                 it->err(feat_msg);
                 it->status(msg);
             }
@@ -513,7 +572,8 @@ namespace GEO {
     }
 
     void Logger::notify_status(const std::string& message) {
-        for(auto it : clients_) {
+        LoggerClients clients = clients_; // clients_ may be modified !
+        for(auto it : clients) {
             it->status(message);
         }
 
@@ -540,7 +600,7 @@ namespace GEO {
     }
 
     /************************************************************************/
-    
+
 }
 
 extern "C" {
@@ -551,9 +611,9 @@ extern "C" {
 
         va_list args;
 
-        // Get the number of characters to be printed.        
+        // Get the number of characters to be printed.
         va_start(args, format);
-        int nb = vsnprintf(nullptr, 0, format, args)+1; // +1, I don't know why...
+        int nb = vsnprintf(nullptr, 0, format, args)+1; // +1, I don't know why.
         va_end(args);
 
         // Generate the output string
@@ -594,7 +654,7 @@ extern "C" {
                 GEO::Logger::out("") << last_string << lines[i] << std::endl;
                 last_string.clear();
             } else {
-                GEO::Logger::out("") << lines[i] << std::endl;                
+                GEO::Logger::out("") << lines[i] << std::endl;
             }
         }
 
@@ -608,7 +668,7 @@ extern "C" {
 
         va_list args;
 
-        // Get the number of characters to be printed.        
+        // Get the number of characters to be printed.
         va_start(args, format);
         int nb = vsnprintf(nullptr, 0, format, args)+1; // +1, I don't know why...
         va_end(args);
@@ -651,23 +711,22 @@ extern "C" {
                 if(out == stdout) {
                     GEO::Logger::out("") << last_string << lines[i] << std::endl;
                 } else if(out == stderr) {
-                    GEO::Logger::err("") << last_string << lines[i] << std::endl;                    
+                    GEO::Logger::err("") << last_string << lines[i] << std::endl;
                 } else {
-                    fprintf(out, "%s%s", last_string.c_str(), lines[i]);                    
+                    fprintf(out, "%s%s", last_string.c_str(), lines[i]);
                 }
                 last_string.clear();
             } else {
                 if(out == stdout) {
                     GEO::Logger::out("") << lines[i] << std::endl;
                 } else if(out == stderr) {
-                    GEO::Logger::err("") << lines[i] << std::endl;                    
+                    GEO::Logger::err("") << lines[i] << std::endl;
                 } else {
-                    fprintf(out, "%s", lines[i]);                    
+                    fprintf(out, "%s", lines[i]);
                 }
             }
         }
-        
+
         return nb;
     }
 }
-

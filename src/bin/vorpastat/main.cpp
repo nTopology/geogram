@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2014, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -13,7 +13,7 @@
  *  * Neither the name of the ALICE Project-Team nor the names of its
  *  contributors may be used to endorse or promote products derived from this
  *  software without specific prior written permission.
- * 
+ *
  *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -26,19 +26,13 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine, 
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX 
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
@@ -80,38 +74,38 @@ namespace {
         {
             Stopwatch W("M1->M2");
             Logger::out("Hausdorff") << "Computing Hausdorff distance M1->M2..."
-                << std::endl;
+                                     << std::endl;
             double dist = mesh_one_sided_Hausdorff_distance(
                 M1, M2, sampling_step
             );
             sym_dist = std::max(sym_dist, dist);
             double dist_percent = dist / bbox_diag * 100.0;
             Logger::out("Hausdorff") << "Hausdorff distance M1->M2: "
-                << dist
-                << " (" << dist_percent << "% bbox diag)"
-                << std::endl;
+                                     << dist
+                                     << " (" << dist_percent << "% bbox diag)"
+                                     << std::endl;
         }
 
         {
             Stopwatch W("M2->M1");
             Logger::out("Hausdorff") << "Computing Hausdorff distance M2->M1..."
-                << std::endl;
+                                     << std::endl;
             double dist = mesh_one_sided_Hausdorff_distance(
                 M2, M1, sampling_step
             );
             sym_dist = std::max(sym_dist, dist);
             double dist_percent = dist / bbox_diag * 100.0;
             Logger::out("Hausdorff") << "Hausdorff distance M2->M1: "
-                << dist
-                << " (" << dist_percent << "% bbox diag)"
-                << std::endl;
+                                     << dist
+                                     << " (" << dist_percent << "% bbox diag)"
+                                     << std::endl;
         }
 
         sym_dist_percent = sym_dist / bbox_diag * 100.0;
         Logger::out("Hausdorff") << "Hausdorff distance M2<->M1: "
-            << sym_dist
-            << " (" << sym_dist_percent << "% bbox diag)"
-            << std::endl;
+                                 << sym_dist
+                                 << " (" << sym_dist_percent << "% bbox diag)"
+                                 << std::endl;
 
         return sym_dist_percent < 5.0;
     }
@@ -120,7 +114,7 @@ namespace {
 int main(int argc, char** argv) {
     using namespace GEO;
 
-    GEO::initialize();
+    GEO::initialize(GEO::GEOGRAM_INSTALL_ALL);
 
     int result = 0;
 
@@ -135,7 +129,9 @@ int main(int argc, char** argv) {
         Logger::div("initialization");
 
         std::vector<std::string> filenames;
-        if(!CmdLine::parse(argc, argv, filenames, "mesh1 mesh2")) {
+        if(!CmdLine::parse(
+               argc, argv, filenames, "mesh1 mesh2")
+          ) {
             return 1;
         }
 
@@ -148,19 +144,52 @@ int main(int argc, char** argv) {
         }
         mesh_repair(M1, MESH_REPAIR_TRIANGULATE);
 
-        Mesh M2;
-        if(!mesh_load(mesh2_filename, M2)) {
-            return 1;
-        }
-        mesh_repair(M2, MESH_REPAIR_TRIANGULATE);
+        if(
+            mesh2_filename == "SPHERE" ||
+            mesh2_filename == "DISK"   ||
+            mesh2_filename == "TORUS"
+        ) {
+            bool OK = true;
+            index_t nb_cnx_comp = mesh_nb_connected_components(M1);
+            signed_index_t nb_borders = mesh_nb_borders(M1);
+            signed_index_t Xi = mesh_Xi(M1);
+            Logger::out("Topology") << "nb cnx:" << nb_cnx_comp
+                                    << " nb_borders:" << nb_borders
+                                    << " Xi:" << Xi << std::endl;
+            if(mesh2_filename == "SPHERE") {
+                OK = ((nb_cnx_comp == 1) && (nb_borders == 0) && (Xi == 2));
+            } else if(mesh2_filename == "DISK") {
+                OK = ((nb_cnx_comp == 1) && (nb_borders == 1) && (Xi == 1));
+            } else if(mesh2_filename == "TORUS") {
+                OK = ((nb_cnx_comp == 1) && (nb_borders == 0) && (Xi == 0));
+            }
+            if(OK) {
+                Logger::out("Topology") << "Mesh is a " << mesh2_filename
+                                        << " (good !)"
+                                        << std::endl;
 
-        if(!measure_distance(M1, M2)) {
-            Logger::warn("Distance") << "Deviation greater than threshold (5%)" << std::endl;
-            result = 2;
-        }
+            } else {
+                Logger::err("Topology") << "Mesh is not a " << mesh2_filename
+                                        << std::endl;
+                result = 3;
+            }
+        } else {
+            Mesh M2;
+            if(!mesh_load(mesh2_filename, M2)) {
+                return 1;
+            }
+            mesh_repair(M2, MESH_REPAIR_TRIANGULATE);
 
-        if(!meshes_have_same_topology(M1, M2, true)) {
-            Logger::warn("Topology") << "Mesh topology differs" << std::endl;
+            if(!measure_distance(M1, M2)) {
+                Logger::warn("Distance")
+                    << "Deviation greater than threshold (5%)" << std::endl;
+                result = 2;
+            }
+
+            if(!meshes_have_same_topology(M1, M2, true)) {
+                Logger::warn("Topology")
+                    << "Mesh topology differs" << std::endl;
+            }
         }
     }
     catch(const std::exception& e) {
@@ -170,4 +199,3 @@ int main(int argc, char** argv) {
 
     return result;
 }
-

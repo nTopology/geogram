@@ -3,13 +3,16 @@
 
 set PATH=%PATH%;C:\Python27;C:\Python27\Scripts
 
-echo PATH=%PATH%
+:: echo PATH=%PATH%
 
 :: Keep environment changes local
 setlocal ENABLEEXTENSIONS
 
 call "%~dp0\testenv.bat" %*
-call pybot %args%
+call robot %args%
+if %ERRORLEVEL% EQU 0 (
+   echo > TESTS_SUCCESS
+)
 
 :: Some Jenkins plugins (like the Jenkins Performance Plugin) do not take
 :: testcase fullnames into account. Testnames with identical names but from

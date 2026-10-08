@@ -1,12 +1,5 @@
 /*
- * GEOGRAM example program:
- * simple mesh raytracing using AABB tree.
- * disclaimer: not the fastest, lighting model is ridiculous, there is no
- *  antialiasing etc... (just a demo program for the mesh AABB class).
- */ 
-
-/*
- *  Copyright (c) 2012-2014, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -20,7 +13,7 @@
  *  * Neither the name of the ALICE Project-Team nor the names of its
  *  contributors may be used to endorse or promote products derived from this
  *  software without specific prior written permission.
- * 
+ *
  *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -33,19 +26,13 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine, 
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX 
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
@@ -59,75 +46,63 @@
 
 int main(int argc, char** argv) {
     using namespace GEO;
-    GEO::initialize();
-    CmdLine::import_arg_group("standard");    
+    GEO::initialize(GEO::GEOGRAM_INSTALL_ALL);
+    CmdLine::import_arg_group("standard");
     std::vector<std::string> filenames;
     if(!CmdLine::parse(argc, argv, filenames, "meshfile")) {
-	return 1;
+        return 1;
     }
 
-    // 1) Load the mesh
-    Mesh M;
-    if(!mesh_load(filenames[0], M)) {
-	return 1;
-    }
-    // 2) Normalize coordinates in the unit box (alternatively
-    //  we could transform rays instead...)
-    normalize_mesh(M);
-
-    // 3) The scene
     Scene scene;
-
-
-    scene.add_object(new MeshObject(M));                    // The mesh
+    scene.add_object(new MeshObject(filenames[0]));         // The mesh
     scene.add_object(new HorizontalCheckerboardPlane(0.0)); // The tradition !
     scene.add_object(                                       // A sphere
-	new Sphere(vec3(-0.7, -0.7, 1.0),0.7)
+        new Sphere(vec3(-0.7, -0.7, 1.0),0.7)
     )->set_reflection_coefficient(vec3(0.8, 0.8, 0.8))
-     ->set_diffuse_coefficient(vec3(0.2, 0.2, 0.2));
+        ->set_diffuse_coefficient(vec3(0.2, 0.2, 0.2));
 
     // Let there be (two) lights !
     scene.add_object(new Light(
-			 vec3(0.5, 1.3, 0.5), // Position
-			 0.02,                // Radius
-			 vec3(0.0, 0.5, 1.0)  // Color
-		     )
-    );
+                         vec3(0.5, 1.3, 0.5), // Position
+                         0.02,                // Radius
+                         vec3(0.0, 0.5, 1.0)  // Color
+                     )
+                    );
     scene.add_object(new Light(
-			 vec3(1.0, 0.2, 1.0), // Position
-			 0.02,                // Radius
-			 vec3(1.5, 1.5, 0.5)  // Color
-		     )
-    );
-    
+                         vec3(1.0, 0.2, 1.0), // Position
+                         0.02,                // Radius
+                         vec3(1.5, 1.5, 0.5)  // Color
+                     )
+                    );
+
     // 4) The camera and output image
     Camera camera(
-	vec3(2.0, 2.0, 1.5), // Position
-	vec3(0.5, 0.5, 0.5), // Target
-	800, 800,            // Image size
-	20.0                 // aperture angle (in degrees)
+        vec3(2.0, 2.0, 1.5), // Position
+        vec3(0.5, 0.5, 0.5), // Target
+        800, 800,            // Image size
+        20.0                 // aperture angle (in degrees)
     );
 
     // 5) Let's trace some rays !!
     {
-	Stopwatch Watch("Raytrace");
-#ifdef GEO_OPENMP	
-#pragma omp parallel for
-#endif
-	for(index_t Y=0; Y<camera.image_height(); ++Y) {
-	    for(index_t X=0; X<camera.image_width(); ++X) {
-		Ray R = camera.launch_ray(X,Y);
-		vec3 K = scene.raytrace(R);
-		camera.set_pixel(X,Y,K);
-	    }
-	}
-	Logger::out("Raytrace")
-	    << double(camera.image_width()*camera.image_height()) /
-	       Watch.elapsed_time() << " rays per second"
-	    << std::endl;
+        Stopwatch Watch("Raytrace");
+
+        parallel_for(
+            0, camera.image_height(),
+            [&camera, &scene](index_t Y) {
+                for(index_t X=0; X<camera.image_width(); ++X) {
+                    Ray R = camera.launch_ray(X,Y);
+                    vec3 K = scene.raytrace(R);
+                    camera.set_pixel(X,Y,K);
+                }
+            }
+        );
+        Logger::out("Raytrace")
+            << double(camera.image_width()*camera.image_height()) /
+            Watch.elapsed_time() << " rays per second"
+            << std::endl;
     }
 
     // 6) Save the output image
     camera.save_image("output.ppm");
 }
-

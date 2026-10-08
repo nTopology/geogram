@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2014, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -13,7 +13,7 @@
  *  * Neither the name of the ALICE Project-Team nor the names of its
  *  contributors may be used to endorse or promote products derived from this
  *  software without specific prior written permission.
- * 
+ *
  *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -26,19 +26,13 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine, 
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX 
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
@@ -51,21 +45,6 @@
 #include <geogram/basic/command_line_args.h>
 #include <geogram/basic/stopwatch.h>
 
-
-namespace {
-    using namespace GEO;
-    class DoIt {
-    public:
-	void operator()(index_t i) {
-	    index_t tid =
-		(Thread::current() == nullptr) ? 0 : Thread::current()->id();
-	    Logger::out(
-		"Thread" + String::to_string(tid)
-	    ) << "counter=" << i << std::endl;
-	}
-    };
-}
-
 // Tests the logger when multiple threads are running.
 // Current implementation displays a bit of garbage (mixed
 // outputs between threads), but at least it does not crash.
@@ -73,14 +52,33 @@ namespace {
 int main(int argc, char** argv) {
     using namespace GEO;
 
-    GEO::initialize();
-    CmdLine::import_arg_group("standard");    
+    GEO::initialize(GEO::GEOGRAM_INSTALL_ALL);
+    CmdLine::import_arg_group("standard");
     if(!CmdLine::parse(argc, argv)) {
-	return 1;
+        return 1;
     }
     try {
-	DoIt doit;
-	parallel_for(0, 10000, doit);
+        CmdLine::ui_separator("Without lock");
+        parallel_for(
+            0, 1000,
+            [](index_t i) {
+                Logger::out(
+                    String::format("Thread%2d",int(Thread::current_id()))
+                ) << "counter=" << i << std::endl;
+            }
+        );
+        CmdLine::ui_separator("With lock");
+        Process::spinlock log_lock = GEOGRAM_SPINLOCK_INIT;
+        parallel_for(
+            0, 1000,
+            [&](index_t i) {
+                Process::acquire_spinlock(log_lock);
+                Logger::out(
+                    String::format("Thread%2d",int(Thread::current_id()))
+                ) << "counter=" << i << std::endl;
+                Process::release_spinlock(log_lock);
+            }
+        );
     }
     catch(const std::exception& e) {
         std::cerr << "Received an exception: " << e.what() << std::endl;
@@ -89,4 +87,3 @@ int main(int argc, char** argv) {
 
     return 0;
 }
-

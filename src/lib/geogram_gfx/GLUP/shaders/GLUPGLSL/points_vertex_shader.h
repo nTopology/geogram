@@ -4,40 +4,40 @@
 //import <GLUP/current_profile/toggles.h>
 //import <GLUP/current_profile/primitive.h>
 
-in vec4 vertex_in;                         
-in vec4 color_in;                          
-in vec4 tex_coord_in;                      
+in vec4 vertex_in;
+in vec4 color_in;
+in vec4 tex_coord_in;
 
-out VertexData {                           
-    vec4 color;                             
+out VertexData {
+    vec4 color;
     vec4 tex_coord;
-    float depth_radius;
+    vec3 center_world_space;
+    float radius;
 } VertexOut;
 
-void main() {
-#ifndef GLUP_NO_GL_CLIPPING            
-    if(glupIsEnabled(GLUP_CLIPPING)) {                               
-        gl_ClipDistance[0] = dot(                           
-            vertex_in, GLUP.world_clip_plane               
-        );                                                  
-    } else {                                                
-        gl_ClipDistance[0] = 0.0;                            
+void main(void) {
+
+    if(glupIsEnabled(GLUP_VERTEX_COLORS)) {
+        VertexOut.color = color_in;
     }
-#endif    
-    if(glupIsEnabled(GLUP_VERTEX_COLORS)) {                           
-        VertexOut.color = color_in;                          
-    }                                                       
-    if(glupIsEnabled(GLUP_TEXTURING)) {                               
-        if(glupIsEnabled(GLUP_INDIRECT_TEXTURING)) {                   
-            VertexOut.tex_coord = tex_coord_in;              
-        } else {                                             
-            VertexOut.tex_coord = GLUP.texture_matrix * tex_coord_in; 
-        }                                                    
-    }                                                       
-    gl_PointSize = GLUP.point_size;                         
+
+    if(glupIsEnabled(GLUP_TEXTURING)) {
+        if(glupIsEnabled(GLUP_INDIRECT_TEXTURING)) {
+            VertexOut.tex_coord = tex_coord_in;
+        } else {
+            VertexOut.tex_coord = GLUP.texture_matrix * tex_coord_in;
+        }
+    }
+
+    // note: WebGL does not have glPointSize() API function
+    // so the only way to set it is from the VS.
+    gl_PointSize = GLUP.point_size;
     gl_Position = GLUP.modelviewprojection_matrix*vertex_in;
 
-    // TODO (depth radius corresponds to maximum difference of depth,
-    // at the center of the displayed GL_POINT).
-    VertexOut.depth_radius = 0.001;
+    VertexOut.center_world_space = vertex_in.xyz / vertex_in.w;
+    vec4 P1 = GLUP.inverse_modelviewprojection_matrix*vec4(0.0, 0.0, 0.0, 1.0);
+    vec4 P2 = GLUP.inverse_modelviewprojection_matrix*vec4(
+	GLUP.point_size/GLUP.viewport[2],0.0,0.0,1.0
+    );
+    VertexOut.radius = length(P1.xyz/P1.w-P2.xyz/P2.w);
 }

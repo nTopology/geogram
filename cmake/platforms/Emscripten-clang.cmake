@@ -6,29 +6,43 @@
 set(SHELL_SUFFIX "sh")
 
 find_path(EMSCRIPTEN_DIR
-      emcc
+      emcc.py
       HINTS
         ENV EMSCRIPTEN
       PATHS
         "C:/Program Files/emscripten"
          /usr/lib/emscripten
+	 /usr/share/emscripten
 )
+
+message(STATUS "Emscripten dir=${EMSCRIPTEN_DIR}")
 
 set(CMAKE_C_COMPILER "emcc")
 set(CMAKE_CXX_COMPILER "em++")
 set(CMAKE_AR "emar")
 set(CMAKE_RANLIB "emranlib")
 set(CMAKE_LINKER "emld")
+set(CMAKE_SKIP_RPATH TRUE)
 
 include(${EMSCRIPTEN_DIR}/cmake/Modules/Platform/Emscripten.cmake)
 
 set(GEOGRAM_WITH_EMSCRIPTEN TRUE)
 
 # Warning flags
-set(NORMAL_WARNINGS -Wall -Wextra)
+set(NORMAL_WARNINGS
+    -Wall -Wextra
+    -Wno-extra-semi-stmt
+    -Wno-unused-command-line-argument
+    -Wno-reserved-identifier
+    -Wno-format
+    -Wno-unused-comparison
+    -Wno-reserved-identifier
+    -Wno-c++98-compat-pedantic
+    -Wno-unused-but-set-variable
+)
 
 set(FULL_WARNINGS
-  -Weverything
+    -Weverything
     -Wno-disabled-macro-expansion # else we got a warning each time cout is used
     -Wno-padded # Disable generating a message each time padding is used
     -Wno-float-equal # Sometimes we compare floats (against 0.0 or 1.0 mainly)
@@ -36,10 +50,29 @@ set(FULL_WARNINGS
     -Wno-exit-time-destructors
     -Wno-old-style-cast # Yes, old-style cast is sometime more legible...
     -Wno-format-nonliteral # Todo: use Laurent Alonso's trick
+    -Wno-extra-semi-stmt # geo_assert() in release mode creates empty stmt
+    -Wno-unused-command-line-argument
+    -Wno-atomic-implicit-seq-cst
+    -Wno-alloca
+    -Wno-reserved-identifier
+    -Wno-c++98-compat-pedantic
+    -Wno-unused-but-set-variable
 )
 
-# Activate c++ 2011
-add_flags(CMAKE_CXX_FLAGS -std=c++11 -Wno-c++98-compat -Wno-gnu-zero-variadic-macro-arguments)
+# Additional C++ flags
+add_flags(CMAKE_CXX_FLAGS -Wno-c++98-compat -Wno-gnu-zero-variadic-macro-arguments)
+
+# Since C++23 libc++ is in the process of splitting larger headers
+# into smaller modular headers.  Force this behavior for the older
+# dialects to keep the C++23 build green.  See
+# https://libcxx.llvm.org/DesignDocs/HeaderRemovalPolicy.html
+add_definitions(-D_LIBCPP_REMOVE_TRANSITIVE_INCLUDES)
+
+# Enable setting FPU rounding mode (needed by FPG) and
+# disable automatic generation of FMAs (would break exact
+# predicates)
+add_flags(CMAKE_CXX_FLAGS -frounding-math -ffp-contract=off)
+add_flags(CMAKE_C_FLAGS -frounding-math -ffp-contract=off)
 
 # Compile with full warnings by default
 add_definitions(${FULL_WARNINGS})
@@ -55,12 +88,16 @@ endif()
 # Note: they are added to CMAKE CXX and C flags later on, because the
 # way add_flags() works may remove the second "-s" argument.
 # Note: TOTAL_MEMORY needs to be a multiple of 16M
+#       Ugly define to make main() kept alive (without it I think it is
+#       seen as a C++ function with a mangled name that does not match
+#       the name in EXPORTED_FUNCTIONS).
 set(EM_COMMON_FLAGS
-  -s WASM=0    
-  -s USE_GLFW=3
-  -s TOTAL_MEMORY=268435456
-  -s EXPORTED_FUNCTIONS='["_main","_file_system_changed_callback"]'
-  -s EXTRA_EXPORTED_RUNTIME_METHODS='["ccall"]'
+  -sUSE_GLFW=3
+# -sUSE_WEBGL2=1 -DGEO_WEBGL2
+  -sTOTAL_MEMORY=268435456
+  -sEXPORTED_FUNCTIONS='["_main","_file_system_changed_callback"]'
+  -sEXPORTED_RUNTIME_METHODS='["ccall"]'
+  -Dmain="EMSCRIPTEN_KEEPALIVE main"
 )
 set(EM_FLAGS_RELEASE -O3  ${EM_COMMON_FLAGS})
 set(EM_FLAGS_DEBUG -O2 -s ASSERTIONS=2 -s SAFE_HEAP=1 -g ${EM_COMMON_FLAGS})
@@ -80,12 +117,13 @@ endif()
 if(VORPALINE_WITH_ASAN)
     message(FATAL_ERROR "Address sanitizer not supported with Emscripten")
 endif()
-  
+
 if(NOT VORPALINE_WITH_ASAN)
   # Use native GCC stack smash Protection
   # and buffer overflow detection (debug only)
-    add_flags(CMAKE_CXX_FLAGS_DEBUG -fstack-protector-all)
-    add_flags(CMAKE_C_FLAGS_DEBUG -fstack-protector-all)
+# stack protector causes undefined symbols at link time (deactivated for now).
+#    add_flags(CMAKE_CXX_FLAGS_DEBUG -fstack-protector-all)
+#    add_flags(CMAKE_C_FLAGS_DEBUG -fstack-protector-all)
 endif()
 
 
@@ -96,8 +134,8 @@ endif()
 
 # Compilation flags for ALinea DDT
 if(VORPALINE_WITH_DDT)
-    message(FATAL_ERROR "Alinea DDT not supported with Emscripten")  
-endif()  
+    message(FATAL_ERROR "Alinea DDT not supported with Emscripten")
+endif()
 
 
 # We only add the Emscripten flags here, because:
@@ -116,6 +154,8 @@ add_flags_no_remove_duplicates(CMAKE_C_FLAGS_RELEASE ${EM_FLAGS_RELEASE})
 add_flags_no_remove_duplicates(CMAKE_CXX_FLAGS_DEBUG ${EM_FLAGS_DEBUG})
 add_flags_no_remove_duplicates(CMAKE_C_FLAGS_DEBUG ${EM_FLAGS_DEBUG})
 
+add_flags(CMAKE_EXE_LINKER_FLAGS ${EM_COMMON_FLAGS} -lnodefs.js)
+
 # Reset the warning level for third parties
 function(vor_reset_warning_level)
     remove_definitions(${FULL_WARNINGS})
@@ -125,4 +165,3 @@ endfunction()
 macro(vor_add_executable)
     add_executable(${ARGN})
 endmacro()
-

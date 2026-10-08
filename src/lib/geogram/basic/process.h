@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2014, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -13,7 +13,7 @@
  *  * Neither the name of the ALICE Project-Team nor the names of its
  *  contributors may be used to endorse or promote products derived from this
  *  software without specific prior written permission.
- * 
+ *
  *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -26,19 +26,13 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine, 
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX 
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
@@ -59,20 +53,6 @@
 
 namespace GEO {
 
-// thread_local is supposed to be supported by c++0x,
-// but some old MSVC compilers do not have it.    
-#if defined(GEO_COMPILER_MSVC) && !defined(thread_local)
-#  define thread_local __declspec(thread)
-#endif
-
-// Older MAC OS X do not have thread_local
-#ifdef GEO_OS_APPLE
-# if MAC_OS_X_VERSION_MIN_REQUIRED <= MAC_OS_X_VERSION_10_9
-#  define thread_local
-#  define GEO_NO_THREAD_LOCAL    
-# endif
-#endif
-   
     /**
      * \brief Platform-independent base class for running threads.
      * \details
@@ -99,9 +79,9 @@ namespace GEO {
 
         /**
          * \brief Gets the identifier of this thread.
-         * \return the identifier of the thread, i.e. 
-         *  an unsigned integer in the range [0, N-1] 
-         *  where N denotes the number of currently 
+         * \return the identifier of the thread, i.e.
+         *  an unsigned integer in the range [0, N-1]
+         *  where N denotes the number of currently
          *  running threads.
          */
         index_t id() const {
@@ -111,13 +91,26 @@ namespace GEO {
         /**
          * \brief Gets the current thread.
          * \return A pointer to the instance of the
-         *  currently running thread.
+         *  currently running thread. If not running multiple
+         *  threads, returns nullptr.
          */
         static Thread* current();
 
+        /**
+         * \brief Gets the identifier of the current thread.
+         * \return the identifier of the current thread, i.e.
+         *  an unsigned integer in the range [0, N-1]
+         *  where N denotes the number of currently
+         *  running threads. If not running multiple threads,
+         *  returns 0.
+         */
+        static index_t current_id() {
+            return current() == nullptr ? 0 : current()->id();
+        }
+
     protected:
         /** Thread destructor */
-        virtual ~Thread();
+        ~Thread() override;
 
 
     private:
@@ -134,16 +127,16 @@ namespace GEO {
         /**
          * \brief Specifies the current instance, used by current().
          * \details Stores the specified thread in the thread-local-storage
-         *   static variable so that current() can retrieve it. 
-         *   Should be called by the ThreadManager right before launching 
+         *   static variable so that current() can retrieve it.
+         *   Should be called by the ThreadManager right before launching
          *   the threads.
          * \param[in] thread a pointer to the thread currently executed
-         */   
+         */
         static void set_current(Thread* thread);
 
         index_t id_;
 
-        // ThreadManager needs to access set_current() and 
+        // ThreadManager needs to access set_current() and
         // set_id().
         friend class ThreadManager;
     };
@@ -249,24 +242,6 @@ namespace GEO {
          */
         virtual index_t maximum_concurrent_threads() = 0;
 
-        /**
-         * \brief Enters a critical section
-         * \details
-         * One thread at a time can enter the critical section, all the other
-         * threads that call this function are blocked until the blocking
-         * thread leaves the critical section.
-         * \see leave_critical_section()
-         */
-        virtual void enter_critical_section() = 0;
-
-        /**
-         * \brief Leaves a critical section
-         * \details When a blocking thread leaves a critical section, this
-         * makes the critical section available for a waiting thread.
-         * \see enter_critical_section()
-         */
-        virtual void leave_critical_section() = 0;
-
     protected:
         /**
          * \brief Runs a group of Thread%s concurrently.
@@ -298,17 +273,17 @@ namespace GEO {
         /**
          * \brief Specifies the current instance, used by current().
          * \details Stores the specified thread in the thread-local-storage
-         *   static variable so that current() can retrieve it. 
-         *   Should be called by the ThreadManager right before launching 
+         *   static variable so that current() can retrieve it.
+         *   Should be called by the ThreadManager right before launching
          *   the threads.
          * \param[in] thread a pointer to the thread currently executed
-         */   
+         */
         static void set_current_thread(Thread* thread) {
             Thread::set_current(thread);
         }
 
         /** ThreadManager destructor */
-        virtual ~ThreadManager();
+        ~ThreadManager() override;
     };
 
     /** Smart pointer that contains a ThreadManager object */
@@ -325,31 +300,19 @@ namespace GEO {
          * \copydoc ThreadManager::maximum_concurrent_threads()
          * \note This implementation always returns 1.
          */
-        virtual index_t maximum_concurrent_threads();
-
-        /**
-         * \copydoc ThreadManager::enter_critical_section()
-         * \note This implementation does actually nothing
-         */
-        virtual void enter_critical_section();
-
-        /**
-         * \copydoc ThreadManager::leave_critical_section()
-         * \note This implementation does actually nothing
-         */
-        virtual void leave_critical_section();
+        index_t maximum_concurrent_threads() override;
 
     protected:
         /** MonoThreadingThreadManager destructor */
-        virtual ~MonoThreadingThreadManager();
+        ~MonoThreadingThreadManager() override;
 
         /**
          * \copydoc ThreadManager::run_concurrent_threads()
          * \note This implementation always executes threads sequentially.
          */
-        virtual void run_concurrent_threads(
+        void run_concurrent_threads(
             ThreadGroup& threads, index_t max_threads
-        );
+        ) override;
     };
 
     /**
@@ -372,12 +335,20 @@ namespace GEO {
          */
         void GEOGRAM_API terminate();
 
+
+        /**
+         * \brief Sleeps for a period of time.
+         * \param[in] microseconds the time to sleep,
+         *  in microseconds.
+         */
+        void GEOGRAM_API sleep(index_t microseconds);
+
         /**
          * \brief Displays statistics about the current process
          * \details Displays the maximum used amount of memory.
          */
         void GEOGRAM_API show_stats();
-        
+
         /**
          * \brief Terminates the current process.
          */
@@ -397,25 +368,6 @@ namespace GEO {
          * vector \p threads and waits for the completion of all of them.
          */
         void GEOGRAM_API run_threads(ThreadGroup& threads);
-
-        /**
-         * \brief Enters a critical section
-         * \details One thread at a time can enter the critical section,
-         * all the other threads that call this function are blocked until the
-         * blocking thread leaves the critical section
-         * \see ThreadManager::enter_critical_section()
-         * \see leave_critical_section()
-         */
-        void GEOGRAM_API enter_critical_section();
-
-        /**
-         * \brief Leaves a critical section
-         * \details When a blocking thread leaves a critical section, this
-         * makes the critical section available for a waiting thread.
-         * \see ThreadManager::leave_critical_section()
-         * \see enter_critical_section()
-         */
-        void GEOGRAM_API leave_critical_section();
 
         /**
          * \brief Gets the number of available cores
@@ -530,21 +482,25 @@ namespace GEO {
          */
         size_t GEOGRAM_API max_used_memory();
 
-
         /**
          * \brief Gets the full path to the currently
          *  running program.
          */
         std::string GEOGRAM_API executable_filename();
+
+        /**
+         * \brief Prints a stack trace to the standard error.
+         */
+        void print_stack_trace();
     }
 
     /**
      * \brief Executes a loop with concurrent threads.
      * \details
-     *   Executes a parallel for loop from index \p from index \p to, calling
+     *   Executes a parallel for loop from index \p to index \p to, calling
      *   functional object \p func at each iteration.
      *
-     * Calling parallel_for(func, from, to) is equivalent
+     * Calling parallel_for(from, to, func) is equivalent
      * to the following loop, computed in parallel:
      * \code
      * for(index_t i = from; i < to; i++) {
@@ -552,12 +508,12 @@ namespace GEO {
      * }
      * \endcode
      *
-     * When applicable, iterations are executed by concurrent threads: 
+     * When applicable, iterations are executed by concurrent threads:
      * the range of the loop is split in to several contiguous
      * sub-ranges, each of them being executed by a separate thread.
      *
      * If parameter \p interleaved is set to true, the loop range is
-     * decomposed in interleaved index sets. Interleaved execution may 
+     * decomposed in interleaved index sets. Interleaved execution may
      * improve cache coherency.
      *
      * \param[in] func function that takes an index_t.
@@ -568,40 +524,17 @@ namespace GEO {
      * \param[in] interleaved if set to \c true, indices are allocated to
      * threads with an interleaved pattern.
      */
-     void GEOGRAM_API parallel_for(
+    void GEOGRAM_API parallel_for(
         index_t from, index_t to, std::function<void(index_t)> func,
         index_t threads_per_core = 1,
         bool interleaved = false
     );
 
-     /**
-     * \brief Executes a loop with concurrent threads using tbb.
-     * \details
-     *   Executes a parallel for loop from index \p from index \p to, calling
-     *   functional object \p func at each iteration.
-     *
-     * Calling parallel_for(func, from, to) is equivalent
-     * to the following loop, computed in parallel:
-     * \code
-     * for(index_t i = from; i < to; i++) {
-     *    func(i)
-     * }
-     * \endcode
-     *
-     * While similar to parallel_for, this function allows for much more 
-     * flexibility (as best used by the system) regarding which indices are 
-     * run by which threads.  If called by a tbb worker thread, any threads
-     * available to that thread's context are available to this.
-     */
-     void GEOGRAM_API tbb_parallel_for(
-         index_t from, index_t to, std::function<void(index_t)> func
-     );
-
     /**
      * \brief Executes a loop with concurrent threads.
      *
      * \details
-     * When applicable, iterations are executed by concurrent 
+     * When applicable, iterations are executed by concurrent
      * threads: the range of the loop is split in to several contiguous
      * sub-ranges, each of them being executed by a separate thread.
      *
@@ -613,8 +546,8 @@ namespace GEO {
      *   ...
      *   func(in, to);
      * \endcode
-     * where i1,i2,...in are automatically generated. Uses tbb for 
-     * implementation.
+     * where i1,i2,...in are automatically generated. Typically one interval
+     * per physical core is generated.
      *
      * \param[in] func functional object that accepts two arguments of
      *  type index_t.
@@ -623,53 +556,83 @@ namespace GEO {
      * \param[in] threads_per_core number of threads to allocate per physical
      *  core (default is 1).
      */
-     void GEOGRAM_API parallel_for_slice(
-         index_t from, index_t to, std::function<void(index_t, index_t)> func
-     );
+    void GEOGRAM_API parallel_for_slice(
+        index_t from, index_t to, std::function<void(index_t, index_t)> func,
+        index_t threads_per_core = 1
+    );
 
-     /**
-      * \brief Calls functions in parallel.
-      * \details Can be typically used with lambdas that capture this. See
-      *  mesh/mesh_reorder.cpp and points/kd_tree.cpp for examples.
-      * \param[in] f1 , f2 functions to be called in parallel.
-      */
-     void GEOGRAM_API parallel(
-         std::function<void()> f1,
-         std::function<void()> f2        
-     );
+    /**
+     * \brief Executes a loop with concurrent threads using tbb.
+     * \details
+     *   Executes a parallel for loop from index \p from to index \p to,
+     *   calling functional object \p func at each iteration.
+     *
+     * Calling tbb_parallel_for(from, to, func) is equivalent
+     * to the following loop, computed in parallel:
+     * \code
+     * for(index_t i = from; i < to; i++) {
+     *    func(i)
+     * }
+     * \endcode
+     *
+     * While similar to parallel_for(), this function lets tbb decide
+     * which indices are run by which threads, and it may be called from
+     * within a tbb task (or from a thread started by Process::run_threads()),
+     * in which case threads available to the caller's context are used.
+     * If geogram was compiled without tbb support, this is equivalent to
+     * parallel_for().
+     *
+     * \param[in] from first iteration index of the loop
+     * \param[in] to one position past the last iteration index
+     * \param[in] func functional object that accepts one argument of
+     *  type index_t.
+     */
+    void GEOGRAM_API tbb_parallel_for(
+        index_t from, index_t to, std::function<void(index_t)> func
+    );
 
-     /**
-      * \brief Calls functions in parallel.
-      * \details Can be typically used with lambdas that capture this. See
-      *  mesh/mesh_reorder.cpp and points/kd_tree.cpp for examples.
-      * \param[in] f1 , f2 , f3 , f4 functions to be called in parallel.
-      */
-     void GEOGRAM_API parallel(
-         std::function<void()> f1,
-         std::function<void()> f2,
-         std::function<void()> f3,
-         std::function<void()> f4        
-     );
+    /**
+     * \brief Calls functions in parallel.
+     * \details Can be typically used with lambdas that capture this. See
+     *  mesh/mesh_reorder.cpp and points/kd_tree.cpp for examples.
+     * \param[in] f1 , f2 functions to be called in parallel.
+     */
+    void GEOGRAM_API parallel(
+        std::function<void()> f1,
+        std::function<void()> f2
+    );
 
-     /**
-      * \brief Calls functions in parallel.
-      * \details Can be typically used with lambdas that capture this. See
-      *  mesh/mesh_reorder.cpp and points/kd_tree.cpp for examples.
-      * \param[in] f1 , f2 , f3 , f4 , f5 , f6 , f7 , f8 functions 
-      *  to be called in parallel.
-      */
-     void GEOGRAM_API parallel(
-         std::function<void()> f1,
-         std::function<void()> f2,
-         std::function<void()> f3,
-         std::function<void()> f4,
-         std::function<void()> f5,
-         std::function<void()> f6,
-         std::function<void()> f7,
-         std::function<void()> f8        
-     );
-     
+    /**
+     * \brief Calls functions in parallel.
+     * \details Can be typically used with lambdas that capture this. See
+     *  mesh/mesh_reorder.cpp and points/kd_tree.cpp for examples.
+     * \param[in] f1 , f2 , f3 , f4 functions to be called in parallel.
+     */
+    void GEOGRAM_API parallel(
+        std::function<void()> f1,
+        std::function<void()> f2,
+        std::function<void()> f3,
+        std::function<void()> f4
+    );
+
+    /**
+     * \brief Calls functions in parallel.
+     * \details Can be typically used with lambdas that capture this. See
+     *  mesh/mesh_reorder.cpp and points/kd_tree.cpp for examples.
+     * \param[in] f1 , f2 , f3 , f4 , f5 , f6 , f7 , f8 functions
+     *  to be called in parallel.
+     */
+    void GEOGRAM_API parallel(
+        std::function<void()> f1,
+        std::function<void()> f2,
+        std::function<void()> f3,
+        std::function<void()> f4,
+        std::function<void()> f5,
+        std::function<void()> f6,
+        std::function<void()> f7,
+        std::function<void()> f8
+    );
+
 }
 
 #endif
-

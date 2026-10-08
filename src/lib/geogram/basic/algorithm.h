@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2014, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -13,7 +13,7 @@
  *  * Neither the name of the ALICE Project-Team nor the names of its
  *  contributors may be used to endorse or promote products derived from this
  *  software without specific prior written permission.
- * 
+ *
  *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -26,19 +26,13 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine, 
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX 
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
@@ -47,20 +41,13 @@
 #define GEOGRAM_BASIC_ALGORITHM
 
 #include <geogram/basic/common.h>
-
-#if defined(GEO_OS_LINUX) && defined(GEO_OPENMP)
-#if (__GNUC__ >= 4) && (__GNUC_MINOR__ >= 4) && !defined(GEO_OS_ANDROID)
-#include <parallel/algorithm>
-#define GEO_USE_GCC_PARALLEL_STL
-#endif
-#elif defined(GEO_OS_WINDOWS)
-#if (_MSC_VER >= 1700)
-#include <ppl.h>
-#define GEO_USE_MSVC_PARALLEL_STL
-#endif
-#endif
-
+#include <geogram/basic/numeric.h>
 #include <algorithm>
+#include <random>
+
+#ifdef GEO_PARALLEL_STL
+#include <execution>
+#endif
 
 /**
  * \file geogram/basic/algorithm.h
@@ -74,10 +61,13 @@ namespace GEO {
      * \details Some algorithms such as sort() can be used
      *  in parallel or sequential mode. Behavior is toggled
      *  by the "algo:parallel" environment variable.
+     * \param[in] size optional size of structure to be processed.
+     *  If smaller than threshold, then sequential algorithms are
+     *  used.
      * \retval true if parallel algorithms are used.
      * \retval false if sequential algorithms are used.
      */
-    bool GEOGRAM_API uses_parallel_algorithm();
+    bool GEOGRAM_API uses_parallel_algorithm(size_t size=0);
 
     /**
      * \brief Sorts elements in parallel
@@ -95,15 +85,12 @@ namespace GEO {
     inline void sort(
         const ITERATOR& begin, const ITERATOR& end
     ) {
-        if(uses_parallel_algorithm()) {
-#if defined(GEO_USE_GCC_PARALLEL_STL) 
-            __gnu_parallel::sort(begin, end);
-#elif defined(GEO_USE_MSVC_PARALLEL_STL) 
-            concurrency::parallel_sort(begin, end);
-#else
-            std::sort(begin, end);
+#ifdef GEO_PARALLEL_STL
+        if(uses_parallel_algorithm(size_t(end - begin))) {
+            std::sort(std::execution::par, begin, end);
+        } else
 #endif
-        } else {
+	{
             std::sort(begin, end);
         }
     }
@@ -131,15 +118,12 @@ namespace GEO {
     inline void sort(
         const ITERATOR& begin, const ITERATOR& end, const CMP& cmp
     ) {
-        if(uses_parallel_algorithm()) {
-#if defined(GEO_USE_GCC_PARALLEL_STL)
-            __gnu_parallel::sort(begin, end, cmp);
-#elif defined(GEO_USE_MSVC_PARALLEL_STL)
-            concurrency::parallel_sort(begin, end, cmp);
-#else
-            std::sort(begin, end, cmp);
+#ifdef GEO_PARALLEL_STL
+        if(uses_parallel_algorithm(size_t(end - begin))) {
+            std::sort(std::execution::par, begin, end, cmp);
+        } else
 #endif
-        } else {
+	{
             std::sort(begin, end, cmp);
         }
     }
@@ -153,7 +137,7 @@ namespace GEO {
         std::sort(v.begin(), v.end());
         // Note that std::unique leaves a 'queue' of duplicated elements
         // at the end of the vector, and returns an iterator that
-        // indicates where to stop. 
+        // indicates where to stop.
         v.erase(
             std::unique(v.begin(), v.end()), v.end()
         );
@@ -201,8 +185,21 @@ namespace GEO {
             std::swap(items[2], items[3]);
         }
     }
-    
+
+    /**
+     * \brief Applies a random permutation to a sequence
+     * \details A drop-in replacement of std::random_shuffle(),
+     *  that is deprecated since c++17
+     * \param[in] begin , end first position and one item past last
+     *  position of the sequence to be randomly permuted
+     */
+    template <typename ITERATOR>
+    inline void random_shuffle(const ITERATOR& begin, const ITERATOR& end) {
+	Numeric::int32 seed = Numeric::random_int32();
+	std::mt19937 urng{Numeric::uint32(seed)};
+	std::shuffle(begin, end, urng);
+    }
+
 }
 
 #endif
-

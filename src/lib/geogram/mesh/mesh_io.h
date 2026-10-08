@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2014, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -13,7 +13,7 @@
  *  * Neither the name of the ALICE Project-Team nor the names of its
  *  contributors may be used to endorse or promote products derived from this
  *  software without specific prior written permission.
- * 
+ *
  *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -26,19 +26,13 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine, 
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX 
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
@@ -62,7 +56,7 @@ namespace GEO {
 
     class InputGeoFile;
     class OutputGeoFile;
-    
+
     /**
      * \brief Indicates the attributes stored in a mesh and attached
      *  to the mesh elements (vertices, facets or volumes).
@@ -76,10 +70,11 @@ namespace GEO {
         MESH_VERTEX_COLOR = 4,
         MESH_FACET_REGION = 8,
         MESH_CELL_REGION = 16,
+        MESH_EDGE_REGION = 32,
         MESH_ALL_ATTRIBUTES = 255
     };
 
-    
+
     /**
      * \brief Mesh load/save flags
      * \details Represents the optional attributes of a Mesh that can be
@@ -87,141 +82,186 @@ namespace GEO {
      */
     class GEOGRAM_API MeshIOFlags {
     public:
-        /**
-         * \brief Constructs a new MeshIOFlags with default attributes.
-         */
-        MeshIOFlags();
+    /**
+     * \brief Constructs a new MeshIOFlags with default attributes.
+     */
+    MeshIOFlags();
 
-        /**
-         * \brief Gets the dimension of the mesh (number of coordinates of 
-         *  the vertices).
-         * \return the dimension of the mesh 
-         *  (i.e. number of coordinates of the verfices).
-         */
-        coord_index_t dimension() const {
-            return dimension_;
-        }
+    /**
+     * \brief Gets the dimension of the mesh (number of coordinates of
+     *  the vertices).
+     * \return the dimension of the mesh
+     *  (i.e. number of coordinates of the verfices).
+     */
+    coord_index_t dimension() const {
+        return dimension_;
+    }
 
-        /**
-         * \brief Sets the dimension of the mesh (number of coordinates 
-         *  of the vertices).
-         * \param[in] x the dimension of the mesh
-         */
-        void set_dimension(coord_index_t x) {
-            dimension_ = x;
-        }
+    /**
+     * \brief Sets the dimension of the mesh (number of coordinates
+     *  of the vertices).
+     * \param[in] x the dimension of the mesh
+     */
+    void set_dimension(coord_index_t x) {
+        dimension_ = x;
+    }
 
-        /**
-         * \brief Gets the attributes that should be loaded or saved.
-         * \return a set of MeshAttributesFlags combined with bitwise or
-         */
-        MeshAttributesFlags attributes() const {
-            return attributes_;
-        }
+    /**
+     * \brief Gets the attributes that should be loaded or saved.
+     * \return a set of MeshAttributesFlags combined with bitwise or
+     */
+    MeshAttributesFlags attributes() const {
+        return attributes_;
+    }
 
-        /**
-         * \brief Sets the attributes that should be loaded or stored.
-         * \param[in] x a set of MeshAttribute%s combined with bitwise or
-         */
-        void set_attributes(MeshAttributesFlags x) {
-            attributes_ = x;
-        }
+    /**
+     * \brief Sets the attributes that should be loaded or stored.
+     * \param[in] x a set of MeshAttribute%s combined with bitwise or
+     */
+    void set_attributes(MeshAttributesFlags x) {
+        attributes_ = x;
+    }
 
-        /**
-         * \brief Sets a mesh attribute.
-         * \details Indicates that \p x should be loaded or stored.
-         * \param[in] x the attribute that should be set
-         */
-        void set_attribute(MeshAttributesFlags x) {
-            attributes_ = MeshAttributesFlags(attributes_ | x);
-        }
+    /**
+     * \brief Sets a mesh attribute.
+     * \details Indicates that \p x should be loaded or stored.
+     * \param[in] x the attribute that should be set
+     */
+    void set_attribute(MeshAttributesFlags x) {
+        attributes_ = MeshAttributesFlags(attributes_ | x);
+    }
 
-        /**
-         * \brief Resets a mesh attribute..
-         * \details Indicates that \p x should not be loaded nor stored.
-         * \param[in] x the attribute that should be reset
-         */
-        void reset_attribute(MeshAttributesFlags& x) {
-            attributes_ = MeshAttributesFlags(attributes_ & ~x);
-        }
+    /**
+     * \brief Resets a mesh attribute..
+     * \details Indicates that \p x should not be loaded nor stored.
+     * \param[in] x the attribute that should be reset
+     */
+    void reset_attribute(MeshAttributesFlags& x) {
+        attributes_ = MeshAttributesFlags(attributes_ & ~x);
+    }
 
-        /**
-         * \brief Tests whether a mesh attribute is set.
-         * \details If set, this means that the mesh attribute \p x will
-         *  be loaded or stored.
-         * \param[in] x the attribute to test
-         * \retval true if attribute \p x is se
-         * \retval false otherwise
-         */
-        bool has_attribute(MeshAttributesFlags x) const {
-            return (attributes_ & x) != 0;
-        }
+    /**
+     * \brief Tests whether a mesh attribute is set.
+     * \details If set, this means that the mesh attribute \p x will
+     *  be loaded or stored.
+     * \param[in] x the attribute to test
+     * \retval true if attribute \p x is se
+     * \retval false otherwise
+     */
+    bool has_attribute(MeshAttributesFlags x) const {
+        return (attributes_ & x) != 0;
+    }
 
-        /**
-         * \brief Gets the set of mesh elements that should be loaded or stored.
-         * \return a set of MeshElement%s combined with bitwise or
-         */
-        MeshElementsFlags elements() const {
-            return elements_;
-        }
+    /**
+     * \brief Gets the set of mesh elements that should be loaded or stored.
+     * \return a set of MeshElement%s combined with bitwise or
+     */
+    MeshElementsFlags elements() const {
+        return elements_;
+    }
 
-        /**
-         * \brief Sets the set of mesh elements that should be loaded or stored.
-         * \param[in] x a set of MeshElementsFlags combined with bitwise or
-         */
-        void set_elements(MeshElementsFlags x) {
-            elements_ = x;
-        }
+    /**
+     * \brief Sets the set of mesh elements that should be loaded or stored.
+     * \param[in] x a set of MeshElementsFlags combined with bitwise or
+     */
+    void set_elements(MeshElementsFlags x) {
+        elements_ = x;
+    }
 
-        /**
-         * \brief Sets a mesh element.
-         * \details Indicates that mesh elements \p x should be loaded or 
-         *  stored.
-         * \param[in] x the element to set
-         */
-        void set_element(MeshElementsFlags x) {
-            elements_ = MeshElementsFlags(elements_ | x);
-        }
+    /**
+     * \brief Sets a mesh element.
+     * \details Indicates that mesh elements \p x should be loaded or
+     *  stored.
+     * \param[in] x the element to set
+     */
+    void set_element(MeshElementsFlags x) {
+        elements_ = MeshElementsFlags(elements_ | x);
+    }
 
-        /**
-         * \brief Resets a mesh element.
-         * \details Indicates that mesh elements \p x should not be 
-         *  loaded nor stored.
-         * \param[in] x the element to reset
-         */
-        void reset_element(MeshElementsFlags x) {
-            elements_ = MeshElementsFlags(elements_ & ~x);
-        }
+    /**
+     * \brief Resets a mesh element.
+     * \details Indicates that mesh elements \p x should not be
+     *  loaded nor stored.
+     * \param[in] x the element to reset
+     */
+    void reset_element(MeshElementsFlags x) {
+        elements_ = MeshElementsFlags(elements_ & ~x);
+    }
 
-        /**
-         * \brief Tests whether a mesh element is set.
-         * \details If set, this means that the mesh elements \p x will
-         *  be loaded or stored.
-         * \param[in] x the element to test
-         * \retval true if element \p x is set
-         * \retval false otherwise
-         */
-        bool has_element(MeshElementsFlags x) const {
-            return (elements_ & x) != 0;
-        }
+    /**
+     * \brief Tests whether a mesh element is set.
+     * \details If set, this means that the mesh elements \p x will
+     *  be loaded or stored.
+     * \param[in] x the element to test
+     * \retval true if element \p x is set
+     * \retval false otherwise
+     */
+    bool has_element(MeshElementsFlags x) const {
+        return (elements_ & x) != 0;
+    }
+
+    /**
+     * \brief Sets the name of the texture image file
+     *  associated with this mesh.
+     * \details Used by the OBJ file format. If present
+     *  generates a material lib.
+     * \param[in] x the name of the file with the texture.
+     */
+    void set_texture_filename(const std::string& x) {
+        texture_filename_ = x;
+    }
+
+    /**
+     * \brief Gets the name of the texture image file.
+     * \return the name of the file.
+     * \see set_texture_filename()
+     */
+    const std::string& get_texture_filename() const {
+        return texture_filename_;
+    }
+
+    /**
+     * \brief Sets verbosity
+     * \details Error messages are always displayed, whatever the verbosity
+     *  level.
+     * \param[in] x true if messages should be displayed, false otherwise.
+     *  Default is true.
+     */
+    void set_verbose(bool x) {
+        verbose_ = x;
+    }
+
+    /**
+     * \brief Tests whether messages should be displayed.
+     * \details Error messages are always displayed, whatever the verbosity
+     *  level.
+     * \retval true if messages are displayed
+     * \retval false otherwise
+     * \see set_verbose()
+     */
+    bool verbose() const {
+        return verbose_;
+    }
 
     private:
-        coord_index_t dimension_;
-        MeshAttributesFlags attributes_;
-        MeshElementsFlags elements_;
+    coord_index_t dimension_;
+    MeshAttributesFlags attributes_;
+    MeshElementsFlags elements_;
+    std::string texture_filename_;
+    bool verbose_;
     };
 
-    
+
     /**
      * \brief Loads a mesh from a file.
      * \details
      * Loads the contents of the mesh file \p filename and stores the
      * resulting mesh to \p M. The file format is determined by the \p
-     * filename's extension, which determines the appropriate 
+     * filename's extension, which determines the appropriate
      * MeshIOHandler to use to read the file.
-     * \param[in] filename name of the file
+     * \param[in] filename name of the file to be loaded with optional path
      * \param[out] M the loaded mesh
-     * \param[in] ioflags specifies which attributes and 
+     * \param[in] ioflags specifies which attributes and
      *  elements should be loaded
      * \return true on success, false otherwise.
      * \see MeshIOHandler
@@ -239,7 +279,7 @@ namespace GEO {
      * meshes that are stored in the same GeoFile.
      * \param[in] geofile a reference to the InputGeoFile
      * \param[out] M the loaded mesh
-     * \param[in] ioflags specifies which attributes and 
+     * \param[in] ioflags specifies which attributes and
      *  elements should be loaded
      * \return true on success, false otherwise.
      */
@@ -247,7 +287,7 @@ namespace GEO {
         InputGeoFile& geofile, Mesh& M,
         const MeshIOFlags& ioflags = MeshIOFlags()
     );
-    
+
 
     /**
      * \brief Saves a mesh to a file.
@@ -257,7 +297,7 @@ namespace GEO {
      * MeshIOHandler to use to write the file.
      * \param[in] M the mesh to save
      * \param[in] filename name of the file
-     * \param[in] ioflags specifies which attributes and elements 
+     * \param[in] ioflags specifies which attributes and elements
      *  should be saved
      * \return true on success, false otherwise.
      * \see MeshIOHandler
@@ -274,7 +314,7 @@ namespace GEO {
      * used to write several meshes into the same GeoFile.
      * \param[in] M the mesh to save
      * \param[in] geofile a reference to the OutputGeoFile
-     * \param[in] ioflags specifies which attributes and elements 
+     * \param[in] ioflags specifies which attributes and elements
      *  should be saved
      * \return true on success, false otherwise.
      */
@@ -282,8 +322,8 @@ namespace GEO {
         const Mesh& M, OutputGeoFile& geofile,
         const MeshIOFlags& ioflags = MeshIOFlags()
     );
-    
-    
+
+
     /*************************************************************************/
 
     /**
@@ -340,7 +380,7 @@ namespace GEO {
          * \brief Loads a double precision mesh from a file.
          * \param[in] filename name of the file
          * \param[out] M the loaded mesh
-         * \param[in] ioflags specifies which attributes and elements 
+         * \param[in] ioflags specifies which attributes and elements
          *  should be loaded
          */
         virtual bool load(
@@ -352,7 +392,7 @@ namespace GEO {
          * \brief Saves a mesh to a file.
          * \param[in] M the mesh to save
          * \param[in] filename name of the file
-         * \param[in] ioflags specifies which attributes and elements 
+         * \param[in] ioflags specifies which attributes and elements
          *  should be saved
          * \return true on success, false otherwise.
          */
@@ -371,15 +411,16 @@ namespace GEO {
         /**
          * \brief MeshIOHandler destructor
          */
-        virtual ~MeshIOHandler();
+        ~MeshIOHandler() override;
 
         virtual void bind_attributes(
             const Mesh& M, const MeshIOFlags& flags, bool create
         );
         virtual void unbind_attributes();
-        
+
     protected:
         Attribute<index_t> vertex_region_;
+        Attribute<index_t> edge_region_;
         Attribute<index_t> facet_region_;
         Attribute<index_t> cell_region_;
     };
@@ -407,7 +448,7 @@ namespace GEO {
      * \see MeshIOHandlerFactory
      * \relates MeshIOHandler
      */
-#define geo_register_MeshIOHandler_creator(type, name) \
+#define geo_register_MeshIOHandler_creator(type, name)          \
     geo_register_creator(GEO::MeshIOHandlerFactory, type, name)
 
 
@@ -415,4 +456,3 @@ namespace GEO {
 }
 
 #endif
-

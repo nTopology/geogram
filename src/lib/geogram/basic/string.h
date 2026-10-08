@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2014, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -13,7 +13,7 @@
  *  * Neither the name of the ALICE Project-Team nor the names of its
  *  contributors may be used to endorse or promote products derived from this
  *  software without specific prior written permission.
- * 
+ *
  *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -26,19 +26,13 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine, 
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX 
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
@@ -92,6 +86,24 @@ namespace GEO {
         );
 
         /**
+         * \brief Splits a string into parts
+         * \details Splits the string \p in into a list of substrings \p out
+         * wherever \p separator occurs.
+         * \param[in] in the input string to split
+         * \param[in] separator the separator string
+         * \param[in] out the resulting list of substrings
+         * \param[in] skip_empty_fields specifies whether empty parts should
+         * be ignored and not stored in list \p out (this is true by default).
+         * \see join_strings()
+         */
+        void GEOGRAM_API split_string(
+            const std::string& in,
+            const std::string& separator,
+            std::vector<std::string>& out,
+            bool skip_empty_fields = true
+        );
+
+        /**
          * \brief Splits a string into two parts.
          * \param[in] in the input string to split
          * \param[in] separator the separator character
@@ -110,7 +122,28 @@ namespace GEO {
             std::string& left,
             std::string& right
         );
-        
+
+
+        /**
+         * \brief Splits a string into two parts.
+         * \param[in] in the input string to split
+         * \param[in] separator the separator string
+         * \param[in] left the part of the input string on the left
+         *   of the separator or the empty string if the separator
+         *   did not appear in the input string
+         * \param[in] right the right of the input string on the left
+         *   of the separator or the empty string if the separator
+         *   did not appear in the input string
+         * \retval true if the separator was found in the input string
+         * \retval false otherwise
+         */
+        bool GEOGRAM_API split_string(
+            const std::string& in,
+            const std::string& separator,
+            std::string& left,
+            std::string& right
+        );
+
         /**
          * \brief Join multiple strings
          * \details Joins all the strings in list \p in into a single string
@@ -201,6 +234,77 @@ namespace GEO {
             const std::string& haystack, const std::string& needle
         );
 
+	/**
+	 * \brief Removes a prefix from a string
+	 * \param[in] s the string
+	 * \param[in] prefix the prefix to be removed
+	 * \return a new string with the prefix removed or \p s if \p s
+	 *  does not starts with \p prefix
+	 */
+	GEO_NODISCARD inline std::string remove_prefix(
+	    const std::string& s, const std::string& prefix
+	) {
+	    if(string_starts_with(s, prefix)) {
+		return s.substr(prefix.length());
+	    }
+	    return s;
+	}
+
+	/**
+	 * \brief Removes a suffix from a string
+	 * \param[in] s the string
+	 * \param[in] suffix the suffix
+	 * \return a new string with the suffix removed or \p s if \p s
+	 *  does not ends with \p suffix
+	 */
+	GEO_NODISCARD inline std::string remove_suffix(
+	    const std::string& s, const std::string& suffix
+	) {
+	    if(string_ends_with(s, suffix)) {
+		return s.substr(0, s.length() - suffix.length());
+	    }
+	    return s;
+	}
+
+	/**
+	 * \brief Removes the leading and trailing spaces from a string
+	 * \param[in] s a const reference to a string
+	 * \return the same string as \p s with leading and trailing
+	 *   spaces removed
+	 */
+	GEO_NODISCARD inline std::string trim_spaces(const std::string& s) {
+	    size_t first = s.find_first_not_of(' ');
+	    if (first == std::string::npos) {
+		return s;
+	    }
+	    size_t last = s.find_last_not_of(' ');
+	    return s.substr(first, (last - first + 1));
+	}
+
+        /**
+         * \brief Creates a string from a format string and additional
+         *  arguments. Works like sprintf()
+         * \param[in] format the format string
+         */
+        std::string GEOGRAM_API format(const char* format, ...)
+#ifndef GOMGEN
+#ifdef GEO_COMPILER_GCC_FAMILY
+        // Tells the compiler that format is a printf-like format
+        // string, so that it can check that the arguments match
+        // the format string and bark at you if it is not the case.
+            __attribute__ ((__format__(printf, 1, 2)))
+#endif
+#endif
+            ;
+
+	/**
+	 * \brief Converts a time in seconds into a human-readable string
+	 * \param[in] HMS_only if set, always returns a hh:mm:ss string,
+	 *  else returns the time in seconds and a (hh:mm:ss) if time is
+	 *  greater or equal to one minute.
+	 */
+	std::string GEOGRAM_API format_time(double seconds, bool HMS_only=false);
+
         /**
          * \brief Converts a typed value to a string
          * \param[in] value the typed value to convert
@@ -216,6 +320,28 @@ namespace GEO {
             out << value;
             return out.str();
         }
+
+
+	/**
+	 * \brief Specialization for unsigned char for making sure it is
+	 *  displayed as number instead of char. One of the reasons
+	 *  is that Attribute<bool> is represented as Attribute<unsigned char>
+	 *  internally.
+	 */
+        template <>
+        inline std::string to_string(const unsigned char& value) {
+            std::ostringstream out;
+            out << int(value);
+            return out.str();
+        }
+
+        template <>
+        inline std::string to_string(const signed char& value) {
+            std::ostringstream out;
+            out << int(value);
+            return out.str();
+        }
+
 
         /**
          * \brief Converts a typed value to a string for display.
@@ -239,7 +365,7 @@ namespace GEO {
          */
         template <>
         inline std::string to_display_string(const double& value) {
-            std::ostringstream out;         
+            std::ostringstream out;
             out << value;
             return out.str();
         }
@@ -253,11 +379,11 @@ namespace GEO {
          */
         template <>
         inline std::string to_display_string(const float& value) {
-            std::ostringstream out;         
+            std::ostringstream out;
             out << value;
             return out.str();
         }
-        
+
         /**
          * \brief Converts a boolean value to a string
          * \param[in] value the boolean value to convert
@@ -287,7 +413,7 @@ namespace GEO {
             /**
              * \brief Gets the string identifying the exception
              */
-            virtual const char* what() const GEO_NOEXCEPT;
+            const char* what() const GEO_NOEXCEPT override;
         };
 
         /**
@@ -488,16 +614,16 @@ namespace GEO {
         template <>
         inline bool from_string(const char* s, bool& value) {
             if(strcmp(s, "true") == 0 ||
-                strcmp(s, "True") == 0 ||
-                strcmp(s, "1") == 0
-            ) {
+               strcmp(s, "True") == 0 ||
+               strcmp(s, "1") == 0
+              ) {
                 value = true;
                 return true;
             }
             if(strcmp(s, "false") == 0 ||
-                strcmp(s, "False") == 0 ||
-                strcmp(s, "0") == 0
-            ) {
+               strcmp(s, "False") == 0 ||
+               strcmp(s, "0") == 0
+              ) {
                 value = false;
                 return true;
             }
@@ -582,4 +708,3 @@ namespace GEO {
 }
 
 #endif
-

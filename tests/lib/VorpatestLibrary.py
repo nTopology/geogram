@@ -1,9 +1,3 @@
-#
-#      \V (O |R |P /A |L |I |N |E
-# (C) Bruno Levy, INRIA - ALICE, 2012,2013
-#
-#   Confidential - proprietary software
-#
 # This file contains the RobotFramework test library for executing test
 # programs in the framework of the Vorpaline project.
 #
@@ -113,14 +107,16 @@ class _Valgrind(_ExecutionWrapper):
 
             # Suppression file present in the execution directory
             os.path.join(test_variables['${EXECDIR}'], 'valgrind.supp'),
+
+            # Suppression file present in geogram/tools/
+            os.path.join(os.getenv('VORPALINE_SOURCE_DIR'),'tools','valgrind.supp'),
         ]
 
         for file in supression_files:
-            #sys.stderr.write("** Checking suppression file %s\n" % file)
+            # sys.stderr.write("** Checking suppression file %s\n" % file)
             if (file != None) and os.path.isfile(file):
                 options += [_Valgrind._option_suppressions % file]
                 break
-
         return _Valgrind._command + options + command
 
 
@@ -186,7 +182,7 @@ class VorpatestLibrary:
         # Check for execution with valgrind
         if os.getenv('VORPALINE_WITH_VALGRIND') != None:
             VorpatestLibrary._exec_wrapper = _Valgrind()
-
+            
         # Check for execution with callgrind
         elif os.getenv('VORPALINE_WITH_CALLGRIND') != None:
             VorpatestLibrary._exec_wrapper = _Callgrind()
@@ -239,7 +235,7 @@ class VorpatestLibrary:
 
         self._input_file = input_file
         args = list(options) + [self._input_file, 'out.meshb']
-        self._run_command("vorpaline", args)
+        self._run_command("vorpalite", args)
 
 
     def run_vorpastat(self, *options):
@@ -357,7 +353,9 @@ class VorpatestLibrary:
 
 
     def _log(self, args):
-        print "*INFO*",args,"\n"
+        logger.info(args.replace("\\n","\n"))
+#        for line in args.split("\\n"): #re-creating newlines
+#          logger.info(line)
 
 
 ######################################################################

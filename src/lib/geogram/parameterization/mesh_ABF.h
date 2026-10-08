@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2016, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -13,7 +13,7 @@
  *  * Neither the name of the ALICE Project-Team nor the names of its
  *  contributors may be used to endorse or promote products derived from this
  *  software without specific prior written permission.
- * 
+ *
  *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -26,19 +26,13 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine, 
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX 
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
@@ -61,18 +55,17 @@ namespace GEO {
      * \details The method is described in the following reference:
      *   ABF++: fast and robust angle-based flattening, A. Sheffer, B. Levy,
      *   M. Mogilnitsky,  A. Bogomyakov, ACM Transactions on Graphics, 2005
-     * \param[in,out] M a reference to a surface mesh. Facets need to be 
+     * \param[in,out] M a reference to a surface mesh. Facets need to be
      *   triangulated.
-     * \param[in] attribute_name the name of the vertex attribute where 
+     * \param[in] attribute_name the name of the vertex attribute where
      *   texture coordinates are stored.
-     * \param[in] verbose if true, messages with statistics are displayed 
+     * \param[in] verbose if true, messages with statistics are displayed
      *   in the logger during computation.
      */
     void GEOGRAM_API mesh_compute_ABF_plus_plus(
         Mesh& M, const std::string& attribute_name="tex_coord",
         bool verbose = false
-    );    
+    );
 }
 
 #endif
-

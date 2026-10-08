@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2014, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -13,7 +13,7 @@
  *  * Neither the name of the ALICE Project-Team nor the names of its
  *  contributors may be used to endorse or promote products derived from this
  *  software without specific prior written permission.
- * 
+ *
  *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -26,19 +26,13 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine, 
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX 
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
@@ -48,6 +42,7 @@
 
 #include <geogram/basic/common.h>
 #include <geogram/basic/numeric.h>
+#include <geogram/basic/attributes.h>
 
 /**
  * \file geogram/mesh/mesh_topology.h
@@ -61,11 +56,11 @@ namespace GEO {
     class vector;
 
     /**
-     * \brief Computes the connected components of a Mesh.
+     * \brief Computes the connected components of a surface Mesh.
      * \param[in] M the input mesh
      * \param[out] component component[f] contains the index of the
      * connected component that facet f belongs to.
-     * \return the number of connceted components
+     * \return the number of connected components
      * \post component.size() == M.nb_facets()
      */
     index_t GEOGRAM_API get_connected_components(
@@ -73,7 +68,20 @@ namespace GEO {
     );
 
     /**
-     * \brief Computes the number of connected components of a Mesh.
+     * \brief Computes the connected components of a surface Mesh.
+     * \param[in] M the input mesh
+     * \param[out] component a facet attribute. On exit,
+     *   component[f] contains the index of the
+     *   connected component that facet f belongs to.
+     * \return the number of connceted components
+     * \post component.size() == M.nb_facets()
+     */
+    index_t GEOGRAM_API get_connected_components(
+        const Mesh& M, Attribute<index_t>& component
+    );
+
+    /**
+     * \brief Computes the number of connected components of a surface Mesh.
      */
     index_t GEOGRAM_API mesh_nb_connected_components(const Mesh& M);
 
@@ -87,7 +95,7 @@ namespace GEO {
     signed_index_t GEOGRAM_API mesh_Xi(const Mesh& M);
 
     /**
-     * \brief Computes the number of borders of a Mesh.
+     * \brief Computes the number of borders of a surface Mesh.
      * \param[in] M the input mesh
      * \return the number of borders, or -1 if the border is
      *  non-manifold (i.e. has "butterfly" vertices).
@@ -95,7 +103,7 @@ namespace GEO {
     signed_index_t GEOGRAM_API mesh_nb_borders(const Mesh& M);
 
     /**
-     * \brief Compares the topological invariants of two meshes.
+     * \brief Compares the topological invariants of two surface meshes.
      * \details
      *  The topological invariants are: the number of connected
      *  components (get_connected_components()), the Euler-Poincare
@@ -112,7 +120,13 @@ namespace GEO {
     bool GEOGRAM_API meshes_have_same_topology(
         const Mesh& M1, const Mesh& M2, bool verbose = false
     );
+
+    /**
+     * \brief Flips the connected components of a surface mesh in such
+     *  a way that the signed volume of each connected component is positive
+     * \param[in,out] surface_mesh a reference to a surface mesh
+     */
+    void GEOGRAM_API reorient_connected_components(Mesh& surface_mesh);
 }
 
 #endif
-

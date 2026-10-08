@@ -6,6 +6,8 @@
 #include <cassert>
 #include <iostream>
 #include <limits>
+#include <string>
+#include <string_view>
 #include <type_traits>
 #include <vector>
 

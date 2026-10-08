@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2014, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -13,7 +13,7 @@
  *  * Neither the name of the ALICE Project-Team nor the names of its
  *  contributors may be used to endorse or promote products derived from this
  *  software without specific prior written permission.
- * 
+ *
  *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -26,19 +26,13 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine, 
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX 
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
@@ -70,7 +64,7 @@ namespace GEO {
          */
         HLBFGSOptimizer();
 
-        virtual void optimize(double* x);
+        void optimize(double* x) override;
 
         /**
          * \brief Enables or disables M1QN3 mode.
@@ -93,7 +87,7 @@ namespace GEO {
         /**
          * \brief HLBFGSOptimizer destructor .
          */
-        virtual ~HLBFGSOptimizer();
+        ~HLBFGSOptimizer() override;
 
     protected:
         bool b_m1qn3_;
@@ -118,7 +112,7 @@ namespace GEO {
         /*
          * \brief HLBFGS_M1QN3Optimizer destructor
          */
-        virtual ~HLBFGS_M1QN3Optimizer();
+        ~HLBFGS_M1QN3Optimizer() override;
     };
 
     /************************************************************************/
@@ -139,7 +133,7 @@ namespace GEO {
         /*
          * \brief HLBFGS_CGOptimizer destructor
          */
-        virtual ~HLBFGS_CGOptimizer();
+        ~HLBFGS_CGOptimizer() override;
     };
 
     /************************************************************************/
@@ -157,7 +151,7 @@ namespace GEO {
          */
         HLBFGS_HessOptimizer();
 
-        virtual void optimize(double* x);
+        void optimize(double* x) override;
 
         /**
          * \brief Sets the update interval of the Hessian.
@@ -171,7 +165,7 @@ namespace GEO {
         /**
          * \brief HLBFGS_HessOptimizer destructor
          */
-        virtual ~HLBFGS_HessOptimizer();
+        ~HLBFGS_HessOptimizer() override;
 
     protected:
         index_t T_;
@@ -181,4 +175,3 @@ namespace GEO {
 #endif
 
 #endif
-

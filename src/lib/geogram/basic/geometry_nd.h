@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2014, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -26,19 +26,13 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine,
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
@@ -134,7 +128,7 @@ namespace GEO {
             const VEC& p1, const VEC& p2
         ) {
             geo_debug_assert(p1.dimension() == p2.dimension());
-            return distance(p1.data(), p2.data(), p1.dimension());
+            return distance(p1.data(), p2.data(), coord_index_t(p1.dimension()));
         }
 
         /**
@@ -625,13 +619,17 @@ namespace GEO {
                 double cur_l1, cur_l2;
                 VEC cur_closest;
                 double result;
-                double cur_dist = point_segment_squared_distance(point, V0, V1, cur_closest, cur_l1, cur_l2);
+                double cur_dist = point_segment_squared_distance(
+		    point, V0, V1, cur_closest, cur_l1, cur_l2
+		);
                 result = cur_dist;
                 closest_point = cur_closest;
                 lambda0 = cur_l1;
                 lambda1 = cur_l2;
                 lambda2 = 0.0;
-                cur_dist = point_segment_squared_distance(point, V0, V2, cur_closest, cur_l1, cur_l2);
+                cur_dist = point_segment_squared_distance(
+		    point, V0, V2, cur_closest, cur_l1, cur_l2
+		);
                 if(cur_dist < result) {
                     result = cur_dist;
                     closest_point = cur_closest;
@@ -639,7 +637,9 @@ namespace GEO {
                     lambda2 = cur_l2;
                     lambda1 = 0.0;
                 }
-                cur_dist = point_segment_squared_distance(point, V1, V2, cur_closest, cur_l1, cur_l2);
+                cur_dist = point_segment_squared_distance(
+		    point, V1, V2, cur_closest, cur_l1, cur_l2
+		);
                 if(cur_dist < result) {
                     result = cur_dist;
                     closest_point = cur_closest;
@@ -859,11 +859,11 @@ namespace GEO {
             double c = ::sqrt(::fabs(z * X * Y));
             double d = ::sqrt(::fabs(x * y * z));
             return ::sqrt(::fabs(
-                    (-a + b + c + d) *
-                    (a - b + c + d) *
-                    (a + b - c + d) *
-                    (a + b + c - d)
-                )) / (192.0 * u * v * w);
+                              (-a + b + c + d) *
+                              (a - b + c + d) *
+                              (a + b - c + d) *
+                              (a + b + c - d)
+                          )) / (192.0 * u * v * w);
         }
 
         /**
@@ -947,4 +947,3 @@ namespace GEO {
 }
 
 #endif
-

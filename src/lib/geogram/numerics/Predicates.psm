@@ -6,6 +6,9 @@ HEADERS="../api/defs.h \
 ../basic/argused.h \
 ../basic/numeric.h \
 ../basic/psm.h \
+../basic/thread_sync.h \
+../basic/determinant.h \
+PCK.h \
 predicates.h
 "
 
@@ -24,9 +27,12 @@ predicates/side4h.h \
 predicates/orient2d.h \
 predicates/orient3d.h \
 predicates/dot3d.h \
+predicates/dot_compare_3d.h \
+predicates/det_compare_4d.h \
 predicates/det3d.h \
 predicates/det4d.h \
 predicates/aligned3d.h \
+PCK.cpp \
 predicates.cpp 
 "
 

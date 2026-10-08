@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2014, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -13,7 +13,7 @@
  *  * Neither the name of the ALICE Project-Team nor the names of its
  *  contributors may be used to endorse or promote products derived from this
  *  software without specific prior written permission.
- * 
+ *
  *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -26,19 +26,13 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine, 
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX 
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
@@ -54,9 +48,9 @@ namespace {
     using namespace GEO;
 
     /**
-     * \brief Reads a (facet or vertex or facet corner) vector attribute 
+     * \brief Reads a (facet or vertex or facet corner) vector attribute
      *  as a color.
-     * \details If the vector attribute has less components than 4, then 
+     * \details If the vector attribute has less components than 4, then
      *  the additional color components are set to (0 + \p bias)* \p scale.
      *  If the vector attribute has more components than 4, then the additional
      *  attribute components are ignored.
@@ -66,10 +60,10 @@ namespace {
      * \param[in] f the facet
      * \param[in] c the facet corner
      * \param[in] v the vertex
-     * \param[in] bias optional value to be added to the attribute values 
+     * \param[in] bias optional value to be added to the attribute values
      *  before storing them into the color components.
-     * \param[in] scale optional value that scales the attribute values 
-     *  after \p bias is added and before storing them into the color 
+     * \param[in] scale optional value that scales the attribute values
+     *  after \p bias is added and before storing them into the color
      *  components.
      */
     inline void get_attribute_as_color(
@@ -81,7 +75,7 @@ namespace {
         double scale = 1.0
     ) {
         index_t dim = attribute.dimension();
-        index_t base = index_t(-1);
+        index_t base = NO_INDEX;
         if(attrib_loc == MESH_FACETS) {
             base = f*dim;
         } else if(attrib_loc == MESH_VERTICES) {
@@ -99,14 +93,14 @@ namespace {
         C.set_r(scale*(C.r() + bias));
         C.set_g(scale*(C.g() + bias));
         C.set_b(scale*(C.b() + bias));
-        C.set_a(scale*(C.a() + bias));  
+        C.set_a(scale*(C.a() + bias));
     }
 }
 
 namespace GEO {
 
-   /**************************************************************************/
-    
+    /**************************************************************************/
+
     void bake_mesh_facet_normals(Mesh* mesh, Image* target) {
         Attribute<double> tex_coord;
         tex_coord.bind_if_is_defined(
@@ -114,16 +108,16 @@ namespace GEO {
         );
         geo_assert(tex_coord.is_bound() && tex_coord.dimension() == 2);
         ImageRasterizer rasterizer(target);
-        for(index_t f=0; f<mesh->facets.nb(); ++f) {
+        for(index_t f: mesh->facets) {
             vec3 N = normalize(Geom::mesh_facet_normal(*mesh, f));
             Color C = 0.5*Color(N.x+1.0, N.y+1.0, N.z+1.0, 2.0);
             index_t c1 = mesh->facets.corners_begin(f);
-            vec2 p1(tex_coord[2*c1], tex_coord[2*c1+1]);                
+            vec2 p1(tex_coord[2*c1], tex_coord[2*c1+1]);
             for(index_t c2 = c1+1;
                 c2+1 < mesh->facets.corners_end(f); ++c2) {
                 index_t c3 = c2+1;
                 vec2 p2(tex_coord[2*c2], tex_coord[2*c2+1]);
-                vec2 p3(tex_coord[2*c3], tex_coord[2*c3+1]);            
+                vec2 p3(tex_coord[2*c3], tex_coord[2*c3+1]);
                 rasterizer.triangle(
                     p1, C,
                     p2, C,
@@ -131,43 +125,40 @@ namespace GEO {
                 );
             }
         }
-    }    
-    
-   /**************************************************************************/
+    }
+
+    /**************************************************************************/
 
     void bake_mesh_vertex_normals(Mesh* mesh, Image* normal_map) {
-        
+
         // Step 1: compute vertex normals.
         Attribute<double> N;
         N.create_vector_attribute(mesh->vertices.attributes(), "N", 3);
-        FOR(v, mesh->vertices.nb()) {
+        for(index_t v: mesh->vertices) {
             N[3*v]   = 0.0;
             N[3*v+1] = 0.0;
             N[3*v+2] = 0.0;
         }
-        FOR(f, mesh->facets.nb()) {
+        for(index_t f: mesh->facets) {
             vec3 Nf = GEO::Geom::mesh_facet_normal(*mesh, f);
-            for(
-                index_t corner = mesh->facets.corners_begin(f);
-                corner < mesh->facets.corners_end(f); corner++
-                ) {
+            for(index_t corner : mesh->facets.corners(f)) {
                 index_t v = mesh->facet_corners.vertex(corner);
                 N[3*v]   += Nf.x;
                 N[3*v+1] += Nf.y ;
                 N[3*v+2] += Nf.z;
             }
         }
-        FOR(v, mesh->vertices.nb()) {
+        for(index_t v: mesh->vertices) {
             vec3 Nf(N[3*v], N[3*v+1], N[3*v+2]);
             Nf = normalize(Nf);
             N[3*v]   = Nf.x;
             N[3*v+1] = Nf.y;
-            N[3*v+2] = Nf.z;                
+            N[3*v+2] = Nf.z;
         }
-        
+
         // Step 2: bake interpolated vertex normals.
         bake_mesh_attribute(mesh, normal_map, N);
-        
+
         // Step 3: normalize interpolated normals.
         FOR(y, normal_map->height()) {
             FOR(x, normal_map->width()) {
@@ -176,15 +167,15 @@ namespace GEO {
                 Npix = normalize(Npix);
                 pix[0] = Npix.x;
                 pix[1] = Npix.y;
-                pix[2] = Npix.z;                
+                pix[2] = Npix.z;
             }
         }
         N.unbind();
         mesh->vertices.attributes().delete_attribute_store("N");
     }
-    
-   /**************************************************************************/
-    
+
+    /**************************************************************************/
+
     void bake_mesh_attribute(
         Mesh* mesh, Image* target, Attribute<double>& attribute,
         double bias, double scale
@@ -195,7 +186,7 @@ namespace GEO {
         );
         geo_assert(tex_coord.is_bound() && tex_coord.dimension() == 2);
         geo_assert(attribute.is_bound());
-        
+
         MeshElementsFlags attrib_loc = MESH_NONE;
 
         if(attribute.manager() == &mesh->vertices.attributes()) {
@@ -209,9 +200,9 @@ namespace GEO {
             // or it is bound to a different mesh.
             geo_assert_not_reached;
         }
-        
+
         ImageRasterizer rasterizer(target);
-        for(index_t f=0; f<mesh->facets.nb(); ++f) {
+        for(index_t f: mesh->facets) {
             Color C1,C2,C3;
             index_t c1 = mesh->facets.corners_begin(f);
             vec2 p1(tex_coord[2*c1], tex_coord[2*c1+1]);
@@ -241,8 +232,8 @@ namespace GEO {
         }
     }
 
-   /**************************************************************************/
-    
+    /**************************************************************************/
+
     void bake_mesh_geometry(Mesh* mesh, Image* target, bool clear) {
         geo_assert(target->component_encoding() == Image::FLOAT64);
         Attribute<double> point;
@@ -259,8 +250,8 @@ namespace GEO {
         bake_mesh_attribute(mesh, target, point);
     }
 
-   /**************************************************************************/
-    
+    /**************************************************************************/
+
     void bake_mesh_facet_normals_indirect(
         Image* geometry, Image* target, Mesh* highres
     ) {
@@ -272,9 +263,9 @@ namespace GEO {
         );
         geo_assert(geometry->component_encoding() == Image::FLOAT64);
 
-        MeshFacetsAABB AABB(*highres);      
+        MeshFacetsAABB AABB(*highres);
         vector<Color> normal(highres->facets.nb());
-        for(index_t f=0; f<highres->facets.nb(); ++f) {
+        for(index_t f: highres->facets) {
             vec3 N = normalize(Geom::mesh_facet_normal(*highres,f));
             normal[f] = Color(
                 0.5*(N.x+1.0), 0.5*(N.y+1.0), 0.5*(N.z+1.0)
@@ -282,40 +273,40 @@ namespace GEO {
         }
         ImageRasterizer rasterizer(target);
 
-#ifdef _OPENMP
-        #pragma omp parallel for
-#endif  
-        for(index_t y=0; y<target->height(); ++y) {
-            index_t nearest_facet = NO_FACET;
-            vec3 nearest_point;
-            double sq_dist;
-            for(index_t x=0; x<target->width(); ++x) {
-                vec3 p((double*)(void*)geometry->pixel_base(x,y));
-                if(
-                   p[0] == Numeric::max_float64() &&
-                   p[1] == Numeric::max_float64() &&
-                   p[2] == Numeric::max_float64()
-                ) {
-                    continue;
-                }
-                if(nearest_facet == NO_FACET) {
-                    nearest_facet =
-                        AABB.nearest_facet(p, nearest_point, sq_dist
+        parallel_for(
+            0, target->height(),
+            [geometry, target, &AABB, &rasterizer, &normal](index_t y) {
+                index_t nearest_facet = NO_FACET;
+                vec3 nearest_point;
+                double sq_dist;
+                for(index_t x=0; x<target->width(); ++x) {
+                    vec3 p((double*)(void*)geometry->pixel_base(x,y));
+                    if(
+                        p[0] == Numeric::max_float64() &&
+                        p[1] == Numeric::max_float64() &&
+                        p[2] == Numeric::max_float64()
+                    ) {
+                        continue;
+                    }
+                    if(nearest_facet == NO_FACET) {
+                        nearest_facet =
+                            AABB.nearest_facet(p, nearest_point, sq_dist
+                                              );
+                    } else {
+                        sq_dist = length2(p - nearest_point);
+                        AABB.nearest_facet_with_hint(
+                            p,nearest_facet,nearest_point,sq_dist
+                        );
+                    }
+                    rasterizer.set_pixel(
+                        int(x),int(y),normal[nearest_facet]
                     );
-                } else {
-                    sq_dist = length2(p - nearest_point);
-                    AABB.nearest_facet_with_hint(
-                        p,nearest_facet,nearest_point,sq_dist
-                    );
                 }
-                rasterizer.set_pixel(
-                    int(x),int(y),normal[nearest_facet]
-                );
             }
-        }
+        );
     }
 
-   /**************************************************************************/
+    /**************************************************************************/
 
     void bake_mesh_points_attribute_indirect(
         Image* geometry, Image* target,
@@ -330,52 +321,48 @@ namespace GEO {
         );
         geo_assert(geometry->component_encoding() == Image::FLOAT64);
         geo_assert(highres->vertices.dimension() >= 3);
-        
+
         NearestNeighborSearch_var kd_tree = new BalancedKdTree(3);
-        
+
         kd_tree->set_points(
-            highres->vertices.nb(), highres->vertices.point_ptr(0), 
+            highres->vertices.nb(), highres->vertices.point_ptr(0),
             highres->vertices.dimension()
         );
 
         ImageRasterizer rasterizer(target);
 
-#ifdef _OPENMP
-        #pragma omp parallel for
-#endif  
-        for(index_t y=0; y<target->height(); ++y) {
-            index_t nearest_vertex = NO_VERTEX;
-            double sq_dist;
-            Color C;
-            for(index_t x=0; x<target->width(); ++x) {
-                vec3 p((double*)(void*)geometry->pixel_base(x,y));
-                if(
-                   p[0] == Numeric::max_float64() &&
-                   p[1] == Numeric::max_float64() &&
-                   p[2] == Numeric::max_float64()
-                ) {
-                    continue;
+        parallel_for(
+            0, target->height(),
+            [geometry, target, kd_tree,
+             &rasterizer, &attribute, bias, scale
+            ](index_t y) {
+
+                index_t nearest_vertex = NO_VERTEX;
+                double sq_dist;
+                Color C;
+                for(index_t x=0; x<target->width(); ++x) {
+                    vec3 p((double*)(void*)geometry->pixel_base(x,y));
+                    if(
+                        p[0] == Numeric::max_float64() &&
+                        p[1] == Numeric::max_float64() &&
+                        p[2] == Numeric::max_float64()
+                    ) {
+                        continue;
+                    }
+                    kd_tree->get_nearest_neighbors(
+                        1, p.data(), &nearest_vertex, &sq_dist
+                    );
+                    get_attribute_as_color(
+                        C, attribute, MESH_VERTICES,
+                        NO_INDEX, NO_INDEX, nearest_vertex,
+                        bias, scale
+                    );
+                    rasterizer.set_pixel(int(x),int(y),C);
                 }
-                kd_tree->get_nearest_neighbors(
-                    1, p.data(), &nearest_vertex, &sq_dist
-                );
-                get_attribute_as_color(
-                    C, attribute, MESH_VERTICES,
-                    index_t(-1), index_t(-1), nearest_vertex,
-                    bias, scale
-                );
-                
-                rasterizer.set_pixel(int(x),int(y),C);
             }
-        }
-        
+        );
     }
-    
 
-    
-   /**************************************************************************/
-    
+    /**************************************************************************/
+
 }
-
-
-

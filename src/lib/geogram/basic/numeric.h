@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2014, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -13,7 +13,7 @@
  *  * Neither the name of the ALICE Project-Team nor the names of its
  *  contributors may be used to endorse or promote products derived from this
  *  software without specific prior written permission.
- * 
+ *
  *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -26,19 +26,13 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine, 
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX 
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
@@ -47,20 +41,16 @@
 #define GEOGRAM_BASIC_NUMERIC
 
 #include <geogram/basic/common.h>
+#include <geogram/basic/assert.h>
 #include <cmath>
 #include <float.h>
 #include <limits.h>
 #include <algorithm> // for std::min / std::max
-
-// Visual C++ ver. < 2010 does not have C99 stdint.h,
-// using a fallback portable one.
-#if defined(GEO_OS_WINDOWS) && (_MSC_VER < 1600)
-#include <geogram/third_party/pstdint.h>
-#else
 #include <stdint.h>
-#endif
-
 #include <limits>
+#include <type_traits>
+#include <iostream>
+#include <cstdlib>
 
 #ifndef M_PI
 /**
@@ -75,6 +65,51 @@
  */
 
 namespace GEO {
+
+    /**
+     * \brief Integer constants that represent the sign of a value
+     */
+    enum Sign {
+        /** Value is negative */
+        NEGATIVE = -1,
+        /** Value is zero */
+        ZERO = 0,
+        /** Value is positive */
+        POSITIVE = 1
+    };
+
+
+    /**
+     * \brief Compares two values
+     * \param[in] a , b the two values to compare
+     * \tparam T the type of the value
+     * \retval POSITIVE if \p a is greater than \p b
+     * \retval ZERO if \p a is equal to \p b
+     * \retval NEGATIVE if \p a is smaller than \p b
+     * \see Sign
+     */
+    template <class T>
+    inline Sign geo_cmp(const T& a, const T& b) {
+        return Sign((a > b) - (a < b));
+    }
+
+
+    /**
+     * \brief Gets the sign of a value
+     * \details Returns -1, 0, or 1 whether value \p x is resp. negative, zero
+     * or positive. The function uses operator<() and operator>() to compare
+     * the value to 0 (zero). The integer constant zero must make
+     * senses for the type of the value, or T must be constructible from
+     * integer constant zero.
+     * \param[in] x the value to test
+     * \tparam T the type of the value
+     * \return the sign of the value
+     * \see Sign
+     */
+    template <class T>
+    inline Sign geo_sgn(const T& x) {
+        return geo_cmp(x, T(0));
+    }
 
     /**
      * \brief Defines numeric types used in Vorpaline.
@@ -121,14 +156,14 @@ namespace GEO {
         /**
          * \brief Gets 32 bits float maximum positive value
          */
-        inline float32 max_float32() {
+        inline constexpr float32 max_float32() {
             return std::numeric_limits<float32>::max();
         }
 
         /**
          * \brief Gets 32 bits float minimum negative value
          */
-        inline float32 min_float32() {
+        inline constexpr float32 min_float32() {
             // Note: numeric_limits<>::min() is not
             // what we want (it returns the smallest
             // positive non-denormal).
@@ -138,14 +173,14 @@ namespace GEO {
         /**
          * \brief Gets 64 bits float maximum positive value
          */
-        inline float64 max_float64() {
+        inline constexpr float64 max_float64() {
             return std::numeric_limits<float64>::max();
         }
 
         /**
          * \brief Gets 64 bits float minimum negative value
          */
-        inline float64 min_float64() {
+        inline constexpr float64 min_float64() {
             // Note: numeric_limits<>::min() is not
             // what we want (it returns the smallest
             // positive non-denormal).
@@ -164,8 +199,15 @@ namespace GEO {
 
         /**
          * \brief Resets the random number generator.
+	 * \details Uses "algo:random_seed"
          */
         void GEOGRAM_API random_reset();
+
+        /**
+         * \brief Resets the random number generator.
+	 * \param[in] seed the random seed or -1 to use default
+         */
+        void GEOGRAM_API random_reset(int seed);
 
         /**
          * \brief Returns a 32 bits integer between 0 and RAND_MAX
@@ -225,43 +267,40 @@ namespace GEO {
          * numeric types only. They are not defined for non-numeric types.
          */
         template <class T>
-        struct Limits : 
+        struct Limits :
             LimitsHelper<T, std::numeric_limits<T>::is_specialized> {
         };
+
+        /**
+         * \brief place holder for optimizing internal number representation
+         * \details there are specializations for expansion_nt, rational_nt
+         */
+        template <class T> inline void optimize_number_representation(T& x) {
+            geo_argused(x);
+        }
+
+        /**
+         * \brief Compares two rational numbers given as separate
+         *   numerators and denominators.
+         * \param[in] a_num , a_denom defines a = \p a_num / \p a_denom
+         * \param[in] b_num , b_denom defines b = \p b_num / \p b_denom
+         * \return the sign of a - b
+         */
+        template <class T> inline Sign ratio_compare(
+            const T& a_num, const T& a_denom, const T& b_num, const T& b_denom
+        ) {
+            if(a_denom == b_denom) {
+                return Sign(geo_cmp(a_num,b_num)*geo_sgn(a_denom));
+            }
+            return Sign(
+                geo_cmp(a_num*b_denom, b_num*a_denom) *
+                geo_sgn(a_denom) * geo_sgn(b_denom)
+            );
+        }
     }
 
     /************************************************************************/
 
-    /**
-     * \brief Integer constants that represent the sign of a value
-     */
-    enum Sign {
-        /** Value is negative */
-        NEGATIVE = -1,
-        /** Value is zero */
-        ZERO = 0,
-        /** Value is positive */
-        POSITIVE = 1
-    };
-
-    /**
-     * \brief Gets the sign of a value
-     * \details Returns -1, 0, or 1 whether value \p x is resp. negative, zero
-     * or positive. The function uses operator<() and operator>() to compare
-     * the value to 0 (zero). The integer constant zero must make
-     * senses for the type of the value, or T must be constructible from
-     * integer constant zero.
-     * \param[in] x the value to test
-     * \tparam T the type of the value
-     * \return the sign of the value
-     * \see Sign
-     */
-    template <class T>
-    inline Sign geo_sgn(const T& x) {
-        return (x > 0) ? POSITIVE : (
-            (x < 0) ? NEGATIVE : ZERO
-        );
-    }
 
     /**
      * \brief Gets the square value of a value
@@ -303,7 +342,7 @@ namespace GEO {
     /**
      * \brief Gets the maximum positive value of type index_t.
      */
-    inline index_t max_index_t() {
+    inline constexpr index_t max_index_t() {
         return std::numeric_limits<index_t>::max();
     }
 
@@ -317,7 +356,7 @@ namespace GEO {
     /**
      * \brief Gets the maximum positive value of type signed_index_t.
      */
-    inline signed_index_t max_signed_index_t() {
+    inline constexpr signed_index_t max_signed_index_t() {
         return std::numeric_limits<signed_index_t>::max();
     }
 
@@ -340,7 +379,77 @@ namespace GEO {
     inline double round(double x) {
         return ((x - floor(x)) > 0.5 ? ceil(x) : floor(x));
     }
+
+    /************************************************************************/
+
+    /**
+     * \brief The dummy index value.
+     * \details Used for instance on the border of a surface, where adjacent
+     *  facets are set to NO_INDEX.
+     */
+    static constexpr index_t NO_INDEX = index_t(-1);
+
+    /************************************************************************/
+
+    /**
+     * \brief type traits for scalars
+     * \details all basic C++ arithmetic types plus expansion_nt, interval_nt,
+     *  rational_nt and geogramplus exact_nt.
+     *  Used to avoid ambiguous declarations in scalar * vector products.
+     */
+    template <class T> struct is_scalar {
+	typedef typename std::is_arithmetic<T>::type type;
+	static constexpr bool value = std::is_arithmetic<T>::value;
+    };
+
+    /************************************************************************/
 }
 
+
+/************* Disable floating point contraction **************************/
+
+/**
+ * \brief add GEO_FP_CONTRACT_OFF at the beginning of files or functions
+ *  where FMA operations should not be generated in place of a*b+c
+ * \details it is important for instance for geometric predicates, that
+ *  rely on strict IEEE754 implementation of product and addition.
+ */
+
+#if defined(GOMGEN)
+#  define GEO_FP_CONTRACT_OFF(x)
+#elif defined(__clang__)
+#  define GEO_FP_CONTRACT_OFF _Pragma("clang fp contract(off)")
+#elif defined(_MSC_VER)
+#  define GEO_FP_CONTRACT_OFF _Pragma("fp_contract(off)")
+#elif defined(__GNUC__)
+
+// GCC does not have any pragma to deactivate FMA generation,
+// so instead we check that they are deactivated (by the command-line
+// option -ffp-contract=off) and fire an assertion fail if it was not
+// the case.
+struct GeoAssertNoFpContract {
+    GeoAssertNoFpContract() {
+#ifdef GEOGRAM_PSM
+	if(fp_contraction_enabled()) {
+	    std::cerr << "Needs to be compiled with -ffp-contract-off"
+		      << std::endl;
+	    abort();
+	}
+#else
+	geo_assert(!fp_contraction_enabled());
+#endif
+    }
+    static bool fp_contraction_enabled() {
+	return (a2plusb(0x1.0000002p0, -0x1.0000004p0) != 0.0);
+    }
+    __attribute__((noipa)) static double a2plusb(double a, double b) {
+	return a * a + b;
+    }
+};
+#  define GEO_FP_CONTRACT_OFF \
+    static GeoAssertNoFpContract CPP_CONCAT(assert_no_fp_contract_,__LINE__);
+#else
+#  define GEO_FP_CONTRACT_OFF _Pragma("STDC FP_CONTRACT OFF")
 #endif
 
+#endif

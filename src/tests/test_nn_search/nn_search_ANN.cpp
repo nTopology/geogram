@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2014, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -13,7 +13,7 @@
  *  * Neither the name of the ALICE Project-Team nor the names of its
  *  contributors may be used to endorse or promote products derived from this
  *  software without specific prior written permission.
- * 
+ *
  *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -26,19 +26,13 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine, 
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX 
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
@@ -54,7 +48,9 @@ namespace GEO {
         ann_tree_(nullptr) {
     }
 
-    void NearestNeighborSearch_ANN::set_points(index_t nb_points, const double* points) {
+    void NearestNeighborSearch_ANN::set_points(
+        index_t nb_points, const double* points
+    ) {
         set_points(nb_points, points, dimension());
     }
 
@@ -68,7 +64,7 @@ namespace GEO {
         nb_points_ = nb_points;
         points_ = points;
         stride_ = stride;
-        
+
         // Patched ANN so that we no longer need
         // to generate an array of pointers to
         // the points, See ANN.h
@@ -76,7 +72,7 @@ namespace GEO {
         delete ann_tree_;
         ann_tree_ = new ANNkd_tree(
             ANNpointArray(points_, stride_),
-            int(nb_points), 
+            int(nb_points),
             int(dimension())
         );
 #else
@@ -98,11 +94,18 @@ namespace GEO {
         index_t* neighbors,
         double* neighbors_sq_dist
     ) const {
+        // In Gargantua mode, index_t is 64 bits, and ANNidx is always 32 bits, so
+        // we need to allocate space for ANN indices, then convert and copy them
+        // to client's neighbors array.
+        ANNidxArray ann_neighbors = ANNidxArray(alloca(sizeof(ANNidx)*nb_neighbors));
         ann_tree_->annkSearch(
             const_cast<double*>(query_point),
-            int(nb_neighbors), (ANNidxArray) neighbors, neighbors_sq_dist,
+            int(nb_neighbors), ann_neighbors, neighbors_sq_dist,
             (exact_ ? 0.0 : 0.1)
         );
+        for(index_t i=0; i<nb_neighbors; ++i) {
+            neighbors[i] = index_t(ann_neighbors[i]);
+        }
     }
 
     NearestNeighborSearch_ANN::~NearestNeighborSearch_ANN() {
@@ -110,6 +113,35 @@ namespace GEO {
         ann_tree_ = nullptr;
     }
 
+    /***********************************************************/
+
+    void NearestNeighborSearch_ANN_BruteForce::set_points(
+        index_t nb_points, const double* points, index_t stride
+    ) {
+        nb_points_ = nb_points;
+        points_ = points;
+        stride_ = stride;
+
+        // Patched ANN so that we no longer need
+        // to generate an array of pointers to
+        // the points, See ANN.h
+#ifdef ANN_CONTIGUOUS_POINT_ARRAY
+        delete ann_tree_;
+        ann_tree_ = new ANNbruteForce(
+            ANNpointArray(points_, stride_),
+            int(nb_points),
+            int(dimension())
+        );
+#else
+        delete ann_tree_;
+        ann_tree_ = nullptr;
+        ann_points_.resize(nb_points);
+        for(index_t i = 0; i < nb_points; i++) {
+            ann_points_[i] = const_cast<double*>(points) + stride_ * i;
+        }
+        ann_tree_ = new ANNbruteForce(
+            &ann_points_[0], int(nb_points), int(dimension())
+        );
+#endif
+    }
 }
-
-

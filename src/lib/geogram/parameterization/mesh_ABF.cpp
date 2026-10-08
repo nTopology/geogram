@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2016, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -13,7 +13,7 @@
  *  * Neither the name of the ALICE Project-Team nor the names of its
  *  contributors may be used to endorse or promote products derived from this
  *  software without specific prior written permission.
- * 
+ *
  *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -26,19 +26,13 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine, 
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX 
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
@@ -49,12 +43,9 @@
 #include <geogram/mesh/mesh_geometry.h>
 #include <geogram/bibliography/bibliography.h>
 #include <geogram/basic/memory.h>
+#include <geogram/NL/nl.h>
+#include <geogram/NL/nl_matrix.h>
 
-// Uses OpenNL internal data structures and routines
-// (NLSparseMatrix and associated functions).
-extern "C" {
-#include <geogram/NL/nl_matrix.h>    
-}
 
 namespace {
     using namespace GEO;
@@ -72,7 +63,7 @@ namespace {
             v_on_border_.assign(mesh.vertices.nb(),false);
             v_to_c_.assign(mesh.vertices.nb(),NO_VERTEX);
             next_c_around_v_.assign(mesh.facet_corners.nb(), NO_CORNER);
-            for(index_t c=0; c<mesh.facet_corners.nb(); ++c) {
+            for(index_t c: mesh.facet_corners) {
                 index_t v = mesh.facet_corners.vertex(c);
                 if(mesh.facet_corners.adjacent_facet(c) == NO_FACET) {
                     v_on_border_[v] = true;
@@ -82,9 +73,8 @@ namespace {
             }
             if(!mesh_.facets.are_simplices()) {
                 c_to_f_.resize(mesh_.facet_corners.nb());
-                for(index_t f=0; f<mesh_.facets.nb(); ++f) {
-                    for(index_t c = mesh_.facets.corners_begin(f);
-                        c < mesh_.facets.corners_end(f); ++c) {
+                for(index_t f: mesh_.facets) {
+                    for(index_t c: mesh_.facets.corners(f)) {
                         c_to_f_[c] = f;
                     }
                 }
@@ -99,23 +89,23 @@ namespace {
         void set_verbose(bool x) {
             verbose_ = x;
         }
-        
+
         bool parameterize() {
-            geo_cite("DBLP:journals/tog/ShefferLMB05");     
+            geo_cite("DBLP:journals/tog/ShefferLMB05");
             allocate_variables();
             compute_beta();
             angle_.bind(mesh_.facet_corners.attributes(),"angle");
             if(!solve_angles()) {
                 if(verbose_) {
-                    Logger::err("ABF++") << "Did not converge." << std::endl ; 
+                    Logger::err("ABF++") << "Did not converge." << std::endl ;
                     Logger::err("ABF++") << "Switching to LSCM" << std::endl ;
                 }
                 // Note: AnglesToUV with angles measured on the mesh
                 //  (i.e. beta's) = LSCM !!!
-                for(index_t c=0; c<mesh_.facet_corners.nb(); ++c) {
+                for(index_t c: mesh_.facet_corners) {
                     angle_[c] = beta_[c];
                 }
-            } 
+            }
             deallocate_variables() ;
             angle_.unbind();
             return true ;
@@ -126,17 +116,17 @@ namespace {
             geo_debug_assert(c < mesh_.facet_corners.nb());
             return mesh_.facets.are_simplices() ? (c/3) : c_to_f_[c];
         }
-        
+
         index_t nb_interior_vertices(const Mesh& M) const {
             index_t result=0;
-            for(index_t v=0; v<M.vertices.nb(); ++v) {
+            for(index_t v: M.vertices) {
                 if(!v_on_border_[v]) {
                     ++result;
                 }
             }
             return result;
         }
-        
+
         void allocate_variables() {
             // ------- sizes & indexes ------
             nf_ = mesh_.facets.nb();
@@ -162,15 +152,15 @@ namespace {
 
             // ------- Jacobian -------------
             nlSparseMatrixConstruct(
-                &J2_, 2*nint_, nalpha_, NL_MATRIX_STORE_COLUMNS
+                &J2_, NLuint(2*nint_), NLuint(nalpha_), NL_MATRIX_STORE_COLUMNS
             );
 
             // ------- ABF++ ----------------
             nlSparseMatrixConstruct(
-                &J_star_, 2*nint_, nf_, NL_MATRIX_STORE_COLUMNS
+                &J_star_, NLuint(2*nint_), NLuint(nf_), NL_MATRIX_STORE_COLUMNS
             );
             nlSparseMatrixConstruct(
-                &M_, 2*nint_, 2*nint_, NL_MATRIX_STORE_ROWS
+                &M_, NLuint(2*nint_), NLuint(2*nint_), NL_MATRIX_STORE_ROWS
             );
         }
 
@@ -190,7 +180,7 @@ namespace {
             b1_.clear() ;
             b2_.clear() ;
             nlSparseMatrixDestroy(&J2_);
-            
+
             // ------- ABF++ ----------------
             nlSparseMatrixDestroy(&J_star_);
             nlSparseMatrixDestroy(&M_);
@@ -199,7 +189,7 @@ namespace {
 
         void compute_beta() {
 
-            for(index_t v=0; v<mesh_.vertices.nb(); ++v) {
+            for(index_t v: mesh_.vertices) {
                 // Compute sum_angles
                 double sum_angle = 0.0 ;
                 {
@@ -208,15 +198,15 @@ namespace {
                         double angle = corner_angle(c) ;
                         sum_angle += angle ;
                         c = next_c_around_v_[c];
-                    } while(c != NO_CORNER) ; 
+                    } while(c != NO_CORNER) ;
                 }
 
                 double ratio = 1.0 ;
-        
+
                 if(!v_on_border_[v]) {
                     ratio =  2.0 * M_PI / sum_angle ;
                 }
-            
+
                 {
                     index_t c = v_to_c_[v];
                     do {
@@ -224,7 +214,7 @@ namespace {
                         beta_[c] = std::max(beta_[c], 3.0 * M_PI / 180.0);
                         beta_[c] = std::min(beta_[c], 175.0 * M_PI / 180.0);
                         c = next_c_around_v_[c];
-                    } while(c != NO_CORNER) ; 
+                    } while(c != NO_CORNER) ;
                 }
             }
         }
@@ -234,19 +224,15 @@ namespace {
             index_t c_prev = mesh_.facets.prev_corner_around_facet(f,c);
             index_t c_next = mesh_.facets.next_corner_around_facet(f,c);
 
-            const vec3& p1 =
-                Geom::mesh_vertex(mesh_, mesh_.facet_corners.vertex(c));
-            const vec3& p2 =
-                Geom::mesh_vertex(mesh_, mesh_.facet_corners.vertex(c_next));
-            const vec3& p3 =
-                Geom::mesh_vertex(mesh_, mesh_.facet_corners.vertex(c_prev));
-            
+            const vec3& p1 = mesh_.facet_corners.point(c);
+            const vec3& p2 = mesh_.facet_corners.point(c_next);
+            const vec3& p3 = mesh_.facet_corners.point(c_prev);
             double result = Geom::angle(p2-p1,p3-p1);
             result = std::max(result, 2.0 * M_PI / 360.0) ;
             return result ;
         }
 
-        
+
         bool solve_angles() {
 
             if(!nlInitExtension("SUPERLU")) {
@@ -255,7 +241,7 @@ namespace {
                     << std::endl;
                 return false;
             }
-            
+
             // Initial values
             lambda_.assign(lambda_.size(),0.0);
             for(index_t i=0; i<nalpha_; i++) {
@@ -283,12 +269,15 @@ namespace {
 
                 if(verbose_) {
                     Logger::out("ABF++")
-                        << "iter= " << k << " errf= " << errf_k 
+                        << "iter= " << k << " errf= " << errf_k
                         << std::endl ;
                 }
 
-                
+
                 if(Numeric::is_nan(errf_k) || errf_k > 1e18) {
+                    if(verbose_) {
+                        Logger::err("ABF++") << "errf=" << errf_k << std::endl ;
+                    }
                     return false ;
                 }
 
@@ -297,7 +286,7 @@ namespace {
                     if(verbose_) {
                         Logger::out("ABF++") << "converged" << std::endl ;
                     }
-                    return true ;
+                    return test_and_commit_solution() ;
                 }
 
                 solve_current_iteration() ;
@@ -326,45 +315,61 @@ namespace {
                     if(verbose_) {
                         Logger::out("ABF++") << "converged" << std::endl ;
                     }
-                    return true ;
+                    return test_and_commit_solution();
                 }
 
-                if(angle_.is_bound()) {
-                    for(index_t c=0; c<mesh_.facet_corners.nb(); ++c) {
-                        angle_[c] = alpha_[c];
-                    }
-                }
             }
 
-
-            for(index_t c=0; c<mesh_.facet_corners.nb(); ++c) {
-                if(Numeric::is_nan(alpha_[c])) {
-                    return false;
-                }
-            }
-            
-            
             if(verbose_) {
                 Logger::out("ABF++") << "ran out of Newton iters" << std::endl ;
             }
-            return true ;
+
+            return test_and_commit_solution() ;
+        }
+
+        bool test_and_commit_solution() {
+            for(index_t c: mesh_.facet_corners) {
+                if(Numeric::is_nan(alpha_[c])) {
+                    if(verbose_) {
+                        Logger::err("ABF++") << "solution has nan"
+                                             << std::endl;
+                    }
+                    return false;
+                }
+                if(alpha_[c] == 0.0) {
+                    if(verbose_) {
+                        Logger::err("ABF++") << "solution has null angle"
+                                             << std::endl;
+                    }
+                    return false;
+                }
+            }
+            if(verbose_) {
+                Logger::out("ABF++") << "solution OK"
+                                     << std::endl;
+            }
+            if(angle_.is_bound()) {
+                for(index_t c: mesh_.facet_corners) {
+                    angle_[c] = alpha_[c];
+                }
+            }
+            return true;
         }
 
         void solve_current_iteration() {
-        
+
             Delta_inv_.resize(nalpha_) ;
             for(index_t i=0; i<nalpha_; i++) {
                 Delta_inv_[i] = 1.0 / (2.0 * w_[i]) ;
             }
 
-        
+
             // 1) Create the pieces of J.Delta^-1.Jt
             // 1.1) Diagonal part: Delta*^-1
             Delta_star_inv_.resize(nf_) ;
             for(index_t f=0; f<nf_; ++f) {
                 double S = 0.0;
-                for(index_t c = mesh_.facets.corners_begin(f);
-                    c < mesh_.facets.corners_end(f); ++c) {
+                for(index_t c: mesh_.facets.corners(f)) {
                     S += Delta_inv_[c];
                 }
                 Delta_star_inv_[f] =  1.0 / S;
@@ -377,7 +382,9 @@ namespace {
                 for(NLuint ii=0; ii<Cj.size; ++ii) {
                     const NLCoeff& c = Cj.coeff[ii] ;
                     nlSparseMatrixAdd(
-                        &J_star_,c.index, c_to_f(j), c.value * Delta_inv_[j]
+                        &J_star_,
+                        NLuint(c.index), NLuint(c_to_f(j)),
+                        c.value * Delta_inv_[j]
                     );
                 }
             }
@@ -387,15 +394,14 @@ namespace {
 
             // 2.1) b1* = J1.Delta^-1.b1 - b2[1..nf]
             b1_star_.resize(nf_);
-            
+
             for(index_t f=0; f<nf_; ++f) {
                 b1_star_[f] = -b2_[f];
-                for(index_t c = mesh_.facets.corners_begin(f);
-                    c < mesh_.facets.corners_end(f); ++c) {
+                for(index_t c: mesh_.facets.corners(f)) {
                     b1_star_[f] += Delta_inv_[c] * b1_[c];
                 }
             }
-            
+
             // 2.2) b2* = J2.Delta^-1.b1 - b2[nf+1 .. nf+2.nint-1]
             b2_star_.assign(2*nint_,0.0);
             add_J_D_x(b2_star_, J2_, Delta_inv_, b1_);
@@ -404,8 +410,8 @@ namespace {
             }
 
 
-            // 3) create final linear system 
-        
+            // 3) create final linear system
+
             // 3.1) M = J*.Delta*^-1.J*^t - J**
             //       where J** = J2.Delta^-1.J2^t
             nlSparseMatrixZero(&M_);
@@ -431,26 +437,25 @@ namespace {
             if(verbose_) {
                 Logger::out("ABF++") << "Solved" << std::endl;
             }
-            
+
             // 4) compute dlambda1 and dalpha in function of dlambda2
-            
+
             // 4.1) dlambda1 = Delta*^-1 ( b1* - J*^t dlambda2 )
             mult_transpose(J_star_, dlambda2_, dlambda1_) ;
             for(index_t f=0; f<nf_; ++f) {
                 dlambda1_[f] =
                     Delta_star_inv_[f] * (b1_star_[f] - dlambda1_[f]) ;
             }
-            
+
             // 4.2) Compute dalpha in function of dlambda:
             // dalpha = Delta^-1( b1 -  J^t.dlambda                    )
             //        = Delta^-1( b1 - (J1^t.dlambda1 + J2^t.dlambda2) )
             mult_transpose(J2_, dlambda2_, dalpha_) ;
 
             for(index_t f=0; f<nf_; ++f) {
-                for(index_t c = mesh_.facets.corners_begin(f);
-                    c < mesh_.facets.corners_end(f); ++c) {
+                for(index_t c: mesh_.facets.corners(f)) {
                     dalpha_[c] += dlambda1_[f];
-                }               
+                }
             }
 
             for(index_t i=0; i<nalpha_; i++) {
@@ -462,7 +467,7 @@ namespace {
         double compute_errx_and_update_x(double s) {
             double result = 0 ;
 
-            // alpha += s * dalpha 
+            // alpha += s * dalpha
             for(index_t i=0; i<nalpha_; i++) {
                 double dai = s * dalpha_[i];
                 alpha_[i] += dai ;
@@ -475,7 +480,7 @@ namespace {
                 lambda_[i] += dai ;
                 result += ::fabs(dai) ;
             }
-            
+
             for(index_t i=0; i<2*nint_; i++) {
                 double dai = s * dlambda2_[i];
                 lambda_[nf_+i] += dai ;
@@ -484,27 +489,27 @@ namespace {
             return result ;
         }
 
-        
+
         // --------------------- Jacobian ----------------------------
 
         void add_JC2() {
             index_t i = 0 ;
-            for(index_t v=0; v<mesh_.vertices.nb(); ++v) {
+            for(index_t v: mesh_.vertices) {
                 if(v_on_border_[v]) {
                     continue ;
                 }
                 index_t c = v_to_c_[v];
                 do {
-                    nlSparseMatrixAdd(&J2_, i, c, 1.0);
+                    nlSparseMatrixAdd(&J2_, NLuint(i), NLuint(c), 1.0);
                     c = next_c_around_v_[c];
                 } while(c != NO_CORNER);
                 i++ ;
             }
         }
-        
+
         void add_JC3() {
             index_t i = nint_ ;
-            for(index_t v=0; v<mesh_.vertices.nb(); ++v) {
+            for(index_t v: mesh_.vertices) {
                 if(v_on_border_[v]) {
                     continue ;
                 }
@@ -516,20 +521,20 @@ namespace {
                     index_t f = c_to_f(c);
                     index_t next_c = mesh_.facets.next_corner_around_facet(f,c);
                     nlSparseMatrixAdd(
-                        &J2_, i, next_c,
+                        &J2_, NLuint(i), NLuint(next_c),
                         prod_next_sin * cos(alpha_[next_c])/sin(alpha_[next_c])
                     );
                     index_t prev_c = mesh_.facets.prev_corner_around_facet(f,c);
                     nlSparseMatrixAdd(
-                        &J2_, i, prev_c,
-                       -prod_prev_sin * cos(alpha_[prev_c])/sin(alpha_[prev_c])
+                        &J2_, NLuint(i), NLuint(prev_c),
+                        -prod_prev_sin * cos(alpha_[prev_c])/sin(alpha_[prev_c])
                     );
                     c = next_c_around_v_[c];
                 } while(c != NO_CORNER);
                 i++ ;
             }
         }
-        
+
         // --------------------- Right-hand side ---------------------
 
         void sub_grad_F() {
@@ -537,27 +542,25 @@ namespace {
                 b1_[i] -= 2.0 * w_[i] * ( alpha_[i] - beta_[i] );
             }
         }
-        
+
         // For each facet: sum angles - PI * (nb_vertices(f)-2)
         void sub_grad_C1() {
             for(index_t f=0; f < nf_; ++f) {
-                for(index_t c = mesh_.facets.corners_begin(f);
-                    c < mesh_.facets.corners_end(f); ++c) {
+                for(index_t c: mesh_.facets.corners(f)) {
                     b1_[c] -= lambda_[f];
                 }
             }
             for(index_t f=0; f < nf_; ++f) {
-                b2_[f] += M_PI * (mesh_.facets.nb_vertices(f)-2);
-                for(index_t c = mesh_.facets.corners_begin(f);
-                    c < mesh_.facets.corners_end(f); ++c) {                 
+                b2_[f] += M_PI * double(mesh_.facets.nb_vertices(f)-2);
+                for(index_t c: mesh_.facets.corners(f)) {
                     b2_[f] -= alpha_[c];
                 }
             }
         }
-        
+
         void sub_grad_C2() {
             index_t i = nf_ ;
-            for(index_t v=0; v<mesh_.vertices.nb(); ++v) {
+            for(index_t v: mesh_.vertices) {
                 if(v_on_border_[v]) {
                     continue ;
                 }
@@ -571,35 +574,35 @@ namespace {
                 ++i;
             }
         }
-        
-        
+
+
         // For each vertex: prod sin(next angle) - prod sin(prev angle)
         void sub_grad_C3() {
             index_t i = nf_ + nint_ ;
-            for(index_t v=0; v<mesh_.vertices.nb(); ++v) {
+            for(index_t v: mesh_.vertices) {
                 if(v_on_border_[v]) {
                     continue ;
                 }
-                
+
                 double prod_prev_sin ;
                 double prod_next_sin ;
                 compute_product_sin_angles(v, prod_prev_sin, prod_next_sin) ;
-                
+
                 b2_[i] -= prod_next_sin - prod_prev_sin ;
 
                 index_t c = v_to_c_[v];
                 do {
                     index_t f = c_to_f(c);
                     index_t next_c = mesh_.facets.next_corner_around_facet(f,c);
-                    b1_[next_c] -= 
+                    b1_[next_c] -=
                         lambda_[i] * prod_next_sin *
                         cos(alpha_[next_c]) / sin(alpha_[next_c]) ;
-                    
+
                     index_t prev_c = mesh_.facets.prev_corner_around_facet(f,c);
-                    b1_[prev_c] += 
+                    b1_[prev_c] +=
                         lambda_[i] * prod_prev_sin *
                         cos(alpha_[prev_c]) / sin(alpha_[prev_c]) ;
-                    
+
                     c = next_c_around_v_[c];
                 } while(c != NO_CORNER);
                 i++ ;
@@ -607,7 +610,7 @@ namespace {
         }
 
         // -------------------------------------------------------
-        
+
         void compute_product_sin_angles(
             index_t v, double& prod_prev_sin, double& prod_next_sin
         ) {
@@ -623,7 +626,7 @@ namespace {
                 c = next_c_around_v_[c];
             } while(c != NO_CORNER) ;
         }
-        
+
         // --------------------- Convergence control -----------------
 
         double compute_step_length_and_update_weights() {
@@ -635,7 +638,7 @@ namespace {
                     w_[i] *= positive_angle_ro_ ;
                 } else if(alpha_[i] + dalpha_[i] > M_PI - 10.0 * epsilon_) {
                     // double r1 =
-                    //  .5*(M_PI - alpha_[i]+10.0 * epsilon_)/dalpha_[i];
+                    //    .5*(M_PI - alpha_[i]+10.0 * epsilon_)/dalpha_[i];
                     // ratio = ogf_min(ratio, r1) ;
                     // two previous lines commented-out, I'm unsure why, to be
                     // tested.
@@ -644,7 +647,7 @@ namespace {
             }
             return ratio ;
         }
-        
+
         double errf() const {
             double result = 0 ;
             for(index_t i=0; i<nalpha_; ++i) {
@@ -656,7 +659,7 @@ namespace {
             return result ;
         }
 
-        
+
         // -------------------- Matrix utilities ---------------------
 
         static void mult_transpose(
@@ -681,7 +684,7 @@ namespace {
                 y.assign(y.size(), 0.0);
                 for(NLuint i=0; i<M.m; ++i) {
                     const NLRowColumn& Ci = M.row[i];
-                    for(NLuint jj=0; jj<Ci.size; ++jj) {                    
+                    for(NLuint jj=0; jj<Ci.size; ++jj) {
                         double a = Ci.coeff[jj].value;
                         index_t j = Ci.coeff[jj].index;
                         y[j] += a * x[i];
@@ -689,9 +692,9 @@ namespace {
                 }
             }
         }
-        
+
         static void add_J_D_x(
-            vector<double>& y, 
+            vector<double>& y,
             const NLSparseMatrix& J,
             const vector<double>& D,
             const vector<double>& x
@@ -699,7 +702,7 @@ namespace {
             geo_debug_assert(y.size() == J.m) ;
             geo_debug_assert(D.size() == J.n) ;
             geo_debug_assert(x.size() == J.n) ;
-            
+
             for(NLuint j=0; j<D.size(); ++j) {
                 const NLRowColumn& Cj = J.column[j] ;
                 for(NLuint ii=0; ii<Cj.size; ++ii) {
@@ -708,7 +711,7 @@ namespace {
                 }
             }
         }
-    
+
         static void add_J_D_Jt(
             NLSparseMatrix& M,
             const NLSparseMatrix& J,
@@ -717,15 +720,15 @@ namespace {
             geo_debug_assert(M.m == J.m) ;
             geo_debug_assert(M.n == J.m) ;
             geo_debug_assert(D.size() == J.n) ;
-            
+
             for(NLuint j=0; j<D.size(); j++) {
                 const NLRowColumn& Cj = J.column[j];
-                for(NLuint ii1=0; ii1<Cj.size; ii1++) {        
+                for(NLuint ii1=0; ii1<Cj.size; ii1++) {
                     for(NLuint ii2=0; ii2<Cj.size; ii2++) {
                         nlSparseMatrixAdd(
                             &M,
-                            Cj.coeff[ii1].index,
-                            Cj.coeff[ii2].index,
+                            NLuint(Cj.coeff[ii1].index),
+                            NLuint(Cj.coeff[ii2].index),
                             Cj.coeff[ii1].value * Cj.coeff[ii2].value * D[j]
                         );
                     }
@@ -741,22 +744,22 @@ namespace {
             geo_debug_assert(M.m == J.m) ;
             geo_debug_assert(M.n == J.m) ;
             geo_debug_assert(D.size() == J.n) ;
-            
+
             for(NLuint j=0; j<D.size(); j++) {
                 const NLRowColumn& Cj = J.column[j];
-                for(NLuint ii1=0; ii1<Cj.size; ii1++) {        
+                for(NLuint ii1=0; ii1<Cj.size; ii1++) {
                     for(NLuint ii2=0; ii2<Cj.size; ii2++) {
                         nlSparseMatrixAdd(
                             &M,
-                            Cj.coeff[ii1].index,
-                            Cj.coeff[ii2].index,
+                            NLuint(Cj.coeff[ii1].index),
+                            NLuint(Cj.coeff[ii2].index),
                             -Cj.coeff[ii1].value * Cj.coeff[ii2].value * D[j]
                         );
                     }
                 }
             }
         }
-        
+
     private:
         Mesh& mesh_;
         Attribute<double> angle_;
@@ -764,7 +767,7 @@ namespace {
         vector<index_t> v_to_c_;
         vector<index_t> next_c_around_v_;
         vector<index_t> c_to_f_;
-        
+
         // ------ Solver parameters -----------------------------------
         double epsilon_; // Threshold for small angles
         double newton_tolf_; // threshold for gradient norm (rhs)
@@ -774,11 +777,11 @@ namespace {
         double step_length_factor_;
 
         // ------ Sizes -----------------------------------------------
-        index_t nf_ ;      // Number of facets 
-        index_t nalpha_ ;  // Number of angles 
-        index_t nint_ ;    // Number of interior nodes 
-        index_t nlambda_ ; // Number of constraints (= nf+2.nint) 
-        index_t ntot_ ;    // Total number of unknowns (= nalpha + nlamda) 
+        index_t nf_ ;      // Number of facets
+        index_t nalpha_ ;  // Number of angles
+        index_t nint_ ;    // Number of interior nodes
+        index_t nlambda_ ; // Number of constraints (= nf+2.nint)
+        index_t ntot_ ;    // Total number of unknowns (= nalpha + nlamda)
 
         // ------ ABF variables & Lagrange multipliers ----------------
         vector<double> alpha_ ;    // Unknown angles. size = nalpha
@@ -802,7 +805,7 @@ namespace {
 
         // ------ ABF++ variables -------------------------------------
         vector<double> Delta_inv_      ; // size = nalpha
-        vector<double> Delta_star_inv_ ; // size = nf ; 
+        vector<double> Delta_star_inv_ ; // size = nf ;
         NLSparseMatrix J_star_         ; // size = 2.nint * nf
         vector<double> b1_star_        ; // size = nf
         vector<double> b2_star_        ; // size = 2.nint
@@ -813,11 +816,11 @@ namespace {
 
         bool verbose_;
     };
-    
+
 }
 
 namespace GEO {
-    
+
     void mesh_compute_ABF_plus_plus(
         Mesh& M, const std::string& attribute_name, bool verbose
     ) {
@@ -828,13 +831,13 @@ namespace GEO {
         //    adapted.
         // (for now, we still require triangulated surfaces)
         geo_assert(M.facets.are_simplices());
-        
+
         ABFPlusPlus ABF(M);
         ABF.set_verbose(verbose);
         ABF.parameterize(); // This computes the "angle" attribute.
         // Now use LSCM to retrieve (u,v) coordinates from the angles.
-        mesh_compute_LSCM(M, attribute_name, false, "angle");
+        mesh_compute_LSCM(M, attribute_name, false, "angle", verbose);
         M.facet_corners.attributes().delete_attribute_store("angle");
     }
-    
+
 }

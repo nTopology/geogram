@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2014, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -13,7 +13,7 @@
  *  * Neither the name of the ALICE Project-Team nor the names of its
  *  contributors may be used to endorse or promote products derived from this
  *  software without specific prior written permission.
- * 
+ *
  *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -26,19 +26,13 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine, 
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX 
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
@@ -62,6 +56,16 @@ namespace GEO {
      */
     namespace Permutation {
 
+	/**
+	 * \brief Mark used to mark elements for in-place permutation
+	 */
+	constexpr index_t MARKED_BIT = index_t(1) << (sizeof(index_t)*8 - 1);
+
+	/**
+	 * \brief Maximum size of a permutation that can be applied in-place
+	 */
+	constexpr index_t MAX_SIZE = MARKED_BIT;
+
         /**
          * \brief Checks whether a vector is a valid permutation.
          * \details The vector \p permutation is a valid permutation if there
@@ -73,18 +77,16 @@ namespace GEO {
          * \retval true if \p permutation is a valid permutation
          * \retval false otherwise
          */
-        inline bool is_valid(
-            const vector<index_t>& permutation
-        ) {
+        inline bool is_valid(const vector<index_t>& permutation) {
             std::vector<bool> visited(permutation.size(), false);
             for(index_t i = 0; i < permutation.size(); i++) {
                 if(permutation[i] >= permutation.size()) {
                     return false;
                 }
-                if(visited[i]) {
+                if(visited[permutation[i]]) {
                     return false;
                 }
-                visited[i] = true;
+                visited[permutation[i]] = true;
             }
             return true;
         }
@@ -100,13 +102,9 @@ namespace GEO {
          * Implementation note: marking an element modifies the value in such
          * a way that the initial value of the element can be restored.
          */
-        inline void mark(
-            vector<index_t>& permutation,
-            index_t i
-        ) {
+        inline void mark(vector<index_t>& permutation, index_t i) {
             geo_debug_assert(i < permutation.size());
-            geo_debug_assert(signed_index_t(permutation[i]) >= 0);
-            permutation[i] = index_t(-signed_index_t(permutation[i]) - 1);
+            permutation[i] |= MARKED_BIT;
         }
 
         /**
@@ -115,12 +113,9 @@ namespace GEO {
          * \param[in] i the index of the element in \p permutation
          * \note Used internally by apply()
          */
-        inline bool is_marked(
-            const vector<index_t>& permutation,
-            index_t i
-        ) {
+        inline bool is_marked(const vector<index_t>& permutation, index_t i) {
             geo_debug_assert(i < permutation.size());
-            return signed_index_t(permutation[i]) < 0;
+            return ((permutation[i] & MARKED_BIT) != 0);
         }
 
         /**
@@ -131,12 +126,9 @@ namespace GEO {
          * \param[in] i the index of the element in \p permutation
          * \note Used internally by apply()
          */
-        inline void unmark(
-            vector<index_t>& permutation,
-            index_t i
-        ) {
+        inline void unmark(vector<index_t>& permutation, index_t i) {
             geo_debug_assert(is_marked(permutation, i));
-            permutation[i] = index_t(-signed_index_t(permutation[i]) - 1);
+	    permutation[i] &= ~MARKED_BIT;
         }
 
         /**
@@ -164,8 +156,9 @@ namespace GEO {
          */
         inline void apply(
             void* data, const vector<index_t>& permutation_in,
-            index_t elemsize
+            size_t elemsize
         ) {
+	    geo_debug_assert(permutation_in.size() <= MAX_SIZE);
             Memory::pointer pdata = (Memory::pointer) (data);
             vector<index_t>& permutation =
                 const_cast<vector<index_t>&>(permutation_in);
@@ -219,6 +212,7 @@ namespace GEO {
         inline void apply(
             vector<T>& data, const vector<index_t>& permutation_in
         ) {
+	    geo_debug_assert(permutation_in.size() <= MAX_SIZE);
             vector<index_t>& permutation =
                 const_cast<vector<index_t>&>(permutation_in);
             geo_debug_assert(is_valid(permutation));
@@ -259,6 +253,7 @@ namespace GEO {
          * \param[in,out] permutation to inverse.
          */
         inline void invert(vector<index_t>& permutation) {
+	    geo_debug_assert(permutation.size() < MAX_SIZE);
             geo_debug_assert(is_valid(permutation));
             for(index_t k = 0; k < permutation.size(); k++) {
                 if(is_marked(permutation, k)) {
@@ -283,7 +278,7 @@ namespace GEO {
 
         /**
          * \brief Inverts a permutation.
-         * \details Computes the inverse of a given \p permutation and 
+         * \details Computes the inverse of a given \p permutation and
          *  stores the result in another one.
          * \param[in] permutation the permutation to invert
          * \param[out] invert the computed inverse of \p permutation
@@ -299,9 +294,7 @@ namespace GEO {
                 invert[permutation[i]] = i;
             }
         }
-
     }
 }
 
 #endif
-

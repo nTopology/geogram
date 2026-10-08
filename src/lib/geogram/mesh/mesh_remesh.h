@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2014, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -13,7 +13,7 @@
  *  * Neither the name of the ALICE Project-Team nor the names of its
  *  contributors may be used to endorse or promote products derived from this
  *  software without specific prior written permission.
- * 
+ *
  *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -26,19 +26,13 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine, 
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX 
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
@@ -59,7 +53,7 @@ namespace GEO {
     class Mesh;
 
     /**
-     * \brief Remeshes a 'smooth' shape (i.e. without management
+     * \brief Remeshes a 'smooth' shape (that is, without management
      *  of sharp features).
      * \param[in] M_in input mesh
      * \param[out] M_out result
@@ -73,7 +67,16 @@ namespace GEO {
      *  distribution)
      * \param[in] nb_Newton_iter number of Newton iterations
      * \param[in] Newton_m number of evaluations used for
-     *  Hessian approximation..
+     *  Hessian approximation
+     * \param[in] adjust if set, call mesh_adjust_surface() to improve
+     *  the placement of the points in such a way that the facets of
+     *  \p M_out better approximate \p M_in
+     * \param[in] adjust_max_edge_distance distance along which
+     *  searching for nearest vertex, relative to average
+     *  edge length in the neighborhood of the considered
+     *  vertex
+     * \param[in] adjust_border_importance importance of the least-squares
+     *  fitting term for smoothly projecting vertices on the border.
      *
      * Example 1 - isotropic remesh:
      * \code
@@ -92,9 +95,39 @@ namespace GEO {
         coord_index_t dim = 0,
         index_t nb_Lloyd_iter = 5,
         index_t nb_Newton_iter = 30,
-        index_t Newton_m = 7
+        index_t Newton_m = 7,
+        bool adjust = true,
+        double adjust_max_edge_distance=0.5,
+	double adjust_border_importance=2.0
+    );
+
+    /**
+     * \brief Adjusts a surface mesh in such a way that
+     *  minimizes its distance to a reference surface mesh
+     * \param[in,out] surface the surface mesh to be adjusted
+     * \param[in] reference the reference surface mesh
+     * \param[in] max_edge_distance distance along which
+     *  searching for nearest vertex, relative to average
+     *  edge length in the neighborhood of the considered
+     *  vertex
+     * \param[in] project_borders if set, in a final post-processing,
+     *  project the vertices on the border of the surface onto the
+     *  borders of the reference surface. Whereas it improves a bit
+     *  the borders, it results in a worse approximation on the facets
+     *  adjacent to the border, hence it is off by default
+     * \param[in] border_importance importance of the least-squares fitting
+     *  term for smoothly projecting vertices on the border, when project_borders
+     *  is not set
+     * \details Internally it uses an AABB, hence the order
+     *  of the facets of \p reference can be changed.
+     */
+    void GEOGRAM_API mesh_adjust_surface(
+        Mesh& surface,
+        Mesh& reference,
+        double max_edge_distance=0.5,
+        bool project_borders=false,
+	double border_importance=2.0
     );
 }
 
 #endif
-

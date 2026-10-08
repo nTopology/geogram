@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2014, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -13,7 +13,7 @@
  *  * Neither the name of the ALICE Project-Team nor the names of its
  *  contributors may be used to endorse or promote products derived from this
  *  software without specific prior written permission.
- * 
+ *
  *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -26,19 +26,13 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine, 
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX 
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
@@ -63,7 +57,7 @@
 namespace GEO {
 
     class Environment;
-    
+
     /************************************************************************/
 
     /**
@@ -88,41 +82,41 @@ namespace GEO {
      */
     class GEOGRAM_API VariableObserver {
     public:
-        /**
-         * \brief Creates a new variable observer.
-         * \details This creates a new observer for variable \p var_name and
-         * automatically adds itself to the variable's observers in the root
-         * environment.
-         * \param[in] var_name name of the variable observed.
-         */
-        VariableObserver(const std::string& var_name);
+    /**
+     * \brief Creates a new variable observer.
+     * \details This creates a new observer for variable \p var_name and
+     * automatically adds itself to the variable's observers in the root
+     * environment.
+     * \param[in] var_name name of the variable observed.
+     */
+    VariableObserver(const std::string& var_name);
 
-        /**
-         * \brief Receives a change notification.
-         * \details This function is called by the Environment when
-         * the variable observed by this observer is modified.
-         * \param[in] new_value the new value of the observed variable.
-         */
-        virtual void value_changed(const std::string& new_value) = 0;
+    /**
+     * \brief Receives a change notification.
+     * \details This function is called by the Environment when
+     * the variable observed by this observer is modified.
+     * \param[in] new_value the new value of the observed variable.
+     */
+    virtual void value_changed(const std::string& new_value) = 0;
 
-        /**
-         * \brief Deletes the observer.
-         * \details This automatically removes this observer from the
-         * root environment.
-         */
-        virtual ~VariableObserver();
+    /**
+     * \brief Deletes the observer.
+     * \details This automatically removes this observer from the
+     * root environment.
+     */
+    virtual ~VariableObserver();
 
-        /**
-         * \brief Gets the observed variable.
-         * \return The name of the variable observed by this observer.
-         */
-        const std::string& observed_variable() const {
-            return observed_variable_;
-        }
+    /**
+     * \brief Gets the observed variable.
+     * \return The name of the variable observed by this observer.
+     */
+    const std::string& observed_variable() const {
+        return observed_variable_;
+    }
 
     private:
-        std::string observed_variable_;
-        Environment* environment_;
+    std::string observed_variable_;
+    Environment* environment_;
     };
 
     /************************************************************************/
@@ -134,38 +128,38 @@ namespace GEO {
      */
     class GEOGRAM_API VariableObserverList {
     public:
-        /**
-         * \brief Creates an empty list of variable observers.
-         */
-        VariableObserverList() :
-            block_notify_(false) {
-        }
+    /**
+     * \brief Creates an empty list of variable observers.
+     */
+    VariableObserverList() :
+    block_notify_(false) {
+    }
 
-        /**
-         * \brief Notifies all observers in the list.
-         * \param[in] value the value of the variable being changed.
-         */
-        void notify_observers(const std::string& value);
+    /**
+     * \brief Notifies all observers in the list.
+     * \param[in] value the value of the variable being changed.
+     */
+    void notify_observers(const std::string& value);
 
-        /**
-         * \brief Adds an observer to the list.
-         * This adds observer \p observer at the end of the list only if it is
-         * not already present.
-         * \param[in] observer a pointer to the VariableObserver to add.
-         */
-        void add_observer(VariableObserver* observer);
+    /**
+     * \brief Adds an observer to the list.
+     * This adds observer \p observer at the end of the list only if it is
+     * not already present.
+     * \param[in] observer a pointer to the VariableObserver to add.
+     */
+    void add_observer(VariableObserver* observer);
 
-        /**
-         * \brief Removes an observer from the list.
-         * \param[in] observer a pointer to the VariableObserver to remove.
-         */
-        void remove_observer(VariableObserver* observer);
+    /**
+     * \brief Removes an observer from the list.
+     * \param[in] observer a pointer to the VariableObserver to remove.
+     */
+    void remove_observer(VariableObserver* observer);
 
     private:
-        /** List of VariableObserver%s */
-        typedef std::vector<VariableObserver*> Observers;
-        Observers observers_;
-        bool block_notify_;
+    /** List of VariableObserver%s */
+    typedef std::vector<VariableObserver*> Observers;
+    Observers observers_;
+    bool block_notify_;
     };
 
     /************************************************************************/
@@ -297,11 +291,11 @@ namespace GEO {
          * \brief Finds the environment that declares a variable as
          *  a local name.
          * \param[in] name the name of the variable
-         * \return a pointer to the Environment that has \p name as a 
+         * \return a pointer to the Environment that has \p name as a
          *  local variable, or nullptr if no such environment exists
          */
         virtual Environment* find_environment(const std::string& name);
-        
+
         /**
          * \brief Attaches an observer to a variable
          * \details Adds observer \p observer to the list of observers
@@ -357,7 +351,7 @@ namespace GEO {
          * \details This deletes all the child environments, but it does \b
          * not delete the variable observers.
          */
-        virtual ~Environment();
+        ~Environment() override;
 
         /**
          * \brief Retrieves a variable value locally
@@ -448,27 +442,26 @@ namespace GEO {
     class SystemEnvironment : public Environment {
     protected:
         /** SystemEnvironment destructor */
-        virtual ~SystemEnvironment();
+        ~SystemEnvironment() override;
 
         /**
          * \copydoc Environment::set_local_value()
          * This function does actually \b not update the system environment
          * and always returns \c false.
          */
-        virtual bool set_local_value(
+        bool set_local_value(
             const std::string& name, const std::string& value
-        );
+        ) override;
 
         /**
          * \copydoc Environment::get_local_value()
          * The value is retrieved from the system environment using the system
          * function getenv().
          */
-        virtual bool get_local_value(
+        bool get_local_value(
             const std::string& name, std::string& value
-        ) const;
+        ) const override;
     };
 }
 
 #endif
-

@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2014, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -13,7 +13,7 @@
  *  * Neither the name of the ALICE Project-Team nor the names of its
  *  contributors may be used to endorse or promote products derived from this
  *  software without specific prior written permission.
- * 
+ *
  *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -26,19 +26,13 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine, 
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX 
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
@@ -71,10 +65,8 @@ namespace GEO {
         std::vector<bool> is_required;
         if(mode & MESH_DECIMATE_KEEP_B) {
             is_required.assign(M.vertices.nb(), false);
-            for(index_t f = 0; f < M.facets.nb(); ++f) {
-                for(index_t c = M.facets.corners_begin(f);
-                    c < M.facets.corners_end(f); ++c
-                ) {
+            for(index_t f : M.facets) {
+                for(index_t c : M.facets.corners(f)) {
                     if(M.facet_corners.adjacent_facet(c) == NO_FACET) {
                         is_required[M.facet_corners.vertex(c)] = true;
                     }
@@ -83,7 +75,7 @@ namespace GEO {
         }
 
         if(vertices_flags != nullptr) {
-            for(index_t v = 0; v < M.vertices.nb(); ++v) {
+            for(index_t v: M.vertices) {
                 if(vertices_flags[v] != 0) {
                     is_required[v] = true;
                 }
@@ -91,7 +83,7 @@ namespace GEO {
         }
 
         vector<double> new_points(M.vertices.nb() * 3);
-        for(index_t v = 0; v < M.vertices.nb(); ++v) {
+        for(index_t v: M.vertices) {
             if(is_required.size() != 0 && is_required[v]) {
                 double* p = M.vertices.point_ptr(v);
                 for(coord_index_t c = 0; c < 3; ++c) {
@@ -114,15 +106,15 @@ namespace GEO {
 
         if(nb_new_vertices == M.vertices.nb()) {
             Logger::warn("Decimate") << "Did not remove any vertex"
-                << std::endl;
+                                     << std::endl;
             return;
         }
 
         Logger::out("Decimate") << "Removed "
-            << M.vertices.nb() - nb_new_vertices
-            << " vertices" << std::endl;
+                                << M.vertices.nb() - nb_new_vertices
+                                << " vertices" << std::endl;
 
-        for(index_t c = 0; c < M.facet_corners.nb(); c++) {
+        for(index_t c: M.facet_corners) {
             M.facet_corners.set_vertex(c, old2new[M.facet_corners.vertex(c)]);
         }
 
@@ -130,7 +122,7 @@ namespace GEO {
         new_points.assign(M.vertices.dimension() * M.vertices.nb(), 0.0);
         vector<index_t> new_points_count(M.vertices.nb(), 0);
 
-        for(index_t v = 0; v < M.vertices.nb(); ++v) {
+        for(index_t v: M.vertices) {
             index_t w = old2new[v];
             for(coord_index_t c = 0; c < M.vertices.dimension(); ++c) {
                 new_points[w * M.vertices.dimension() + c] +=
@@ -139,7 +131,7 @@ namespace GEO {
             new_points_count[w]++;
         }
 
-        for(index_t w = 0; w < M.vertices.nb(); ++w) {
+        for(index_t w: M.vertices) {
             double s = double(new_points_count[w]);
             if(s != 0.0) {
                 s = 1.0 / s;
@@ -175,4 +167,3 @@ namespace GEO {
         }
     }
 }
-

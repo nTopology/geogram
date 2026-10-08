@@ -5,3 +5,7 @@ add_subdirectory(opennl_mesh_smooth)
 add_subdirectory(manifold_harmonics)
 add_subdirectory(opennl_basic_example)
 add_subdirectory(simple_raytrace)
+add_subdirectory(boolean_operations)
+add_subdirectory(intersect)
+add_subdirectory(CSG_builder)
+

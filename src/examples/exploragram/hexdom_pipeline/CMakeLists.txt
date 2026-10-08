@@ -1,7 +1,7 @@
+set(APP_NAME hexdom_pipeline)
+
 aux_source_directories(SOURCES "" .)
-vor_add_executable(hexdom_pipeline ${SOURCES})
-target_link_libraries(hexdom_pipeline exploragram geogram)
+vor_add_executable(${APP_NAME} ${SOURCES})
+target_link_libraries(${APP_NAME} exploragram geogram)
 
-set_target_properties(hexdom_pipeline PROPERTIES FOLDER "GEOGRAM")
-
-
+set_target_properties(${APP_NAME} PROPERTIES FOLDER "GEOGRAM/Examples")

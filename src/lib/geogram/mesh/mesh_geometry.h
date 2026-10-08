@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2014, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -13,7 +13,7 @@
  *  * Neither the name of the ALICE Project-Team nor the names of its
  *  contributors may be used to endorse or promote products derived from this
  *  software without specific prior written permission.
- * 
+ *
  *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -26,19 +26,13 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine, 
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX 
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
@@ -66,10 +60,11 @@ namespace GEO {
          * \param[in] v the index of the vertex
          * \return a const reference to the \p v%th vertex of a mesh
          * \pre M.vertices.dimension() >= 3
+	 * \deprecated use M.vertices.point(v) instead
          */
+	[[deprecated("use M.vertices.point(v) instead")]]
         inline const vec3& mesh_vertex(const Mesh& M, index_t v) {
-            geo_debug_assert(M.vertices.dimension() >= 3);
-            return *(const vec3*) (M.vertices.point_ptr(v));
+	    return M.vertices.point(v);
         }
 
         /**
@@ -78,10 +73,11 @@ namespace GEO {
          * \param[in] v the index of the vertex
          * \return a const reference to the \p v%th vertex of a mesh
          * \pre M.vertices.dimension() >= 3
+	 * \deprecated use M.vertices.point(v) instead
          */
+	[[deprecated("use M.vertices.point(v) instead")]]
         inline const vec3& mesh_vertex_ref(const Mesh& M, index_t v) {
-            geo_debug_assert(M.vertices.dimension() >= 3);
-            return *(vec3 const *) (M.vertices.point_ptr(v));
+	    return M.vertices.point(v);
         }
 
         /**
@@ -90,21 +86,24 @@ namespace GEO {
          * \param[in] v the index of the vertex
          * \return a reference to the \p v%th vertex of a mesh
          * \pre M.vertices.dimension() >= 3
+	 * \deprecated use M.vertices.point(v) instead
          */
+	[[deprecated("use M.vertices.point(v) instead")]]
         inline vec3& mesh_vertex_ref(Mesh& M, index_t v) {
-            geo_debug_assert(M.vertices.dimension() >= 3);
-            return *(vec3*) (M.vertices.point_ptr(v));
+	    return M.vertices.point(v);
         }
-        
+
         /**
          * \brief Gets a mesh vertex by an incident corner index.
          * \param[in] M the mesh
          * \param[in] c the index of a corner incident to the vertex
          * \return a reference to the \p v%th vertex of a mesh
          * \pre M.vertices.dimension() >= 3
+	 * \deprecated use M.facet_corners.point(c) instead
          */
+	[[deprecated("use M.facet_corners.point(c) instead")]]
         inline const vec3& mesh_corner_vertex(const Mesh& M, index_t c) {
-            return mesh_vertex(M, M.facet_corners.vertex(c));
+	    return M.facet_corners.point(c);
         }
 
         /**
@@ -113,9 +112,11 @@ namespace GEO {
          * \param[in] c the index of a corner incident to the vertex
          * \return a const reference to the \p v%th vertex of a mesh
          * \pre M.vertices.dimension() >= 3
+	 * \deprecated use M.facet_corners.point(c) instead
          */
+	[[deprecated("use M.facet_corners.point(c) instead")]]
         inline vec3& mesh_corner_vertex_ref(Mesh& M, index_t c) {
-            return mesh_vertex_ref(M, M.facet_corners.vertex(c));
+	    return M.facet_corners.point(c);
         }
 
         /**
@@ -188,7 +189,7 @@ namespace GEO {
             }
             return result;
         }
-        
+
         /**
          * \brief Computes the normal to a mesh facet.
          * \param[in] M the mesh
@@ -210,10 +211,25 @@ namespace GEO {
             double count = 0.0;
             for(index_t c = M.facets.corners_begin(f);
                 c < M.facets.corners_end(f); ++c) {
-                result += Geom::mesh_corner_vertex(M, c);
+                result += M.facet_corners.point(c);
                 count += 1.0;
             }
             return (1.0 / count) * result;
+        }
+
+        /**
+         * \brief Gets the centroid of the vertices of a cell in a mesh.
+         * \param[in] M the mesh
+         * \param[in] c the index of the facet
+         * \return the 3d centroid of facet \p f in \p M
+         */
+        inline vec3 mesh_cell_center(const Mesh& M, index_t c) {
+            vec3 result(0.0, 0.0, 0.0);
+            for(index_t lv=0; lv<M.cells.nb_vertices(c); ++lv) {
+                index_t v = M.cells.vertex(c,lv);
+                result += M.vertices.point(v);
+            }
+            return (1.0 / double(M.cells.nb_vertices(c))) * result;
         }
 
 
@@ -224,14 +240,10 @@ namespace GEO {
          * \return the 3d centroid of tetrahedron \p t in \p M
          */
         inline vec3 mesh_tet_center(const Mesh& M, index_t t) {
-            index_t iv1 = M.cells.vertex(t, 0);
-            index_t iv2 = M.cells.vertex(t, 1);
-            index_t iv3 = M.cells.vertex(t, 2);
-            index_t iv4 = M.cells.vertex(t, 3);
-            const vec3& v1 = Geom::mesh_vertex(M, iv1);
-            const vec3& v2 = Geom::mesh_vertex(M, iv2);
-            const vec3& v3 = Geom::mesh_vertex(M, iv3);
-            const vec3& v4 = Geom::mesh_vertex(M, iv4);
+            const vec3& v1 = M.cells.point(t,0);
+            const vec3& v2 = M.cells.point(t,1);
+            const vec3& v3 = M.cells.point(t,2);
+            const vec3& v4 = M.cells.point(t,3);
             return 0.25 * (v1 + v2 + v3 + v4);
         }
 
@@ -239,7 +251,7 @@ namespace GEO {
          * \brief Gets a vector by a mesh corner.
          * \param[in] M a const reference to the mesh
          * \param[in] c1 a corner index in \p M
-         * \return a vector originating at \p c1 and 
+         * \return a vector originating at \p c1 and
          *  pointing at the next corner around the facet
          *  incident to \p c1
          * \pre M.facets.are_simplices()
@@ -247,9 +259,7 @@ namespace GEO {
         inline vec3 mesh_corner_vector(const Mesh& M, index_t c1) {
             geo_debug_assert(M.facets.are_simplices());
             index_t c2 = M.facets.next_corner_around_facet(c1/3, c1);
-            index_t v1 = M.facet_corners.vertex(c1);
-            index_t v2 = M.facet_corners.vertex(c2);
-            return mesh_vertex(M,v2) - mesh_vertex(M,v1);
+	    return M.facet_corners.point(c2) - M.facet_corners.point(c1);
         }
 
         /**
@@ -268,7 +278,7 @@ namespace GEO {
          *  of two mesh facets sharing an edge.
          * \param[in] M a const reference to the mesh
          * \param[in] f1 , f2 two facets of the mesh
-         * \return the angle between \p f1 and \p f2
+         * \return the angle between \p f1 and \p f2 in radians
          */
         double GEOGRAM_API mesh_unsigned_normal_angle(
             const Mesh& M, index_t f1, index_t f2
@@ -292,6 +302,13 @@ namespace GEO {
         inline double mesh_area(const Mesh& M) {
             return mesh_area(M, M.vertices.dimension());
         }
+
+        /**
+         * \brief Computes the volume enclosed by a surfacic mesh.
+         * \param[in] M a closed surfacic mesh.
+         * \return the volume enclosed by \p M.
+         */
+        double GEOGRAM_API mesh_enclosed_volume(const Mesh& M);
     }
 
     /**
@@ -372,13 +389,13 @@ namespace GEO {
      * \brief Computes the volume of a cell in a mesh.
      * \param[in] M a const reference to the mesh
      * \param[in] c the index of the cell
-     * \return the volume of the cell 
+     * \return the volume of the cell
      * \pre c < M.cells.nb()
      */
     double GEOGRAM_API mesh_cell_volume(
         const Mesh& M, index_t c
     );
-    
+
     /**
      * \brief Computes the volume of the cells of a mesh.
      * \param[in] M a const reference to the mesh
@@ -399,7 +416,7 @@ namespace GEO {
     vec3 GEOGRAM_API mesh_cell_facet_normal(
         const Mesh& M, index_t c, index_t lf
     );
-    
+
     /**
      * \brief Computes the average edge length in a surface.
      * \param[in] M a const reference to a surface mesh
@@ -408,7 +425,7 @@ namespace GEO {
     double GEOGRAM_API surface_average_edge_length(
         const Mesh& M
     );
+
 }
 
 #endif
-

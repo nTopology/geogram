@@ -18,8 +18,13 @@ add_definitions(/MP)
 #add_definitions(/Zc:wchar_t)
 
 # Warning Level 4
-remove_definitions(/W3)
-add_definitions(/W4)
+#  code below did not work:
+#remove_definitions(/W3)
+#add_definitions(/W4)
+#  so I'm doing that instead (I know it is not good CMake practice,
+#  but I know no other option...)
+string(REGEX REPLACE "/W[0-4]" "/W4" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+string(REGEX REPLACE "/W[0-4]" "/W4" CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
 
 # Remove warning: non DLL-interface classkey 'identifier' used as base for DLL-interface classkey 'identifier'
 add_definitions(/wd4275)
@@ -52,6 +57,12 @@ remove_flags(CMAKE_C_FLAGS_DEBUG /GZ)
 
 # GX is deprecated (replaced by EHsc)
 remove_flags(CMAKE_CXX_FLAGS /GX)
+
+# https://github.com/mozilla/sccache/issues/242
+if(CMAKE_CXX_COMPILER_LAUNCHER STREQUAL "sccache")
+    string(REGEX REPLACE "/Z[iI7]" "" CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG}")
+    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /Z7")
+endif()
 
 # Change flags for static link
 if(VORPALINE_BUILD_DYNAMIC)
@@ -93,14 +104,16 @@ add_flags(CMAKE_EXE_LINKER_FLAGS_DEBUG /OPT:NOREF,NOICF)
 
 # Reset the warning level for third parties
 function(vor_reset_warning_level)
-    remove_definitions(/W4)
-    add_definitions(/W3)
+    string(REGEX REPLACE "/W[0-4]" "/W3" CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
+    string(REGEX REPLACE "/W[0-4]" "/W3" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
     add_definitions(/wd4245)
     add_definitions(/wd4389)
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}" PARENT_SCOPE)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}" PARENT_SCOPE)    
 endfunction()
 
 # Create a statically linked executable
 macro(vor_add_executable)
     add_executable(${ARGN})
 endmacro()
- 
+

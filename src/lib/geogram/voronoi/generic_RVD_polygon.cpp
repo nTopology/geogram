@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2014, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -13,7 +13,7 @@
  *  * Neither the name of the ALICE Project-Team nor the names of its
  *  contributors may be used to endorse or promote products derived from this
  *  software without specific prior written permission.
- * 
+ *
  *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -26,19 +26,13 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine, 
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX 
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
@@ -58,7 +52,7 @@ namespace GEOGen {
             // Copy facet
             for(index_t c = mesh->facets.corners_begin(facet);
                 c < mesh->facets.corners_end(facet); c++
-            ) {
+               ) {
                 index_t v = mesh->facet_corners.vertex(c);
                 index_t adjacent_facet = mesh->facet_corners.adjacent_facet(c);
                 Vertex* vx = add_vertex(
@@ -124,7 +118,7 @@ namespace GEOGen {
             index_t i = 0;
             for(index_t c = mesh->facets.corners_begin(facet);
                 c < mesh->facets.corners_end(facet); ++c
-            ) {
+               ) {
                 adj[i] = signed_index_t(mesh->facet_corners.adjacent_facet(c));
                 ++i;
             }
@@ -142,7 +136,7 @@ namespace GEOGen {
             // we just gather the vertices, weights and adjacencies.
             for(index_t c = mesh->facets.corners_begin(facet);
                 c < mesh->facets.corners_end(facet); c++
-            ) {
+               ) {
                 index_t v = mesh->facet_corners.vertex(c);
                 index_t adjacent_facet = mesh->facet_corners.adjacent_facet(c);
                 add_vertex(
@@ -162,63 +156,62 @@ namespace GEOGen {
     ) {
 
         switch(q.sym().nb_boundary_facets()) {
-            case 0:
-                // All the points that we manipulate are supposed to
-                // belong to the restricted Voronoi diagram, therefore
-                // they belong to the surface, and are at least on one
-                // facet of the surface.
-                geo_assert_not_reached;
+        case 0:
+            // All the points that we manipulate are supposed to
+            // belong to the restricted Voronoi diagram, therefore
+            // they belong to the surface, and are at least on one
+            // facet of the surface.
+            geo_assert_not_reached;
 
-            case 1:
-            {
-                // The point q is the intersection between
-                //   a facet (f0,f1,f2) of the surface and two
-                //   bisectors [pi b0] and [pi b1].
-                unsigned int b0 = q.sym().bisector(0);
-                unsigned int b1 = q.sym().bisector(1);
-                unsigned int f = q.sym().boundary_facet(0);
+        case 1:
+        {
+            // The point q is the intersection between
+            //   a facet (f0,f1,f2) of the surface and two
+            //   bisectors [pi b0] and [pi b1].
+            index_t b0 = q.sym().bisector(0);
+            index_t b1 = q.sym().bisector(1);
+            index_t f = q.sym().boundary_facet(0);
 
-                index_t if0 = mesh->facets.vertex(f,0);
-                index_t if1 = mesh->facets.vertex(f,1);
-                index_t if2 = mesh->facets.vertex(f,2);                
-                const double* f0 = mesh->vertices.point_ptr(if0);
-                const double* f1 = mesh->vertices.point_ptr(if1);
-                const double* f2 = mesh->vertices.point_ptr(if2);
-                return GEO::PCK::side3_SOS(
-                    pi, delaunay->vertex_ptr(b0), delaunay->vertex_ptr(b1), pj,
-                    f0, f1, f2, dim
-                );
-            } 
+            index_t if0 = mesh->facets.vertex(f,0);
+            index_t if1 = mesh->facets.vertex(f,1);
+            index_t if2 = mesh->facets.vertex(f,2);
+            const double* f0 = mesh->vertices.point_ptr(if0);
+            const double* f1 = mesh->vertices.point_ptr(if1);
+            const double* f2 = mesh->vertices.point_ptr(if2);
+            return GEO::PCK::side3_SOS(
+                pi, delaunay->vertex_ptr(b0), delaunay->vertex_ptr(b1), pj,
+                f0, f1, f2, dim
+            );
+        }
 
-            case 2:
-            {
+        case 2:
+        {
 
-                // The point q is the intersection between
-                //   two facets of the surface (i.e. an edge [e0 e1])
-                //   and one bisector [pi b0].
-                // i.e. it's a vertex of the surface.
-                unsigned int b0 = q.sym().bisector(0);
-                index_t e0, e1;
-                q.sym().get_boundary_edge(e0, e1);
-                return GEO::PCK::side2_SOS(
-                    pi, delaunay->vertex_ptr(b0), pj,
-                    mesh->vertices.point_ptr(e0),
-                    mesh->vertices.point_ptr(e1), dim
-                );
-            } 
+            // The point q is the intersection between
+            //   two facets of the surface (i.e. an edge [e0 e1])
+            //   and one bisector [pi b0].
+            // i.e. it's a vertex of the surface.
+            index_t b0 = q.sym().bisector(0);
+            index_t e0, e1;
+            q.sym().get_boundary_edge(e0, e1);
+            return GEO::PCK::side2_SOS(
+                pi, delaunay->vertex_ptr(b0), pj,
+                mesh->vertices.point_ptr(e0),
+                mesh->vertices.point_ptr(e1), dim
+            );
+        }
 
-            case 3:
-            {
-                // The point q is the intersection between
-                //   three facets of the surface
-                //   (i.e. a vertex v0 of the surface).
-                unsigned int v0 = q.sym().get_boundary_vertex();
-                return GEO::PCK::side1_SOS(
-                    pi, pj, mesh->vertices.point_ptr(v0), dim
-                );
-            } 
+        case 3:
+        {
+            // The point q is the intersection between
+            //   three facets of the surface
+            //   (i.e. a vertex v0 of the surface).
+            index_t v0 = q.sym().get_boundary_vertex();
+            return GEO::PCK::side1_SOS(
+                pi, pj, mesh->vertices.point_ptr(v0), dim
+            );
+        }
         }
         geo_assert_not_reached;
     }
 }
-

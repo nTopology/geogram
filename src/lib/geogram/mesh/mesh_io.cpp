@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2014, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -13,7 +13,7 @@
  *  * Neither the name of the ALICE Project-Team nor the names of its
  *  contributors may be used to endorse or promote products derived from this
  *  software without specific prior written permission.
- * 
+ *
  *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -26,25 +26,20 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine, 
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX 
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
 
 #include <geogram/mesh/mesh_io.h>
 #include <geogram/mesh/mesh.h>
+#include <geogram/mesh/mesh_repair.h>
 #include <geogram/mesh/index.h>
 #include <geogram/points/colocate.h>
 #include <geogram/basic/line_stream.h>
@@ -59,7 +54,37 @@
 
 #include <fstream>
 
+#ifdef GEOGRAM_USE_BUILTIN_DEPS
+extern "C" {
+#include <geogram/third_party/libMeshb/sources/libmeshb7.h>
+}
 #include <geogram/third_party/rply/rply.h>
+#else
+extern "C" {
+#include <libmeshb7.h>
+}
+#include <rply.h>
+#endif
+
+#ifdef GEO_COMPILER_GCC
+#include <cxxabi.h>
+namespace {
+    std::string demangle(const std::string& mangled) {
+        int status;
+        char* realname =
+            abi::__cxa_demangle(mangled.c_str(), nullptr, nullptr, &status);
+        std::string result(realname);
+        free(realname);
+        return result;
+    }
+}
+#else
+namespace {
+    std::string demangle(const std::string& mangled) {
+        return mangled;
+    }
+}
+#endif
 
 // TODO: take into account selected mesh elements
 // in loaders and exporters.
@@ -108,20 +133,19 @@ namespace GEO {
         }
     }
 
-    
+
     inline void get_mesh_point(
         const Mesh& M, index_t v, double* coords, index_t dim
     ) {
-        geo_debug_assert(M.vertices.dimension() >= dim);
         if(M.vertices.single_precision()) {
             const float* p = M.vertices.single_precision_point_ptr(v);
             for(index_t c=0; c<dim; ++c) {
-                coords[c] = double(p[c]);
+                coords[c] = (c < M.vertices.dimension()) ? double(p[c]) : 0.0;
             }
         } else {
             const double* p = M.vertices.point_ptr(v);
             for(index_t c=0; c<dim; ++c) {
-                coords[c] = p[c];
+                coords[c] = (c < M.vertices.dimension()) ? p[c] : 0.0;
             }
         }
     }
@@ -136,7 +160,7 @@ namespace GEO {
     public:
         /**
          * \brief Creates a OBJ IO handler.
-         * \param[in] dimension dimension of the vertices 
+         * \param[in] dimension dimension of the vertices
          *  (3 for regular 3d mesh)
          */
         OBJIOHandler(coord_index_t dimension = 3) :
@@ -147,16 +171,16 @@ namespace GEO {
             const std::string& filename, Mesh& M,
             const MeshIOFlags& ioflags
         ) override {
-            bool ignore_tex_coords = false; 
-                //!ioflags.has_attribute(MESH_VERTEX_TEX_COORD);
-            
+            bool ignore_tex_coords = false;
+            //!ioflags.has_attribute(MESH_VERTEX_TEX_COORD);
+
             vector<vec2> tex_vertices;
             Attribute<double> tex_coord;
             vector<double> P(dimension_);
             if(M.vertices.dimension() != dimension_) {
                 M.vertices.set_dimension(dimension_);
             }
-            
+
             LineInput in(filename);
             if(!in.OK()) {
                 return false;
@@ -200,7 +224,7 @@ namespace GEO {
                                 );
                             }
                         }
-                        
+
                         if(!ignore_tex_coords) {
                             if(
                                 in.nb_fields() != 3 &&
@@ -217,7 +241,50 @@ namespace GEO {
                                 vec2(
                                     in.field_as_double(1),
                                     in.field_as_double(2))
+                            );
+                        }
+                    } else if(
+                        ioflags.has_element(MESH_EDGES) &&
+                        in.field_matches(0, "l")
+                    ) {
+                        if(in.nb_fields() < 2) {
+                            Logger::err("I/O")
+                                << "Line " << in.line_number()
+                                << ": polyline only has " << in.nb_fields()
+                                << " vertices (at least 2 required)"
+                                << std::endl;
+                            unbind_attributes();
+                            return false;
+                        }
+                        index_t prev = NO_INDEX;
+                        for(index_t i=1; i<in.nb_fields(); ++i) {
+                            signed_index_t s_vertex_index =
+                                in.field_as_int(i);
+                            index_t vertex_index = 0;
+                            if(s_vertex_index < 0) {
+                                vertex_index = index_t(
+                                    1+int(M.vertices.nb()) + s_vertex_index
                                 );
+                            } else {
+                                vertex_index = index_t(s_vertex_index);
+                            }
+                            if(
+                                (vertex_index < 1) ||
+                                (vertex_index > M.vertices.nb())
+                            ) {
+                                Logger::err("I/O")
+                                    << "Line " << in.line_number()
+                                    << ": line vertex #" << i
+                                    << " references an invalid vertex: "
+                                    << vertex_index
+                                    << std::endl;
+                                unbind_attributes();
+                                return false;
+                            }
+                            if(prev != NO_INDEX) {
+                                M.edges.create_edge(prev-1,vertex_index-1);
+                            }
+                            prev = vertex_index;
                         }
                     } else if(
                         ioflags.has_element(MESH_FACETS) &&
@@ -235,7 +302,7 @@ namespace GEO {
 
                         facet_vertices.resize(0);
                         facet_tex_vertices.resize(0);
-                        
+
                         for(index_t i = 1; i < in.nb_fields(); i++) {
                             char* tex_vertex_str = nullptr;
                             for(char* ptr = in.field(i); *ptr != '\0'; ptr++) {
@@ -248,11 +315,12 @@ namespace GEO {
                                     break;
                                 }
                             }
-                            
-                            // In .obj files, 
+
+                            // In .obj files,
                             // negative vertex index means
                             // nb_vertices - vertex index
-                            int s_vertex_index = in.field_as_int(i);
+                            GEO::signed_index_t
+                                s_vertex_index = in.field_as_int(i);
                             index_t vertex_index = 0;
                             if(s_vertex_index < 0) {
                                 vertex_index = index_t(
@@ -278,8 +346,8 @@ namespace GEO {
 
                             if(tex_vertex_str != nullptr &&
                                tex_vertex_str[0] != '\0' &&
-                               tex_vertex_str[0] != '/' 
-                            ) {
+                               tex_vertex_str[0] != '/'
+                              ) {
                                 int s_tex_vertex_index = atoi(tex_vertex_str);
                                 index_t tex_vertex_index = 0;
                                 if(s_tex_vertex_index < 0) {
@@ -312,19 +380,19 @@ namespace GEO {
                                 }
                             }
                         }
-                            
+
                         if(
                             facet_tex_vertices.size() != 0 &&
                             facet_tex_vertices.size() != facet_vertices.size()
                         ) {
                             Logger::err("I/O")
-                            << "Line " << in.line_number()
-                            << ": some facet vertices do not have tex vertices"
-                            << std::endl;
+                                << "Line " << in.line_number() << ": "
+                                << "some facet vertices do not have tex vertices"
+                                << std::endl;
                             unbind_attributes();
                             return false;
                         }
-                        
+
                         index_t f = M.facets.create_polygon(
                             facet_vertices.size()
                         );
@@ -388,10 +456,6 @@ namespace GEO {
                 }
             }
             unbind_attributes();
-            if(ioflags.has_element(MESH_FACETS) && M.facets.nb() == 0) {
-                Logger::err("I/O") << "Mesh contains no facet" << std::endl;
-                return false;
-            }
             return true;
         }
 
@@ -399,21 +463,57 @@ namespace GEO {
             const Mesh& M, const std::string& filename,
             const MeshIOFlags& ioflags
         ) override {
+
+            std::string mtl_filename;
+            std::string mtl_filename_fullpath;
+
+            if(ioflags.get_texture_filename().length() != 0) {
+                mtl_filename =
+                    FileSystem::base_name(filename) + ".mtl";
+                mtl_filename_fullpath =
+                    FileSystem::dir_name(filename) + "/" +
+                    mtl_filename;
+                std::ofstream mtl_out(mtl_filename_fullpath.c_str());
+                if(!mtl_out) {
+                    Logger::err("I/O") << "Could not create mtl file "
+                                       << mtl_filename_fullpath
+                                       << std::endl;
+                } else {
+                    Logger::out("I/O") << "Saving file "
+                                       << mtl_filename_fullpath
+                                       << std::endl;
+                    mtl_out << "newmtl Material_0" << std::endl;
+                    mtl_out << "map_Kd "
+                            << FileSystem::base_name(
+                                ioflags.get_texture_filename()
+                            )
+                            << "."
+                            << FileSystem::extension(
+                                ioflags.get_texture_filename()
+                            )
+                            << std::endl;
+                }
+            }
+
             geo_assert(M.vertices.dimension() >= dimension_);
             std::ofstream out(filename.c_str());
             if(!out) {
                 Logger::err("I/O")
-                    << "Could not create file \'" 
+                    << "Could not create file \'"
                     << filename << "\'" << std::endl;
                 return false;
             }
 
             bind_attributes(M, ioflags, false);
-            
+
             std::vector<std::string> args;
             CmdLine::get_args(args);
             for(index_t i = 0; i < args.size(); ++i) {
                 out << "# vorpaline " << args[i] << std::endl;
+            }
+
+            if(mtl_filename.length() != 0) {
+                out << "mtllib " << mtl_filename << std::endl;
             }
 
             vector<double> P(dimension_);
@@ -436,9 +536,9 @@ namespace GEO {
                 index_t nb_vt = Geom::colocate_by_lexico_sort(
                     &tex_coord_[0], 2, M.facet_corners.nb(), vt_old2new, 2
                 );
-                vt_index.assign(M.facet_corners.nb(), index_t(-1));
+                vt_index.assign(M.facet_corners.nb(), NO_INDEX);
                 index_t cur_vt=0;
-                for(index_t c=0; c<M.facet_corners.nb(); ++c) {
+                for(index_t c: M.facet_corners) {
                     if(vt_old2new[c] == c) {
                         out << "vt " << tex_coord_[2*c] << " "
                             << tex_coord_[2*c+1] << std::endl;
@@ -448,18 +548,19 @@ namespace GEO {
                 }
                 geo_assert(cur_vt == nb_vt);
             } else if(vertex_tex_coord_.is_bound()) {
-                for(index_t v=0; v<M.vertices.nb(); ++v) {
+                for(index_t v: M.vertices) {
                     out << "vt " << vertex_tex_coord_[2*v] << " "
                         << vertex_tex_coord_[2*v+1] << std::endl;
                 }
             }
-            
+
+            out << "usemtl Material_0" << std::endl;
             if(ioflags.has_element(MESH_FACETS)) {
-                for(index_t f = 0; f < M.facets.nb(); ++f) {
+                for(index_t f: M.facets) {
                     out << "f ";
                     for(index_t c = M.facets.corners_begin(f);
                         c < M.facets.corners_end(f); ++c
-                    ) {
+                       ) {
                         out << M.facet_corners.vertex(c) + 1;
                         if(tex_coord_.is_bound()) {
                             out << "/" << vt_index[ vt_old2new[c] ] + 1;
@@ -470,11 +571,9 @@ namespace GEO {
                     }
                     out << std::endl;
                 }
-                if(
-                    facet_region_.is_bound()
-                ) {
+                if(facet_region_.is_bound()) {
                     out << "# attribute chart facet integer" << std::endl;
-                    for(index_t f = 0; f < M.facets.nb(); ++f) {
+                    for(index_t f: M.facets) {
                         out << "# attrs f "
                             << f + 1 << " "
                             << facet_region_[f] << std::endl;
@@ -482,8 +581,16 @@ namespace GEO {
                 }
             }
 
+            if(ioflags.has_element(MESH_EDGES)) {
+                for(index_t e: M.edges) {
+                    out << "l "
+                        << M.edges.vertex(e,0)+1 << " "
+                        << M.edges.vertex(e,1)+1 << std::endl;
+                }
+            }
+
             unbind_attributes();
-            
+
             return true;
         }
 
@@ -495,7 +602,7 @@ namespace GEO {
             const Mesh& M, const MeshIOFlags& flags, bool create
         ) override {
             MeshIOHandler::bind_attributes(M, flags, create);
-            
+
             tex_coord_.bind_if_is_defined(
                 M.facet_corners.attributes(), "tex_coord"
             );
@@ -512,7 +619,7 @@ namespace GEO {
             ) {
                 vertex_tex_coord_.unbind();
             }
-            
+
         }
 
         void unbind_attributes() override {
@@ -524,14 +631,14 @@ namespace GEO {
             }
             MeshIOHandler::unbind_attributes();
         }
-        
+
     private:
         coord_index_t dimension_;
         Attribute<double> tex_coord_;
         Attribute<double> vertex_tex_coord_;
     };
-    
-    
+
+
     /************************************************************************/
 
     /**
@@ -544,7 +651,719 @@ namespace GEO {
             OBJIOHandler(6) {
         }
     };
-    
+
+    /************************************************************************/
+
+
+    /**
+     * \brief IO handler for LM5/LM6/Gamma mesh file format
+     * \see http://www-roc.inria.fr/gamma/gamma/Membres/CIPD/Loic.Marechal/Research/LM5.html
+     */
+    class GEOGRAM_API LMIOHandler : public MeshIOHandler {
+    public:
+
+        LMIOHandler() {
+
+            geo_cite("WEB:libMeshb");
+
+            keyword2name_[GmfTriangles] = "triangle";
+            keyword2name_[GmfQuadrilaterals] = "quad";
+            keyword2name_[GmfTetrahedra] = "tet";
+            keyword2name_[GmfHexahedra] = "hex";
+            keyword2name_[GmfPrisms] = "prism";
+            keyword2name_[GmfPyramids] = "pyramid";
+            keyword2name_[GmfEdges] = "edge";
+            keyword2nbv_[GmfTriangles] = 3;
+            keyword2nbv_[GmfQuadrilaterals] = 4;
+            keyword2nbv_[GmfTetrahedra] = 4;
+            keyword2nbv_[GmfHexahedra] = 8;
+            keyword2nbv_[GmfPrisms] = 6;
+            keyword2nbv_[GmfPyramids] = 5;
+            keyword2nbv_[GmfEdges] = 2;
+        }
+
+        bool load(
+            const std::string& filename, Mesh& M,
+            const MeshIOFlags& ioflags
+        ) override {
+
+            int ver, dim;
+            int64_t mesh_file_handle = GmfOpenMesh(
+                const_cast<char*>(filename.c_str()), GmfRead, &ver, &dim
+            );
+            if(!mesh_file_handle) {
+                Logger::err("I/O") << "Could not open file: "
+                                   << filename << std::endl;
+                return false;
+            }
+
+            //         indices  coords
+            // ver=1   int32    float32
+            // ver=2   int32    float64
+            // ver=3   int32    float64
+            // ver=4   int64    float64
+            // TODO: handle ver=4 in GARGANTUA mode
+            if(ver != 1 && ver != 2 && ver != 3) {
+                Logger::err("I/O") << "Invalid version: " << ver << std::endl;
+                GmfCloseMesh(mesh_file_handle);
+                return false;
+            }
+
+            bool use_doubles = (ver != 1);
+
+            if(dim != 3 && dim != 2) {
+                Logger::err("I/O") << "Invalid dimension: " << dim << std::endl;
+                GmfCloseMesh(mesh_file_handle);
+                return false;
+            }
+
+            bind_attributes(M, ioflags, true);
+
+            index_t nb_vertices =
+                index_t(GmfStatKwd(mesh_file_handle, GmfVertices));
+
+            index_t nb_edges =
+                index_t(GmfStatKwd(mesh_file_handle, GmfEdges));
+
+            index_t nb_tris =
+                index_t(GmfStatKwd(mesh_file_handle, GmfTriangles));
+            index_t nb_quads =
+                index_t(GmfStatKwd(mesh_file_handle, GmfQuadrilaterals));
+
+            index_t nb_tets =
+                index_t(GmfStatKwd(mesh_file_handle, GmfTetrahedra));
+            index_t nb_hexes =
+                index_t(GmfStatKwd(mesh_file_handle, GmfHexahedra));
+            index_t nb_prisms =
+                index_t(GmfStatKwd(mesh_file_handle, GmfPrisms));
+            index_t nb_pyramids =
+                index_t(GmfStatKwd(mesh_file_handle, GmfPyramids));
+
+            // Read vertices
+            if(!goto_elements(mesh_file_handle, GmfVertices)) {
+                return false;
+            }
+            M.vertices.create_vertices(nb_vertices);
+            if(use_doubles) {
+                for(index_t v = 0; v < index_t(nb_vertices); ++v) {
+                    double xyz[3];
+                    int ref = 0;
+                    xyz[2] = 0.0;
+                    if(dim == 2 && !GmfGetLin(
+                           mesh_file_handle, GmfVertices,
+                           &xyz[0], &xyz[1], &ref
+                       )) {
+                        Logger::err("I/O") << "Failed to read vertex #" << v
+                                           << std::endl;
+                        GmfCloseMesh(mesh_file_handle);
+                        unbind_attributes();
+                        return false;
+                    }
+                    if(dim == 3 && !GmfGetLin(
+                           mesh_file_handle, GmfVertices,
+                           &xyz[0], &xyz[1], &xyz[2], &ref
+                       )) {
+                        Logger::err("I/O") << "Failed to read vertex #" << v
+                                           << std::endl;
+                        GmfCloseMesh(mesh_file_handle);
+                        unbind_attributes();
+                        return false;
+                    }
+                    set_mesh_point(M,v,xyz,3);
+                    if(vertex_region_.is_bound()) {
+                        vertex_region_[v] = index_t(ref);
+                    }
+                }
+            } else {
+                for(index_t v = 0; v < index_t(nb_vertices); ++v) {
+                    float x=0.0f,y=0.0f,z=0.0f;
+                    double xyz[3];
+                    int ref = 0;
+                    if(dim == 2 && !GmfGetLin(
+                           mesh_file_handle, GmfVertices, &x, &y, &ref)
+                      ) {
+                        Logger::err("I/O") << "Failed to read vertex #" << v
+                                           << std::endl;
+                        GmfCloseMesh(mesh_file_handle);
+                        return false;
+                    }
+                    if(dim == 3 && !GmfGetLin(
+                           mesh_file_handle, GmfVertices, &x, &y, &z, &ref)
+                      ) {
+                        Logger::err("I/O") << "Failed to read vertex #" << v
+                                           << std::endl;
+                        GmfCloseMesh(mesh_file_handle);
+                        return false;
+                    }
+                    xyz[0] = double(x);
+                    xyz[1] = double(y);
+                    xyz[2] = double(z);
+                    set_mesh_point(M,v,xyz,3);
+                    if(vertex_region_.is_bound()) {
+                        vertex_region_[v] = index_t(ref);
+                    }
+                }
+            }
+
+            if(ioflags.has_element(MESH_EDGES)) {
+                if(nb_edges > 0) {
+                    if(!goto_elements(mesh_file_handle, GmfEdges)) {
+                        return false;
+                    }
+                    index_t first_edge = M.edges.create_edges(nb_edges);
+                    int v[8];
+                    int ref;
+                    for(index_t e=0; e<nb_edges; ++e) {
+                        if(!read_element(
+                               mesh_file_handle, GmfEdges, v, ref, M, e
+                           )) {
+                            return false;
+                        }
+                        for(index_t lv=0; lv<2; ++lv) {
+                            M.edges.set_vertex(
+                                first_edge+e, lv, index_t(v[lv]-1)
+                            );
+                        }
+                        if(edge_region_.is_bound()) {
+                            edge_region_[first_edge+e] = index_t(ref);
+                        }
+                    }
+                }
+            }
+
+            if(ioflags.has_element(MESH_FACETS)) {
+                // Read triangles
+                if(nb_tris > 0) {
+                    if(!goto_elements(mesh_file_handle, GmfTriangles)) {
+                        return false;
+                    }
+                    index_t first_tri = M.facets.create_triangles(nb_tris);
+                    int v[8];
+                    int ref;
+                    for(index_t t=0; t<nb_tris; ++t) {
+                        if(!read_element(
+                               mesh_file_handle, GmfTriangles, v, ref, M, t
+                           )) {
+                            return false;
+                        }
+                        for(index_t lv=0; lv<3; ++lv) {
+                            M.facets.set_vertex(
+                                first_tri+t, lv, index_t(v[lv]-1)
+                            );
+                        }
+                        if(facet_region_.is_bound()) {
+                            facet_region_[first_tri+t] = index_t(ref);
+                        }
+                    }
+                }
+
+                // Read quads
+                if(nb_quads > 0) {
+                    if(!goto_elements(mesh_file_handle, GmfQuadrilaterals)) {
+                        return false;
+                    }
+                    index_t first_quad = M.facets.create_quads(nb_quads);
+                    int v[8];
+                    int ref;
+                    for(index_t q=0; q<nb_quads; ++q) {
+                        if(!read_element(
+                               mesh_file_handle, GmfQuadrilaterals,
+                               v, ref, M, q
+                           )) {
+                            return false;
+                        }
+                        for(index_t lv=0; lv<4; ++lv) {
+                            M.facets.set_vertex(
+                                first_quad+q, lv, index_t(v[lv]-1)
+                            );
+                        }
+                        if(facet_region_.is_bound()) {
+                            facet_region_[first_quad+q] = index_t(ref);
+                        }
+                    }
+                }
+            }
+
+            if(ioflags.has_element(MESH_CELLS)) {
+
+                // Read tets
+                if(nb_tets > 0) {
+                    if(!goto_elements(mesh_file_handle, GmfTetrahedra)) {
+                        return false;
+                    }
+                    index_t first_tet = M.cells.create_tets(nb_tets);
+                    int v[8];
+                    int ref;
+                    for(index_t t=0; t<nb_tets; ++t) {
+                        if(!read_element(
+                               mesh_file_handle, GmfTetrahedra, v, ref, M, t
+                           )) {
+                            return false;
+                        }
+                        for(index_t lv=0; lv<4; ++lv) {
+                            M.cells.set_vertex(
+                                first_tet+t, lv, index_t(v[lv]-1)
+                            );
+                        }
+                        if(cell_region_.is_bound()) {
+                            cell_region_[first_tet+t] = index_t(ref);
+                        }
+                    }
+                }
+
+                // Read hexes
+                if(nb_hexes > 0) {
+                    if(!goto_elements(mesh_file_handle, GmfHexahedra)) {
+                        return false;
+                    }
+                    index_t first_hex = M.cells.create_hexes(nb_hexes);
+
+                    int v[8];
+                    int ref;
+                    for(index_t h=0; h<nb_hexes; ++h) {
+                        if(!read_element(
+                               mesh_file_handle, GmfHexahedra, v, ref, M, h
+                           )) {
+                            return false;
+                        }
+
+                        // Swapping vertices 1<->0 and 4<->5 to
+                        // account for differences in the indexing
+                        // convetions in .mesh/.meshb files w.r.t.
+                        // geogram internal conventions.
+                        std::swap(v[0], v[1]);
+                        std::swap(v[4], v[5]);
+
+                        for(index_t lv=0; lv<8; ++lv) {
+                            M.cells.set_vertex(
+                                first_hex+h, lv, index_t(v[lv]-1)
+                            );
+                        }
+                        if(cell_region_.is_bound()) {
+                            cell_region_[first_hex+h] = index_t(ref);
+                        }
+                    }
+                }
+
+                // Read prisms
+                if(nb_prisms > 0) {
+                    if(!goto_elements(mesh_file_handle, GmfPrisms)) {
+                        return false;
+                    }
+                    index_t first_prism = M.cells.create_prisms(nb_prisms);
+                    int v[8];
+                    int ref;
+                    for(index_t p=0; p<nb_prisms; ++p) {
+                        if(!read_element(
+                               mesh_file_handle, GmfPrisms, v, ref, M, p
+                           )) {
+                            return false;
+                        }
+                        for(index_t lv=0; lv<6; ++lv) {
+                            M.cells.set_vertex(
+                                first_prism+p, lv, index_t(v[lv]-1)
+                            );
+                        }
+                        if(cell_region_.is_bound()) {
+                            cell_region_[first_prism+p] = index_t(ref);
+                        }
+                    }
+                }
+
+                // Read pyramids
+                if(nb_pyramids > 0) {
+                    if(!goto_elements(mesh_file_handle, GmfPyramids)) {
+                        return false;
+                    }
+                    index_t first_pyramid =
+                        M.cells.create_pyramids(nb_pyramids);
+                    int v[8];
+                    int ref;
+                    for(index_t p=0; p<nb_pyramids; ++p) {
+                        if(!read_element(
+                               mesh_file_handle, GmfPyramids, v, ref, M, p
+                           )) {
+                            return false;
+                        }
+                        for(index_t lv=0; lv<5; ++lv) {
+                            M.cells.set_vertex(
+                                first_pyramid+p, lv, index_t(v[lv]-1)
+                            );
+                        }
+                        if(cell_region_.is_bound()) {
+                            cell_region_[first_pyramid+p] = index_t(ref);
+                        }
+                    }
+                }
+            }
+
+            GmfCloseMesh(mesh_file_handle);
+            unbind_attributes();
+            return true;
+        }
+
+        bool save(
+            const Mesh& M, const std::string& filename,
+            const MeshIOFlags& ioflags
+        ) override {
+            bool use_doubles = CmdLine::get_arg_bool("sys:use_doubles");
+
+            //         indices  coords
+            // ver=1   int32    float32
+            // ver=2   int32    float64
+            // ver=3   int32    float64
+            // ver=4   int64    float64
+            // TODO: handle ver=4 in GARGANTUA mode
+            int ver = use_doubles ? 2 : 1;
+
+            int64_t mesh_file_handle = GmfOpenMesh(
+                const_cast<char*>(filename.c_str()), GmfWrite,
+                ver, 3
+            );
+
+            if(mesh_file_handle == 0) {
+                Logger::err("I/O")
+                    << "Could not create file \'" << filename << "\'"
+                    << std::endl;
+                return false;
+            }
+            bind_attributes(M, ioflags, false);
+
+            // Save vertices
+            GmfSetKwd(mesh_file_handle, GmfVertices, int64_t(M.vertices.nb()));
+            for(index_t v = 0; v < M.vertices.nb(); ++v) {
+                double xyz[3];
+                index_t ref =
+                    vertex_region_.is_bound() ? vertex_region_[v] : 0;
+                get_mesh_point(M, v, xyz, 3);
+                GmfSetLin(
+                    mesh_file_handle, GmfVertices, xyz[0], xyz[1], xyz[2], ref
+                );
+            }
+
+            if(ioflags.has_element(MESH_FACETS)) {
+
+                index_t nb_tris = 0;
+                index_t nb_quads = 0;
+                index_t nb_other = 0;
+
+                for(index_t f = 0; f < M.facets.nb(); ++f) {
+                    switch(M.facets.nb_vertices(f)) {
+                    case 3:
+                        nb_tris++;
+                        break;
+                    case 4:
+                        nb_quads++;
+                        break;
+                    default:
+                        nb_other++;
+                        break;
+                    }
+                }
+
+                if(nb_tris > 0) {
+                    GmfSetKwd(mesh_file_handle, GmfTriangles, int64_t(nb_tris));
+                    for(index_t f = 0; f < M.facets.nb(); ++f) {
+                        if(M.facets.nb_vertices(f) == 3) {
+                            index_t ref =
+                                facet_region_.is_bound() ?
+                                facet_region_[f] : 0 ;
+                            GmfSetLin(
+                                mesh_file_handle, GmfTriangles,
+                                int(M.facets.vertex(f,0)+1),
+                                int(M.facets.vertex(f,1)+1),
+                                int(M.facets.vertex(f,2)+1),
+                                int(ref)
+                            );
+                        }
+                    }
+                }
+
+                if(nb_quads > 0) {
+                    GmfSetKwd(
+                        mesh_file_handle, GmfQuadrilaterals, int64_t(nb_quads)
+                    );
+                    for(index_t f = 0; f < M.facets.nb(); ++f) {
+                        if(M.facets.nb_vertices(f) == 4) {
+                            index_t ref =
+                                facet_region_.is_bound() ?
+                                facet_region_[f] : 0 ;
+                            GmfSetLin(
+                                mesh_file_handle, GmfQuadrilaterals,
+                                int(M.facets.vertex(f,0)+1),
+                                int(M.facets.vertex(f,1)+1),
+                                int(M.facets.vertex(f,2)+1),
+                                int(M.facets.vertex(f,3)+1),
+                                int(ref)
+                            );
+                        }
+                    }
+                }
+
+                if(nb_other > 0) {
+                    Logger::warn("I/O")
+                        << "Encountered " << nb_other
+                        << " non-tri / non-quad facets"
+                        << " (not saved)"
+                        << std::endl;
+                    Logger::warn("I/O")
+                        << "Use another file format (e.g., .obj or .geogram)"
+                        << std::endl;
+
+                }
+            }
+
+            if(ioflags.has_element(MESH_EDGES)) {
+                GmfSetKwd(mesh_file_handle, GmfEdges, int64_t(M.edges.nb()));
+                for(index_t e=0; e<M.edges.nb(); ++e) {
+                    index_t ref = 0;
+                    GmfSetLin(
+                        mesh_file_handle, GmfEdges,
+                        int(M.edges.vertex(e,0) + 1),
+                        int(M.edges.vertex(e,1) + 1),
+                        ref
+                    );
+                }
+            }
+
+            if(ioflags.has_element(MESH_CELLS)) {
+                index_t nb_tets=0;
+                index_t nb_hexes=0;
+                index_t nb_prisms=0;
+                index_t nb_pyramids=0;
+                for(index_t c=0; c<M.cells.nb(); ++c) {
+                    switch(M.cells.type(c)) {
+                    case MESH_TET:
+                        ++nb_tets;
+                        break;
+                    case MESH_HEX:
+                        ++nb_hexes;
+                        break;
+                    case MESH_PRISM:
+                        ++nb_prisms;
+                        break;
+                    case MESH_PYRAMID:
+                        ++nb_pyramids;
+                        break;
+                    case MESH_CONNECTOR:
+                    case MESH_NB_CELL_TYPES:
+                        break;
+                    }
+                }
+
+                if(nb_tets > 0) {
+                    GmfSetKwd(
+                        mesh_file_handle, GmfTetrahedra, int64_t(nb_tets)
+                    );
+                    for(index_t c=0; c<M.cells.nb(); ++c) {
+                        if(M.cells.type(c) == MESH_TET) {
+                            index_t ref =
+                                cell_region_.is_bound() ? cell_region_[c] : 0;
+                            GmfSetLin(
+                                mesh_file_handle, GmfTetrahedra,
+                                int(M.cells.vertex(c,0) + 1),
+                                int(M.cells.vertex(c,1) + 1),
+                                int(M.cells.vertex(c,2) + 1),
+                                int(M.cells.vertex(c,3) + 1),
+                                ref
+                            );
+                        }
+                    }
+                }
+
+                if(nb_hexes > 0) {
+                    GmfSetKwd(
+                        mesh_file_handle, GmfHexahedra, int64_t(nb_hexes)
+                    );
+                    for(index_t c=0; c<M.cells.nb(); ++c) {
+                        if(M.cells.type(c) == MESH_HEX) {
+                            index_t ref =
+                                cell_region_.is_bound() ? cell_region_[c] : 0;
+
+                            // Swapping vertices 1<->0 and 4<->5 to
+                            // account for differences in the indexing
+                            // convetions in .mesh/.meshb files w.r.t.
+                            // geogram internal conventions.
+
+                            GmfSetLin(
+                                mesh_file_handle, GmfHexahedra,
+                                int(M.cells.vertex(c,1) + 1),
+                                int(M.cells.vertex(c,0) + 1),
+                                int(M.cells.vertex(c,2) + 1),
+                                int(M.cells.vertex(c,3) + 1),
+                                int(M.cells.vertex(c,5) + 1),
+                                int(M.cells.vertex(c,4) + 1),
+                                int(M.cells.vertex(c,6) + 1),
+                                int(M.cells.vertex(c,7) + 1),
+                                ref
+                            );
+                        }
+                    }
+                }
+
+                if(nb_prisms > 0) {
+                    GmfSetKwd(mesh_file_handle, GmfPrisms, int64_t(nb_prisms));
+                    for(index_t c=0; c<M.cells.nb(); ++c) {
+                        if(M.cells.type(c) == MESH_PRISM) {
+                            index_t ref =
+                                cell_region_.is_bound() ? cell_region_[c] : 0;
+                            GmfSetLin(
+                                mesh_file_handle, GmfPrisms,
+                                int(M.cells.vertex(c,0) + 1),
+                                int(M.cells.vertex(c,1) + 1),
+                                int(M.cells.vertex(c,2) + 1),
+                                int(M.cells.vertex(c,3) + 1),
+                                int(M.cells.vertex(c,4) + 1),
+                                int(M.cells.vertex(c,5) + 1),
+                                ref
+                            );
+                        }
+                    }
+                }
+
+                if(nb_pyramids > 0) {
+                    GmfSetKwd(
+                        mesh_file_handle, GmfPyramids, int64_t(nb_pyramids)
+                    );
+                    for(index_t c=0; c<M.cells.nb(); ++c) {
+                        if(M.cells.type(c) == MESH_PYRAMID) {
+                            index_t ref =
+                                cell_region_.is_bound() ? cell_region_[c] : 0;
+                            GmfSetLin(
+                                mesh_file_handle, GmfPyramids,
+                                int(M.cells.vertex(c,0) + 1),
+                                int(M.cells.vertex(c,1) + 1),
+                                int(M.cells.vertex(c,2) + 1),
+                                int(M.cells.vertex(c,3) + 1),
+                                int(M.cells.vertex(c,4) + 1),
+                                ref
+                            );
+                        }
+                    }
+                }
+
+            }
+
+            unbind_attributes();
+            GmfCloseMesh(mesh_file_handle);
+
+            // If file is in ASCII, append parameters as comments
+            // at the end of the file.
+            if(FileSystem::extension(filename) == "mesh") {
+                FILE* f = fopen(filename.c_str(), "a");
+                std::vector<std::string> args;
+                CmdLine::get_args(args);
+                for(index_t i = 0; i < args.size(); i++) {
+                    fprintf(f, "# vorpaline %s\n", args[i].c_str());
+                }
+                fclose(f);
+            }
+
+            return true;
+        }
+
+    protected:
+        bool goto_elements(int64_t mesh_file_handle, int keyword) {
+            if(!GmfGotoKwd(mesh_file_handle, keyword)) {
+                Logger::err("I/O") << "Failed to access "
+                                   << keyword2name_[keyword]
+                                   << " section"
+                                   << std::endl;
+                GmfCloseMesh(mesh_file_handle);
+                unbind_attributes();
+                return false;
+            }
+            return true;
+        }
+
+        bool read_element(
+            int64_t mesh_file_handle,
+            int keyword, int *v, int& ref,
+            Mesh& M, index_t element_id
+        ) {
+            index_t nbv = keyword2nbv_[keyword];
+            int res = 0;
+            switch(nbv) {
+            case 2:
+                res = GmfGetLin(
+                    mesh_file_handle, keyword,
+                    &v[0], &v[1], &ref
+                );
+                break;
+            case 3:
+                res = GmfGetLin(
+                    mesh_file_handle, keyword,
+                    &v[0], &v[1], &v[2], &ref
+                );
+                break;
+            case 4:
+                res = GmfGetLin(
+                    mesh_file_handle, keyword,
+                    &v[0], &v[1], &v[2], &v[3], &ref
+                );
+                break;
+            case 5:
+                res = GmfGetLin(
+                    mesh_file_handle, keyword,
+                    &v[0], &v[1], &v[2], &v[3], &v[4],
+                    &ref
+                );
+                break;
+            case 6:
+                res = GmfGetLin(
+                    mesh_file_handle, keyword,
+                    &v[0], &v[1], &v[2],
+                    &v[3], &v[4], &v[5],
+                    &ref
+                );
+                break;
+            case 8:
+                res = GmfGetLin(
+                    mesh_file_handle, keyword,
+                    &v[0], &v[1], &v[2], &v[3],
+                    &v[4], &v[5], &v[6], &v[7],
+                    &ref
+                );
+                break;
+            default:
+                geo_assert_not_reached;
+            }
+
+            if(!res) {
+                Logger::err("I/O")
+                    << "Failed to read "
+                    << keyword2name_[keyword]
+                    << " #" << element_id
+                    << std::endl;
+                GmfCloseMesh(mesh_file_handle);
+                unbind_attributes();
+                return false;
+            }
+
+            for(index_t lv=0; lv < nbv; ++lv) {
+                if(
+                    v[lv] < 1 ||
+                    index_t(v[lv]) > M.vertices.nb()
+                ) {
+                    Logger::err("I/O")
+                        << "Error: " << keyword2name_[keyword]
+                        <<" # " << element_id
+                        << " references an invalid vertex: " << v[lv]
+                        << std::endl;
+                    GmfCloseMesh(mesh_file_handle);
+                    unbind_attributes();
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+    protected:
+        std::string keyword2name_[GmfLastKeyword+1];
+        index_t keyword2nbv_[GmfLastKeyword+1];
+    };
+
     /************************************************************************/
 
     /**
@@ -561,7 +1380,7 @@ namespace GEO {
         PLYIOHandler() {
             geo_cite("WEB:rply");
         }
-        
+
         /**
          * \brief Helper class to read files in PLY format
          */
@@ -657,7 +1476,7 @@ namespace GEO {
                     );
                 }
                 if(nvertices == 0) {
-                    Logger::err("I/O") 
+                    Logger::err("I/O")
                         << "File contains no vertices" << std::endl;
                     ply_close(ply);
                     return false;
@@ -668,7 +1487,7 @@ namespace GEO {
                 geo_argused(nfaces);
                 geo_argused(ntstrips);
                 // TODO: here we could create / reserve facets
-                
+
                 if(!ply_read(ply)) {
                     Logger::err("I/O")
                         << "Problem occurred while parsing PLY file"
@@ -778,13 +1597,13 @@ namespace GEO {
                 if(!has_colors_) {
                     return;
                 }
-                
+
                 vertex_color_.bind_if_is_defined(
                     mesh_.vertices.attributes(), "color"
                 );
                 if(vertex_color_.is_bound() &&
                    vertex_color_.dimension() != 3
-                ) {
+                  ) {
                     Logger::warn("PLY")
                         << "Mesh already has a color attribute "
                         << "that is not of dimension 3"
@@ -802,7 +1621,7 @@ namespace GEO {
             }
 
             /**
-             * \brief Gets the PlyLoader associated with 
+             * \brief Gets the PlyLoader associated with
              *  an opaque p_ply_argument.
              * \details Used to pass a Plyloader through libply callbacks
              * \param[in] argument the opaque p_ply_argument
@@ -818,11 +1637,11 @@ namespace GEO {
             }
 
             /**
-             * \brief The vertex callback, called for each vertex 
+             * \brief The vertex callback, called for each vertex
              *  of the input file.
-             * \param[in] argument the generic opaque argument 
+             * \param[in] argument the generic opaque argument
              *  (from which this PlyLoader is retrieved).
-             * \return callback status code, zero for errors, 
+             * \return callback status code, zero for errors,
              *  non-zero for success.
              */
             static int vertex_cb(p_ply_argument argument) {
@@ -830,11 +1649,11 @@ namespace GEO {
             }
 
             /**
-             * \brief The facet callback, called for each facet 
+             * \brief The facet callback, called for each facet
              *  of the input file.
-             * \param[in] argument the generic opaque argument 
+             * \param[in] argument the generic opaque argument
              *  (from which this PlyLoader is retrieved).
-             * \return callback status code, zero for errors, 
+             * \return callback status code, zero for errors,
              *  non-zero for success.
              */
             static int face_cb(p_ply_argument argument) {
@@ -842,11 +1661,11 @@ namespace GEO {
             }
 
             /**
-             * \brief The triangle strip callback, 
+             * \brief The triangle strip callback,
              *  called for each triangle strip of the input file.
-             * \param[in] argument the generic opaque argument 
+             * \param[in] argument the generic opaque argument
              *  (from which this PlyLoader is retrieved).
-             * \return callback status code, zero for errors, 
+             * \return callback status code, zero for errors,
              *  non-zero for success.
              */
             static int tristrip_cb(p_ply_argument argument) {
@@ -854,11 +1673,11 @@ namespace GEO {
             }
 
             /**
-             * \brief The color callback, called for 
+             * \brief The color callback, called for
              *  each color data of the input file.
-             * \param[in] argument the generic opaque argument 
+             * \param[in] argument the generic opaque argument
              *  (from which this PlyLoader is retrieved).
-             * \return callback status code, zero for errors, 
+             * \return callback status code, zero for errors,
              *  non-zero for success.
              */
             static int color_cb(p_ply_argument argument) {
@@ -868,7 +1687,7 @@ namespace GEO {
             /**
              * \brief Decodes vertex data from a generic callback argument.
              * \param[in] argument the generic callback argument.
-             * \return callback status code, 
+             * \return callback status code,
              *  zero for errors, non-zero for success.
              */
             int add_vertex_data(p_ply_argument argument) {
@@ -912,7 +1731,7 @@ namespace GEO {
             /**
              * \brief Decodes facet data from a generic callback argument.
              * \param[in] argument the generic callback argument.
-             * \return callback status code, zero for errors, 
+             * \return callback status code, zero for errors,
              *  non-zero for success.
              */
             int add_face_data(p_ply_argument argument) {
@@ -949,10 +1768,10 @@ namespace GEO {
             }
 
             /**
-             * \brief Decodes triangle strip data from a 
+             * \brief Decodes triangle strip data from a
              *  generic callback argument.
              * \param[in] argument the generic callback argument.
-             * \return callback status code, zero for errors, 
+             * \return callback status code, zero for errors,
              *  non-zero for success.
              */
             int add_tristrip_data(p_ply_argument argument) {
@@ -974,7 +1793,7 @@ namespace GEO {
                 );
                 if(vertex_index >=
                    signed_index_t(mesh_.vertices.nb())
-                ) {
+                  ) {
                     Logger::err("I/O")
                         << "Invalid vertex reference in tristrip: "
                         << vertex_index
@@ -1023,7 +1842,7 @@ namespace GEO {
                     mesh_.facets.set_vertex(f,lv,facet_vertices_[lv]);
                 }
             }
-            
+
             /**
              * \brief Starts a new triangle strip.
              */
@@ -1056,14 +1875,13 @@ namespace GEO {
             /**
              * \brief Adds color data to the current vertex
              * \param[in] argument the generic callback argument
-             * \return callback status code, zero for errors, 
+             * \return callback status code, zero for errors,
              *  non-zero for success.
              */
             int add_color_data(p_ply_argument argument) {
                 long coord;
                 ply_get_argument_user_data(argument, nullptr, &coord);
                 if(coord == 0) {
-                    geo_debug_assert(mesh_.vertices.dimension() >= 9);
                     if(current_color_ >= mesh_.vertices.nb()) {
                         Logger::err("I/O")
                             << "File contains extraneous color data"
@@ -1092,7 +1910,7 @@ namespace GEO {
             Mesh& mesh_;
             std::string filename_;
             MeshIOFlags flags_;
-            
+
             index_t current_vertex_;
 
             bool has_colors_;
@@ -1117,13 +1935,15 @@ namespace GEO {
             PlyLoader loader(filename, M, ioflags);
             return loader.load();
         }
-        
+
         bool save(
             const Mesh& M, const std::string& filename,
             const MeshIOFlags& ioflags
         ) override {
             p_ply oply = ply_create(
-                filename.c_str(), PLY_LITTLE_ENDIAN, nullptr, 0, nullptr
+                filename.c_str(),
+                (CmdLine::get_arg_bool("sys:ascii") ? PLY_ASCII : PLY_LITTLE_ENDIAN),
+                nullptr, 0, nullptr
             );
 
             if(oply == nullptr) {
@@ -1210,7 +2030,7 @@ namespace GEO {
                     ply_write(oply, double(M.facets.nb_vertices(f)));
                     for(index_t c = M.facets.corners_begin(f);
                         c < M.facets.corners_end(f); ++c
-                        ) {
+                       ) {
                         ply_write(oply, double(M.facet_corners.vertex(c)));
                     }
                 }
@@ -1220,9 +2040,9 @@ namespace GEO {
             return true;
         }
     };
-    
+
     /************************************************************************/
-    
+
     /**
      * \brief IO handler for the OFF file format
      * \see http://www.geomview.org/docs/html/OFF.html
@@ -1233,7 +2053,7 @@ namespace GEO {
          * \brief Loads a mesh from a file in OFF format.
          * \param[in] filename name of the file
          * \param[out] M the loaded mesh
-         * \param[in] ioflags specifies which attributes 
+         * \param[in] ioflags specifies which attributes
          *  and elements should be read
          * \return true on success, false otherwise
          */
@@ -1242,7 +2062,7 @@ namespace GEO {
             const MeshIOFlags& ioflags
         ) override {
             geo_argused(ioflags);
-            
+
             // Note: Vertices indexes start by 0 in off format.
 
             LineInput in(filename);
@@ -1287,7 +2107,7 @@ namespace GEO {
 
             M.vertices.create_vertices(nb_vertices);
             // TODO: reserve facets
-            
+
             for(index_t i = 0; i < nb_vertices; i++) {
                 do {
                     if(!in.get_line()) {
@@ -1321,17 +2141,17 @@ namespace GEO {
                 ioflags.has_element(MESH_EDGES)) {
                 while(!in.eof() && in.get_line()) {
                     in.get_fields();
-                   /* if(in.nb_fields() < 4) {
-                        Logger::err("I/O")
-                            << "Line " << in.line_number()
-                            << ": facet line only has " << in.nb_fields()
-                            << " fields (expected 1 count +"
-                            << " at least 3 corner fields)"
-                            << std::endl;
-                        return false;
-                    }*/
+                    /* if(in.nb_fields() < 4) {
+                       Logger::err("I/O")
+                       << "Line " << in.line_number()
+                       << ": facet line only has " << in.nb_fields()
+                       << " fields (expected 1 count +"
+                       << " at least 3 corner fields)"
+                       << std::endl;
+                       return false;
+                       }*/
                     index_t nb_facet_vertices = in.field_as_uint(0);
-                    
+
                     // Note: there can be more fields than the number
                     // of vertices, for instance some OFF files have
                     // a RGB color for each facet stored right after
@@ -1346,8 +2166,8 @@ namespace GEO {
                             << std::endl;
                         return false;
                     }
-                    
-                    if(nb_facet_vertices >= 3) {    
+
+                    if(nb_facet_vertices >= 3) {
                         index_t f = M.facets.create_polygon(nb_facet_vertices);
 
                         for(index_t j = 0; j < nb_facet_vertices; j++) {
@@ -1363,21 +2183,21 @@ namespace GEO {
                             }
                             M.facets.set_vertex(f, j, vertex_index);
                         }
-                    } else if(nb_facet_vertices == 2) {    
+                    } else if(nb_facet_vertices == 2) {
                         index_t vertex_index0=in.field_as_uint(1);
                         index_t vertex_index1=in.field_as_uint(2);
-                        
+
                         if(
                             vertex_index0 >= M.vertices.nb() ||
                             vertex_index1 >= M.vertices.nb()
                         ) {
-                                Logger::err("I/O")
-                                    << "Line " << in.line_number()
-                                    << ": edge"
-                                    << " references an invalid vertex: "
-                                    << vertex_index0 <<" or "<<vertex_index1
-                                    << std::endl;
-                                return false; }
+                            Logger::err("I/O")
+                                << "Line " << in.line_number()
+                                << ": edge"
+                                << " references an invalid vertex: "
+                                << vertex_index0 <<" or "<<vertex_index1
+                                << std::endl;
+                            return false; }
                         M.edges.create_edge(vertex_index0, vertex_index1);
                     }
                 }
@@ -1389,7 +2209,7 @@ namespace GEO {
          * \brief Saves a mesh into a file in OFF format.
          * \param[in] M The mesh to save
          * \param[in] filename name of the file
-         * \param[in] ioflags specifies which attributes and elements 
+         * \param[in] ioflags specifies which attributes and elements
          *  should be saved
          * \return true on success, false otherwise
          */
@@ -1404,14 +2224,14 @@ namespace GEO {
             output << "OFF" << std::endl;
 
             /*output << M.vertices.nb() << " "
-                << M.facets.nb() << " "
-                << M.facet_corners.nb() / 2
-                << std::endl;*/
-            
+              << M.facets.nb() << " "
+              << M.facet_corners.nb() / 2
+              << std::endl;*/
+
             output << M.vertices.nb() << " "
-                << M.facets.nb() << " "
-                << M.edges.nb()
-                << std::endl;
+                   << M.facets.nb() << " "
+                   << M.edges.nb()
+                   << std::endl;
 
             // Output Vertices
             for(index_t v = 0; v < M.vertices.nb(); ++v) {
@@ -1433,10 +2253,10 @@ namespace GEO {
                     output << std::endl;
                 }
             }
-            
+
             if(ioflags.has_element(MESH_EDGES)) {
                 // Output edges
-                for(index_t e = 0; e < M.edges.nb(); ++e) 
+                for(index_t e = 0; e < M.edges.nb(); ++e)
                 {
                     output << "2 " << M.edges.vertex(e, 0)
                            << " " << M.edges.vertex(e, 1)
@@ -1459,7 +2279,7 @@ namespace GEO {
          * \brief Loads a mesh from a file in STL format (ascii version).
          * \param[in] filename name of the file
          * \param[out] M the loaded mesh
-         * \param[in] ioflags specifies which attributes and elements 
+         * \param[in] ioflags specifies which attributes and elements
          *  should be read
          * \return true on success, false otherwise
          */
@@ -1478,7 +2298,7 @@ namespace GEO {
             index_t current_chart = 0;
             bool facet_opened = false;
             vector<index_t> facet_vertices;
-            
+
             while(!in.eof() && in.get_line()) {
                 in.get_fields();
                 if(in.field_matches(0, "outer")) {
@@ -1536,7 +2356,7 @@ namespace GEO {
                     << std::endl;
                 return false;
             }
-            
+
             return true;
         }
 
@@ -1544,7 +2364,7 @@ namespace GEO {
          * \brief Loads a mesh from a file in STL format (binary version).
          * \param[in] filename name of the file
          * \param[out] M the loaded mesh
-         * \param[in] ioflags specifies which attributes and elements 
+         * \param[in] ioflags specifies which attributes and elements
          *  should be read
          * \return true on success, false otherwise
          */
@@ -1570,7 +2390,7 @@ namespace GEO {
             if(ioflags.has_element(MESH_FACETS)) {
                 M.facets.create_triangles(nb_triangles);
             }
-            
+
             for(index_t t = 0; t < nb_triangles; t++) {
                 Numeric::float32 N[3];
                 Numeric::float32 XYZ[9];
@@ -1588,7 +2408,7 @@ namespace GEO {
                 set_mesh_point(M, 3*t+1, XYZ+3, 3);
                 set_mesh_point(M, 3*t+2, XYZ+6, 3);
 
-                if(ioflags.has_element(MESH_FACETS)) {                
+                if(ioflags.has_element(MESH_FACETS)) {
                     M.facets.set_vertex(t, 0, 3*t);
                     M.facets.set_vertex(t, 1, 3*t+1);
                     M.facets.set_vertex(t, 2, 3*t+2);
@@ -1606,7 +2426,7 @@ namespace GEO {
 
                 return false;
             }
-            
+
             return true;
         }
 
@@ -1615,7 +2435,7 @@ namespace GEO {
          * \details Supports both ascii and binary STL.
          * \param[in] filename name of the file
          * \param[out] M the loaded mesh
-         * \param[in] ioflags specifies which attributes and 
+         * \param[in] ioflags specifies which attributes and
          *   elements should be read
          * \return true on success, false otherwise
          */
@@ -1651,6 +2471,25 @@ namespace GEO {
             } else {
                 result = load_ascii(filename, M, ioflags);
             }
+	    // STL files have isolated triangles, in general
+	    // the user wants to merge duplicated vertices and connect
+	    // all the triangles, so let's do that.
+	    if(result) {
+		bool fp32 = M.vertices.single_precision();
+		if(fp32) {
+		    M.vertices.set_double_precision();
+		}
+		mesh_repair(
+		    M,
+		    GEO::MeshRepairMode(
+			GEO::MESH_REPAIR_COLOCATE | GEO::MESH_REPAIR_DUP_F
+		    ),
+		    0.0
+		);
+		if(fp32) {
+		    M.vertices.set_single_precision();
+		}
+	    }
             return result;
         }
 
@@ -1666,10 +2505,10 @@ namespace GEO {
         }
 
         /**
-         * \brief Saves a mesh into a file in STL binary format.
+         * \brief Saves a mesh into a file in STL format.
          * \param[in] M The mesh to save
          * \param[in] filename name of the file
-         * \param[in] ioflags specifies which attributes 
+         * \param[in] ioflags specifies which attributes
          *   and elements should be saved
          * \return true on success, false otherwise
          */
@@ -1677,6 +2516,77 @@ namespace GEO {
             const Mesh& M, const std::string& filename,
             const MeshIOFlags& ioflags
         ) override {
+            bool result = true;
+            if(CmdLine::get_arg_bool("sys:ascii")) {
+                result = save_ascii(M, filename, ioflags);
+            } else {
+                result = save_binary(M, filename, ioflags);
+            }
+            return result;
+        }
+
+        /**
+         * \brief Saves a mesh into a file in STL ASCII format.
+         * \param[in] M The mesh to save
+         * \param[in] filename name of the file
+         * \param[in] ioflags specifies which attributes
+         *   and elements should be saved
+         * \return true on success, false otherwise
+         */
+        bool save_ascii(
+            const Mesh& M, const std::string& filename,
+            const MeshIOFlags& ioflags
+        ) {
+            geo_argused(ioflags);
+            std::ofstream out(filename.c_str());
+            if(!out) {
+                return false;
+            }
+            out << "solid geogram" << std::endl;
+            for(index_t f = 0; f < M.facets.nb(); ++f) {
+                index_t c1 = M.facets.corners_begin(f);
+                vec3 p1;
+                get_mesh_point(M, M.facet_corners.vertex(c1), p1.data(), 3);
+                for(index_t c2 = M.facets.corners_begin(f) + 1;
+                    c2 + 1 < M.facets.corners_end(f); ++c2
+                   ) {
+                    vec3 p2;
+                    get_mesh_point(
+                        M, M.facet_corners.vertex(c2), p2.data(), 3
+                    );
+                    vec3 p3;
+                    get_mesh_point(
+                        M, M.facet_corners.vertex(c2+1), p3.data(), 3
+                    );
+
+                    // Seriously, this ASCII STL format is soooo verbose !!!
+                    // Crazy...
+                    out << "facet normal " << normalize(cross(p2-p1,p3-p1))
+                        << std::endl;
+                    out << "outer loop" << std::endl;
+                    out << "vertex " << p1 << std::endl;
+                    out << "vertex " << p2 << std::endl;
+                    out << "vertex " << p3 << std::endl;
+                    out << "endloop" << std::endl;
+                    out << "endfacet" << std::endl;
+                }
+            }
+            out << "endsolid" << std::endl;
+            return true;
+        }
+
+        /**
+         * \brief Saves a mesh into a file in STL binary format.
+         * \param[in] M The mesh to save
+         * \param[in] filename name of the file
+         * \param[in] ioflags specifies which attributes
+         *   and elements should be saved
+         * \return true on success, false otherwise
+         */
+        bool save_binary(
+            const Mesh& M, const std::string& filename,
+            const MeshIOFlags& ioflags
+        ) {
 
             bind_attributes(M, ioflags, false);
 
@@ -1687,7 +2597,7 @@ namespace GEO {
             out.write_opaque_data(header, 80);
             Numeric::uint32 nb_triangles = 0;
             for(index_t f = 0; f < M.facets.nb(); ++f) {
-                nb_triangles += (M.facets.nb_vertices(f) - 2);
+                nb_triangles += Numeric::uint32((M.facets.nb_vertices(f) - 2));
             }
             out << nb_triangles;
             for(index_t f = 0; f < M.facets.nb(); ++f) {
@@ -1696,7 +2606,7 @@ namespace GEO {
                 get_mesh_point(M, M.facet_corners.vertex(c1), p1.data(), 3);
                 for(index_t c2 = M.facets.corners_begin(f) + 1;
                     c2 + 1 < M.facets.corners_end(f); ++c2
-                ) {
+                   ) {
                     vec3 p2;
                     get_mesh_point(
                         M, M.facet_corners.vertex(c2), p2.data(), 3
@@ -1705,17 +2615,17 @@ namespace GEO {
                     get_mesh_point(
                         M, M.facet_corners.vertex(c2+1), p3.data(), 3
                     );
-                    
+
                     Numeric::uint16 attribute = Numeric::uint16(
                         facet_region_.is_bound() ?
                         facet_region_[f] : 0
                     );
-                    
+
                     write_stl_vector(out, normalize(cross(p2-p1,p3-p1)));
                     write_stl_vector(out, p1);
                     write_stl_vector(out, p2);
                     write_stl_vector(out, p3);
-                    
+
                     out << attribute;
                 }
             }
@@ -1723,7 +2633,7 @@ namespace GEO {
             return true;
         }
     };
-    
+
     /************************************************************************/
 
 
@@ -1737,7 +2647,7 @@ namespace GEO {
          * \brief Loads a pointset from a file in XYZ format.
          * \param[in] filename name of the file
          * \param[out] M the mesh where to store the points
-         * \param[in] ioflags specifies which attributes and 
+         * \param[in] ioflags specifies which attributes and
          *   elements should be read
          * \return true on success, false otherwise
          */
@@ -1747,7 +2657,7 @@ namespace GEO {
         ) override {
             geo_argused(ioflags);
             index_t nb_vertices = get_nb_vertices(filename);
-            if(nb_vertices == index_t(-1)) {
+            if(nb_vertices == NO_INDEX) {
                 return false;
             }
 
@@ -1762,46 +2672,46 @@ namespace GEO {
             while(!in.eof() && in.get_line()) {
                 in.get_fields();
                 switch(in.nb_fields()) {
-                    case 1:
-                        break;
-                    case 2:
-                    case 3:
-                    case 4:
-                    case 6:
-                    {
-                        double xyz[3];
-                        xyz[0] = in.field_as_double(0);
-                        xyz[1] = in.field_as_double(1);
-                        xyz[2] =
-                            (in.nb_fields() >= 3) ? in.field_as_double(2) : 0.0;
-                        //   Not all xyz files have the number of vertices
-                        // specified on the first line. If it is unknown,
-                        // then vertices are created dynamically.
-                        if(cur_v+1 >= M.vertices.nb()) {
-                            M.vertices.create_vertices(cur_v+1-M.vertices.nb());
-                        }
-                        set_mesh_point(M,cur_v,xyz,3);
-
-                        if(in.nb_fields() == 6) {
-                            if(!normal.is_bound()) {
-                                normal.create_vector_attribute(
-                                    M.vertices.attributes(), "normal", 3
-                                );
-                            }
-                            normal[3*cur_v]   = in.field_as_double(3);
-                            normal[3*cur_v+1] = in.field_as_double(4);
-                            normal[3*cur_v+2] = in.field_as_double(5);
-                        }
-                        
-                        ++cur_v;
-                    }
+                case 1:
                     break;
-                    default:
-                        Logger::err("I/O")
-                            << "Line " << in.line_number()
-                            << ": wrong number of fields"
-                            << std::endl;
-                        return false;
+                case 2:
+                case 3:
+                case 4:
+                case 6:
+                {
+                    double xyz[3];
+                    xyz[0] = in.field_as_double(0);
+                    xyz[1] = in.field_as_double(1);
+                    xyz[2] =
+                        (in.nb_fields() >= 3) ? in.field_as_double(2) : 0.0;
+                    //   Not all xyz files have the number of vertices
+                    // specified on the first line. If it is unknown,
+                    // then vertices are created dynamically.
+                    if(cur_v+1 >= M.vertices.nb()) {
+                        M.vertices.create_vertices(cur_v+1-M.vertices.nb());
+                    }
+                    set_mesh_point(M,cur_v,xyz,3);
+
+                    if(in.nb_fields() == 6) {
+                        if(!normal.is_bound()) {
+                            normal.create_vector_attribute(
+                                M.vertices.attributes(), "normal", 3
+                            );
+                        }
+                        normal[3*cur_v]   = in.field_as_double(3);
+                        normal[3*cur_v+1] = in.field_as_double(4);
+                        normal[3*cur_v+2] = in.field_as_double(5);
+                    }
+
+                    ++cur_v;
+                }
+                break;
+                default:
+                    Logger::err("I/O")
+                        << "Line " << in.line_number()
+                        << ": wrong number of fields"
+                        << std::endl;
+                    return false;
                 }
             }
             return true;
@@ -1819,7 +2729,7 @@ namespace GEO {
                     << std::endl;
                 return false;
             }
-            
+
             std::ofstream out(filename.c_str());
             if(!out) {
                 Logger::err("I/O")
@@ -1834,9 +2744,9 @@ namespace GEO {
             if(normal.is_bound() && normal.dimension() != 3) {
                 normal.unbind();
             }
-            
+
             out << M.vertices.nb() << std::endl;
-            
+
             for(index_t v=0; v<M.vertices.nb(); ++v) {
                 double point[3];
                 get_mesh_point(M,v,point,3);
@@ -1844,7 +2754,7 @@ namespace GEO {
                     out << point[0] << ' '
                         << point[1] << ' '
                         << point[2] << ' '
-                        << normal[3*v]   << ' ' 
+                        << normal[3*v]   << ' '
                         << normal[3*v+1] << ' '
                         << normal[3*v+2] << ' '
                         << std::endl;
@@ -1865,53 +2775,53 @@ namespace GEO {
                         << point[2] << std::endl;
                 }
             }
-            
+
             return true;
         }
 
-      protected:
-        
+    protected:
+
         /**
          * \brief Gets the number of vertices in the file.
          * \details Some xyz files do not have the number of
          *  points specified in them. For these files, this
          *  function reads the entire file once and counts the
          *  points. It is better to do so, because it makes it
-         *  possible to allocate the points once we known the 
+         *  possible to allocate the points once we known the
          *  required size, instead of growing.
          * \param[in] filename the name of the file.
          * \return the number of vertices in the file, or
-         *  index_t(-1) if the file could not be opened.
+         *  NO_INDEX if the file could not be opened.
          */
         index_t get_nb_vertices(const std::string& filename) {
             index_t result = 0;
             LineInput in(filename);
             if(!in.OK()) {
-                return index_t(-1);
+                return NO_INDEX;
             }
             while(!in.eof() && in.get_line()) {
                 in.get_fields();
                 switch(in.nb_fields()) {
-                    case 1:
-                        return in.field_as_uint(0);
-                    case 2:
-                    case 3:
-                    case 4:
-                    case 6:
-                        ++result;
+                case 1:
+                    return in.field_as_uint(0);
+                case 2:
+                case 3:
+                case 4:
+                case 6:
+                    ++result;
                     break;
-                    default:
-                        Logger::err("I/O")
-                            << "Line " << in.line_number()
-                            << ": wrong number of fields"
-                            << std::endl;
-                        return index_t(-1);
+                default:
+                    Logger::err("I/O")
+                        << "Line " << in.line_number()
+                        << ": wrong number of fields"
+                        << std::endl;
+                    return NO_INDEX;
                 }
             }
             return result;
         }
     };
-    
+
 
     /************************************************************************/
 
@@ -1924,7 +2834,7 @@ namespace GEO {
          * \brief Loads a pointset from a file in PTS format.
          * \param[in] filename name of the file
          * \param[out] M the mesh where to store the points
-         * \param[in] ioflags specifies which attributes and 
+         * \param[in] ioflags specifies which attributes and
          *   elements should be read
          * \return true on success, false otherwise
          */
@@ -1944,7 +2854,7 @@ namespace GEO {
                     double xyz[3];
                     xyz[0] = in.field_as_double(1);
                     xyz[1] = in.field_as_double(2);
-                    xyz[2] = in.field_as_double(3);                    
+                    xyz[2] = in.field_as_double(3);
                     index_t v = M.vertices.create_vertex();
                     set_mesh_point(M,v,xyz,3);
                 } else {
@@ -1991,7 +2901,7 @@ namespace GEO {
             return true;
         }
     };
-    
+
     /************************************************************************/
 
     /**
@@ -2001,7 +2911,7 @@ namespace GEO {
     public:
         /**
          * \brief Creates a TET IO handler.
-         * \param[in] dimension dimension of the vertices 
+         * \param[in] dimension dimension of the vertices
          *  (3 for regular 3d mesh)
          */
         TETIOHandler(coord_index_t dimension = 3) :
@@ -2013,7 +2923,7 @@ namespace GEO {
          * \details Only tetrahedral cells are supported for now.
          * \param[in] filename name of the file
          * \param[out] M the loaded mesh
-         * \param[in] ioflags specifies which attributes and elements 
+         * \param[in] ioflags specifies which attributes and elements
          *  should be read
          * \return true on success, false otherwise
          */
@@ -2036,7 +2946,7 @@ namespace GEO {
             index_t nb_vertices = 0;
             index_t nb_cells = 0;
             bool has_arbitrary_cells = false;
-            
+
             if(
                 in.nb_fields() == 4 &&
                 in.field_matches(1, "vertices") &&
@@ -2057,7 +2967,7 @@ namespace GEO {
                     return false;
                 }
                 nb_vertices = in.field_as_uint(0);
-            
+
                 if(!in.get_line()) {
                     Logger::err("I/O")
                         << "Unexpected end of file"
@@ -2079,7 +2989,7 @@ namespace GEO {
                 }
                 nb_cells = in.field_as_uint(0);
                 has_arbitrary_cells = in.field_matches(1, "cells");
-            } 
+            }
 
             M.vertices.set_dimension(dimension_);
             M.vertices.create_vertices(nb_vertices);
@@ -2103,7 +3013,7 @@ namespace GEO {
                 }
                 set_mesh_point(M,v,P.data(),dimension_);
             }
-            
+
             if(ioflags.has_element(MESH_CELLS)) {
                 if(has_arbitrary_cells) {
                     for(index_t t = 0; t < nb_cells; ++t) {
@@ -2115,8 +3025,8 @@ namespace GEO {
                         }
                         in.get_fields();
                         if(
-                           in.nb_fields() >= 2 &&
-                           in.field_matches(0,"#") && in.field_matches(1,"C")
+                            in.nb_fields() >= 2 &&
+                            in.field_matches(0,"#") && in.field_matches(1,"C")
                         ) {
                             if(in.nb_fields() != 6) {
                                 Logger::err("I/O")
@@ -2142,7 +3052,7 @@ namespace GEO {
                                         in.field_as_uint(2),
                                         in.field_as_uint(3),
                                         in.field_as_uint(4)
-                                    );                                    
+                                    );
                                 } break;
                                 case 8: {
                                     M.cells.create_hex(
@@ -2176,12 +3086,12 @@ namespace GEO {
                                     );
                                 } break;
                                 default: {
-                                Logger::err("I/O")
-                                    << "Line " << in.line_number()
-                                    << " unexpected number of vertices in cell:"
-                                    << nb_vertices_in_cell
-                                    << std::endl;
-                                return false;
+                                    Logger::err("I/O")
+                                        << "Line " << in.line_number()
+                                        << " unexpected number of vertices in cell:"
+                                        << nb_vertices_in_cell
+                                        << std::endl;
+                                    return false;
                                 }
                                 }
                             }
@@ -2225,16 +3135,16 @@ namespace GEO {
          * \brief Saves a mesh into a file in TET format.
          * \param[in] M The mesh to save
          * \param[in] filename name of the file
-         * \param[in] ioflags specifies which attributes and elements 
+         * \param[in] ioflags specifies which attributes and elements
          * should be saved
          * \return true on success, false otherwise
          */
         bool save(
-            const Mesh& M, const std::string& filename, 
+            const Mesh& M, const std::string& filename,
             const MeshIOFlags& ioflags
         ) override {
             geo_argused(ioflags);
-            
+
             if(M.vertices.dimension() < dimension_) {
                 return false;
             }
@@ -2264,7 +3174,7 @@ namespace GEO {
                 out << M.vertices.nb() << " vertices" << std::endl;
                 out << M.cells.nb() << " cells" << std::endl;
                 for(index_t v = 0; v < M.vertices.nb(); ++v) {
-                    get_mesh_point(M,v,P.data(),dimension_);                    
+                    get_mesh_point(M,v,P.data(),dimension_);
                     for(coord_index_t c = 0; c < dimension_; ++c) {
                         out << P[c] << " ";
                     }
@@ -2273,9 +3183,9 @@ namespace GEO {
                 bool has_connectors = false;
                 for(index_t c=0; c<M.cells.nb(); ++c) {
                     switch(M.cells.type(c)) {
-                    case MESH_TET: 
-                    case MESH_HEX: 
-                    case MESH_PRISM: 
+                    case MESH_TET:
+                    case MESH_HEX:
+                    case MESH_PRISM:
                     case MESH_PYRAMID: {
                         out << M.cells.nb_vertices(c) << " ";
                         for(index_t lv=0; lv<M.cells.nb_vertices(c); ++lv) {
@@ -2332,7 +3242,7 @@ namespace GEO {
         }
     };
 
-    
+
     /************************************************************************/
 
     /**
@@ -2350,7 +3260,7 @@ namespace GEO {
          * meshes that are stored in the same GeoFile.
          * \param[in] in a reference to the InputGeoFile
          * \param[out] M the loaded mesh
-         * \param[in] ioflags specifies which attributes and 
+         * \param[in] ioflags specifies which attributes and
          *  elements should be loaded
          * \return true on success, false otherwise.
          */
@@ -2382,37 +3292,43 @@ namespace GEO {
                         } else {
                             read_user_attribute(in, M, ioflags);
                         }
-                    } 
+                    }
                 }
 
                 // Create facet "sentry"
                 if(!M.facets.are_simplices()) {
                     M.facets.facet_ptr_[M.facets.nb()] = M.facet_corners.nb();
                 }
-                
+
                 // Create cell "sentry"
                 if(!M.cells.are_simplices()) {
                     M.cells.cell_ptr_[M.cells.nb()] = M.cell_corners.nb();
                 }
 
 //  This warning when loading a single mesh from a file that may
-// contain several meshes -> deactivated for now.              
+// contain several meshes -> deactivated for now.
 //                if(chunk_class == "SPTR") {
 //                    Logger::out("GeoFile")
 //                        << "File may contain several objects"
 //                        << std::endl;
 //                }
-                
+
             } catch(const GeoFileException& exc) {
                 Logger::err("I/O") << exc.what() << std::endl;
                 M.clear();
                 return false;
             } catch(...) {
                 Logger::err("I/O") << "Caught exception" << std::endl;
-                M.clear();                
+                M.clear();
                 return false;
             }
 
+	    // Sanity check for the sentry
+	    geo_assert(
+		M.facets.nb() == 0 || (
+		    M.facets.corners_end(M.facets.nb()-1) == M.facet_corners.nb()
+		)
+	    );
 
             return true;
         }
@@ -2424,7 +3340,7 @@ namespace GEO {
          * used to write several meshes into the same GeoFile.
          * \param[in] M the mesh to save
          * \param[in] out a reference to the OutputGeoFile
-         * \param[in] ioflags specifies which attributes and elements 
+         * \param[in] ioflags specifies which attributes and elements
          *  should be saved
          * \return true on success, false otherwise.
          */
@@ -2441,7 +3357,7 @@ namespace GEO {
                     CmdLine::get_args(args);
                     out.write_command_line(args);
                 }
-                
+
                 if(ioflags.has_element(MESH_VERTICES) && M.vertices.nb() != 0) {
                     out.write_attribute_set(
                         "GEO::Mesh::vertices",
@@ -2466,7 +3382,7 @@ namespace GEO {
                         2,
                         M.edges.edge_vertex_.data()
                     );
-                    
+
                     save_attributes(
                         out, "GEO::Mesh::edges", M.edges.attributes()
                     );
@@ -2492,7 +3408,7 @@ namespace GEO {
                             M.facets.facet_ptr_.data()
                         );
                     }
-                    
+
                     out.write_attribute_set(
                         "GEO::Mesh::facet_corners",
                         M.facet_corners.nb()
@@ -2515,14 +3431,14 @@ namespace GEO {
                         1,
                         M.facet_corners.corner_adjacent_facet_.data()
                     );
-                    
+
                     save_attributes(
                         out, "GEO::Mesh::facet_corners",
                         M.facet_corners.attributes()
                     );
-                    
+
                 }
-                
+
                 if(ioflags.has_element(MESH_CELLS) && M.cells.nb() != 0) {
                     out.write_attribute_set(
                         "GEO::Mesh::cells",
@@ -2533,9 +3449,9 @@ namespace GEO {
                         out, "GEO::Mesh::cells",
                         M.cells.attributes()
                     );
-                    
+
                     if(!M.cells.are_simplices()) {
-                        
+
                         out.write_attribute(
                             "GEO::Mesh::cells",
                             "GEO::Mesh::cells::cell_type",
@@ -2544,7 +3460,7 @@ namespace GEO {
                             1,
                             M.cells.cell_type_.data()
                         );
-                        
+
                         out.write_attribute(
                             "GEO::Mesh::cells",
                             "GEO::Mesh::cells::cell_ptr",
@@ -2595,14 +3511,14 @@ namespace GEO {
                         M.cell_facets.attributes()
                     );
                 }
-                
+
             } catch(const GeoFileException& exc) {
                 Logger::err("I/O") << exc.what() << std::endl;
                 return false;
             }
             return true;
         }
-        
+
         /**
          * \copydoc MeshIOHandler::load()
          */
@@ -2740,38 +3656,38 @@ namespace GEO {
                         );
                         in.read_attribute(
                             M.vertices.single_precision_point_ptr(0)
-                        );                                    
+                        );
                     } else {
                         read_attribute(in, M.vertices.attributes());
                     }
-                } 
+                }
             } else if(set_name == "GEO::Mesh::edges") {
                 if(ioflags.has_element(MESH_EDGES)) {
                     read_attribute(in, M.edges.attributes());
-                } 
+                }
             } else if(set_name == "GEO::Mesh::facets") {
                 if(ioflags.has_element(MESH_FACETS)) {
                     read_attribute(in, M.facets.attributes());
-                } 
+                }
             } else if(set_name == "GEO::Mesh::facet_corners") {
                 if(ioflags.has_element(MESH_FACETS)) {
                     read_attribute(
                         in, M.facet_corners.attributes()
                     );
-                } 
+                }
             } else if(set_name == "GEO::Mesh::cells") {
                 if(ioflags.has_element(MESH_CELLS)) {
                     read_attribute(in, M.cells.attributes());
-                } 
+                }
             } else if(set_name == "GEO::Mesh::cell_corners") {
                 if(ioflags.has_element(MESH_CELLS)) {
                     read_attribute(in, M.cell_corners.attributes());
-                } 
+                }
             } else if(set_name == "GEO::Mesh::cell_facets") {
                 if(ioflags.has_element(MESH_CELLS)) {
                     read_attribute(in, M.cell_facets.attributes());
-                } 
-            } 
+                }
+            }
         }
 
         /**
@@ -2811,11 +3727,11 @@ namespace GEO {
                     M.facets.is_simplicial_ = false;
                     M.facets.facet_ptr_.resize(M.facets.nb()+1);
                     in.read_attribute(M.facets.facet_ptr_.data());
-                } 
+                }
             } else if(name == "GEO::Mesh::facet_corners::corner_vertex") {
                 if(ioflags.has_element(MESH_FACETS)) {
                     in.read_attribute(M.facet_corners.corner_vertex_.data());
-                } 
+                }
             } else if(
                 name == "GEO::Mesh::facet_corners::corner_adjacent_facet"
             ) {
@@ -2823,32 +3739,32 @@ namespace GEO {
                     in.read_attribute(
                         M.facet_corners.corner_adjacent_facet_.data()
                     );
-                } 
+                }
             } else if(name == "GEO::Mesh::cells::cell_type") {
                 if(ioflags.has_element(MESH_CELLS)) {
                     M.cells.is_simplicial_ = false;
                     M.cells.cell_type_.resize(M.cells.nb());
                     in.read_attribute(M.cells.cell_type_.data());
-                } 
+                }
             } else if(name == "GEO::Mesh::cells::cell_ptr") {
                 if(ioflags.has_element(MESH_CELLS)) {
                     M.cells.is_simplicial_ = false;
                     M.cells.cell_ptr_.resize(M.cells.nb()+1);
                     in.read_attribute(M.cells.cell_ptr_.data());
-                } 
+                }
             } else if(name == "GEO::Mesh::cell_corners::corner_vertex") {
                 if(ioflags.has_element(MESH_CELLS)) {
                     in.read_attribute(M.cell_corners.corner_vertex_.data());
-                } 
+                }
             } else if(name == "GEO::Mesh::cell_facets::adjacent_cell") {
                 if(ioflags.has_element(MESH_CELLS)) {
                     in.read_attribute(M.cell_facets.adjacent_cell_.data());
-                } 
-            } 
+                }
+            }
         }
 
         /**
-         * \brief Reads a user attribute from a geogram file and 
+         * \brief Reads a user attribute from a geogram file and
          *  stores it in an AttributesManager
          * \param[in] in a reference to the InputGeoFile
          * \param[in] attributes a reference to the AttributesManager
@@ -2863,12 +3779,13 @@ namespace GEO {
                     in.current_attribute().element_type
                 )
             ) {
-                Logger::warn("I/O") << "Skipping attribute "
-                                    << in.current_attribute().name
-                                    << ":"
-                                    << in.current_attribute().element_type
-                                    << " (unknown type)"
-                                    << std::endl;
+                Logger::warn("I/O")
+		    << "Skipping attribute "
+		    << in.current_attribute().name
+		    << ":"
+		    << demangle(in.current_attribute().element_type)
+		    << " (unknown type)"
+		    << std::endl;
                 return;
             }
             AttributeStore* store =
@@ -2902,12 +3819,15 @@ namespace GEO {
                 if(
                     AttributeStore::element_typeid_name_is_known(
                         store->element_typeid_name()
-                    )
+                    ) &&
+		    AttributeStore::element_by_typeid_name_is_trivially_copyable(
+			store->element_typeid_name()
+		    )
                 ) {
-                    std::string element_type = 
-                      AttributeStore::element_type_name_by_element_typeid_name(
-                          store->element_typeid_name()
-                      );
+                    std::string element_type =
+                        AttributeStore::element_type_name_by_element_typeid_name(
+                            store->user_element_typeid_name()
+                        );
 
                     out.write_attribute(
                         attribute_set_name,
@@ -2924,10 +3844,10 @@ namespace GEO {
                         << " on "
                         << attribute_set_name
                         << std::endl;
+
                     Logger::warn("I/O")
-                        << "Typeid "
-                        << store->element_typeid_name()
-                        << " unknown"
+                        << "Unsupported type: "
+                        << demangle(store->element_typeid_name())
                         << std::endl;
                 }
             }
@@ -2935,11 +3855,11 @@ namespace GEO {
     };
 
     /************************************************************************/
-    
+
     /**
      * \brief IO handler for graphite files.
      * \details Graphite files with a single object can be directly read
-     *  by geogram. 
+     *  by geogram.
      */
     class GraphiteIOHandler : public GeogramIOHandler {
     public:
@@ -2958,13 +3878,31 @@ namespace GEO {
                 << std::endl;
             return false;
         }
+
+        /**
+         * \copydoc MeshIOHandler::save()
+         */
+        bool save(
+            const Mesh& M, OutputGeoFile& out,
+            const MeshIOFlags& ioflags = MeshIOFlags(),
+            bool save_command_line = false
+        ) override {
+            geo_argused(M);
+            geo_argused(out);
+            geo_argused(ioflags);
+	    geo_argused(save_command_line);
+            Logger::err("I/O")
+                << "graphite file format not supported for writing"
+                << std::endl;
+            return false;
+	}
     };
 
     /************************************************************************/
-   
+
     /**
      * \brief IO handler for PDB (Protein DataBase) files.
-     */ 
+     */
     class PDBIOHandler : public MeshIOHandler {
     public:
         bool load(
@@ -3019,7 +3957,7 @@ namespace GEO {
             }
             return true;
         }
-       
+
         /**
          * \copydoc MeshIOHandler::save()
          */
@@ -3036,13 +3974,13 @@ namespace GEO {
             return false;
         }
     protected:
-        
+
         inline std::string get_columns(
             const std::string& s, unsigned int from_c, unsigned int to_c
         ) const {
             return s.substr(from_c - 1, to_c - from_c + 1) ;
         }
-        
+
         inline double to_double(const std::string& s) {
             return String::to_double(s);
         }
@@ -3073,7 +4011,7 @@ namespace GEO {
             if(!in.OK()) {
                 return false;
             }
-            
+
             in.get_line();
             in.get_fields();
             if(
@@ -3108,7 +4046,7 @@ namespace GEO {
                     if(kw == "Vertices") {
                         nb_vertices = get_number(in);
                         vertices.resize(nb_vertices*3);
-                        ovm_to_vertex_id.assign(nb_vertices*3, index_t(-1));
+                        ovm_to_vertex_id.assign(nb_vertices*3, NO_INDEX);
                         FOR(v, nb_vertices) {
                             in.get_line();
                             in.get_fields();
@@ -3121,7 +4059,7 @@ namespace GEO {
                             }
                             vertices[3*v]   = in.field_as_double(0);
                             vertices[3*v+1] = in.field_as_double(1);
-                            vertices[3*v+2] = in.field_as_double(2);            
+                            vertices[3*v+2] = in.field_as_double(2);
                         }
                     } else if(kw == "Edges") {
                         nb_edges = get_number(in);
@@ -3215,11 +4153,11 @@ namespace GEO {
                                 }
                                 cell_facets.push_back(f);
                             }
-                            
+
                             // Clear vertex ids
                             FOR(lf, cell_size) {
-                                index_t f = cell_facets[lf];                
-                                bool inverse_f = (f & 1) != 0;              
+                                index_t f = cell_facets[lf];
+                                bool inverse_f = (f & 1) != 0;
                                 f /= 2;
                                 for(index_t ee = facet_ptr[f]; ee<facet_ptr[f+1]; ++ee) {
                                     index_t e = facet_edge[ee];
@@ -3233,15 +4171,15 @@ namespace GEO {
                                     // If the facet is inversed, then the edge is inversed
                                     // (by inverting its least significant bit, with the
                                     // XOR e ^(index_t(1)) operation).
-                                    index_t ovm_v = edges[e];                   
-                                    ovm_to_vertex_id[ ovm_v ] = index_t(-1);
+                                    index_t ovm_v = edges[e];
+                                    ovm_to_vertex_id[ ovm_v ] = NO_INDEX;
                                 }
                             }
-                            
+
                             // Create vertices
                             FOR(lf, cell_size) {
                                 index_t f = cell_facets[lf];
-                                bool inverse_f = (f & 1) != 0;              
+                                bool inverse_f = (f & 1) != 0;
                                 f /= 2;
                                 for(index_t ee = facet_ptr[f]; ee<facet_ptr[f+1]; ++ee) {
                                     index_t e = facet_edge[ee];
@@ -3249,16 +4187,16 @@ namespace GEO {
                                         e = e ^ index_t(1);
                                     }
                                     index_t ovm_v = edges[e];
-                                    if(ovm_to_vertex_id[ovm_v] == index_t(-1)) {
+                                    if(ovm_to_vertex_id[ovm_v] == NO_INDEX) {
                                         const double* p = &(vertices[ ovm_v*3 ]);
                                         index_t new_v = M.vertices.create_vertex();
                                         set_mesh_point(M, new_v, p, 3);
                                         ovm_to_vertex_id[ovm_v] = new_v;
                                         vertex_id[new_v] = int(ovm_v);
                                     }
-                                }                   
+                                }
                             }
-                            
+
                             // Create facets
                             FOR(lf, cell_size) {
                                 index_t f = cell_facets[lf];
@@ -3290,10 +4228,10 @@ namespace GEO {
                     } else if(kw == "Face_Property") {
                         skip_property(in,nb_facets);
                     } else if(kw == "HalfFace_Property") {
-                        skip_property(in,nb_facets*2);              
+                        skip_property(in,nb_facets*2);
                     } else if(kw == "Polyhedron_Property") {
                         skip_property(in,nb_cells);
-                    } 
+                    }
                 }
             } catch(const std::string& what) {
                 Logger::err("I/O") << what << std::endl;
@@ -3307,10 +4245,10 @@ namespace GEO {
             }
 
             M.facets.connect();
-            
+
             return true;
         }
-        
+
         /**
          * \copydoc MeshIOHandler::save()
          */
@@ -3319,7 +4257,7 @@ namespace GEO {
             const MeshIOFlags& ioflags = MeshIOFlags()
         ) override {
             geo_argused(ioflags);
-            
+
             Attribute<int> vertex_id;
             vertex_id.bind_if_is_defined(M.vertices.attributes(), "vertex_id");
             Attribute<int> cell_id;
@@ -3367,7 +4305,7 @@ namespace GEO {
             std::map<bindex, index_t> edge_to_id;
             vector<bindex> edges;
             index_t nb_edges = 0;
-            
+
             // Construct edge table and output edges
             {
                 FOR(f, M.facets.nb()) {
@@ -3404,13 +4342,13 @@ namespace GEO {
             {
                 FOR(f, M.facets.nb()) {
                     trindex K    = facet_key(M, f, vertex_id, false);
-                    trindex Kinv = facet_key(M, f, vertex_id, true);                
+                    trindex Kinv = facet_key(M, f, vertex_id, true);
                     if(
                         facet_to_id.find(K) == facet_to_id.end() &&
                         facet_to_id.find(Kinv) == facet_to_id.end()
                     ) {
                         facet_to_id[K]    = 2*nb_facets;
-                        facet_to_id[Kinv] = 2*nb_facets + 1;                    
+                        facet_to_id[Kinv] = 2*nb_facets + 1;
                         ++nb_facets;
                         facets.push_back(f);
                     }
@@ -3430,7 +4368,7 @@ namespace GEO {
                         index_t iv2 =
                             index_t(vertex_id[M.facet_corners.vertex(c2)]);
                         bindex K(iv1, iv2, bindex::KEEP_ORDER);
-                        index_t ie = index_t(-1);
+                        index_t ie = NO_INDEX;
                         auto it = edge_to_id.find(K);
                         if(it == edge_to_id.end()) {
                             ie = 2*edge_to_id[bindex(iv1,iv2)]+1;
@@ -3444,13 +4382,13 @@ namespace GEO {
             }
 
             // Construct cell table and output cells
-            
+
             index_t nb_cells = 0;
             FOR(f, M.facets.nb()) {
                 nb_cells = std::max(nb_cells, index_t(cell_id[f]));
             }
             ++nb_cells;
-            
+
             // Ugly ! One could use compressed row storage instead.
             // ... but anyway we got all these tables indexed by bindexes
             // and trindexes that eat much memory, no need to optimize that
@@ -3462,7 +4400,7 @@ namespace GEO {
 
             out << "Polyhedra" << std::endl;
             out << nb_cells << std::endl;
-            
+
             FOR(ci, nb_cells) {
                 out << cell_to_f[ci].size() << " ";
                 FOR(lf, cell_to_f[ci].size()) {
@@ -3475,7 +4413,7 @@ namespace GEO {
 
             vertex_id.unbind();
             cell_id.unbind();
-            
+
             return true;
         }
 
@@ -3527,7 +4465,7 @@ namespace GEO {
                 in.get_line();
             }
         }
-        
+
         /**
          * \brief Gets a key to be able to retrieve facet indices.
          * \param[in] M a reference to a mesh
@@ -3536,7 +4474,7 @@ namespace GEO {
          * \param[in] invert if true, invert the order of the vertices
          *  of the facet.
          * \return a trindex composed of the ids of three corners of the
-         *  facet, formed by the id of the vertex with the lowest id, 
+         *  facet, formed by the id of the vertex with the lowest id,
          *  and the ids of its predecessor and successor around the facet.
          */
 
@@ -3544,14 +4482,14 @@ namespace GEO {
             const Mesh& M, index_t f, const Attribute<int>& vertex_id,
             bool invert=false
         ) {
-            index_t min_iv = index_t(-1);
-            index_t min_corner = index_t(-1);
+            index_t min_iv = NO_INDEX;
+            index_t min_corner = NO_INDEX;
             for(
                 index_t c=M.facets.corners_begin(f);
                 c<M.facets.corners_end(f); ++c
             ) {
                 index_t iv = index_t(vertex_id[M.facet_corners.vertex(c)]);
-                if(min_iv == index_t(-1) || iv < min_iv) {
+                if(min_iv == NO_INDEX || iv < min_iv) {
                     min_corner = c;
                     min_iv = iv;
                 }
@@ -3568,7 +4506,7 @@ namespace GEO {
             index_t iv3 = index_t(vertex_id[M.facet_corners.vertex(c3)]);
             return trindex(iv1,iv2,iv3,trindex::KEEP_ORDER);
         }
-        
+
     };
 
 /****************************************************************************/
@@ -3576,14 +4514,14 @@ namespace GEO {
     const index_t id_offset_msh = 1;
     const index_t msh2geo_hex[8] = {1, 3, 7, 5, 0, 2, 6, 4 };
     const index_t msh2geo_def[8] = {0, 1, 2, 3, 4, 5, 6, 7 };
-    const index_t celltype_geo2msh[5] = {4, 5, 6, 7}; 
+    const index_t celltype_geo2msh[5] = {4, 5, 6, 7};
 
     /**
      * \brief Support for GMSH file format.
      * \details By Maxence Reberol.
      */
     class GEOGRAM_API MSHIOHandler : public MeshIOHandler {
-      public:
+    public:
         MSHIOHandler() {
         }
 
@@ -3598,7 +4536,7 @@ namespace GEO {
                 if (in.field_as_double(0) == 2.2
                     && in.field_as_uint(1) == 0
                     && in.field_as_uint(2) == 8
-                ) return true;
+                   ) return true;
             }
             return false;
         }
@@ -3624,7 +4562,7 @@ namespace GEO {
                         set_mesh_point(M, v, pt, 3);
                     }
                 } else if (in.field_matches(0, "$EndNodes"))  {
-                    return true; 
+                    return true;
                 }
             }
             return false;
@@ -3822,7 +4760,7 @@ namespace GEO {
         }
 
         bool save(
-            const Mesh& M_in, const std::string& filename, 
+            const Mesh& M_in, const std::string& filename,
             const MeshIOFlags& ioflags
         ) override {
 
@@ -3831,8 +4769,8 @@ namespace GEO {
 
             M.vertices.remove_isolated();
 
-            Attribute<int> region;
-            Attribute<int> bdr_region;
+            Attribute<index_t> region;
+            Attribute<index_t> bdr_region;
             if (M.cells.attributes().is_defined("region")) {
                 region.bind(M.cells.attributes(), "region");
             }
@@ -3841,6 +4779,12 @@ namespace GEO {
             }
 
             std::ofstream out( filename.c_str() ) ;
+
+            if( !out ) {
+                Logger::err("I/O") << "Fail to open \"" << filename << "\" for writing" << std::endl;
+                return false;
+            }
+
             out.precision( 16 ) ;
 
             /* Header */
@@ -3885,7 +4829,7 @@ namespace GEO {
                 for (index_t f = 0; f < M.facets.nb(); ++f) {
                     int attr_value = 0;
                     if (bdr_region.is_bound()){
-                        attr_value = bdr_region[f];
+                        attr_value = int(bdr_region[f]);
                     }
                     int type = -1;
                     if (M.facets.nb_vertices(f) == 3) {
@@ -3909,7 +4853,9 @@ namespace GEO {
                     continue;
                 }
                 int attr_value = 0;
-                if (region.is_bound()) attr_value = region[c];
+                if (region.is_bound()) {
+		    attr_value = int(region[c]);
+		}
                 const index_t* msh2geo =
                     (M.cells.type(c) == GEO::MESH_HEX) ?
                     msh2geo_hex : msh2geo_def;
@@ -3928,12 +4874,12 @@ namespace GEO {
                 out << std::endl;
             }
             out << "$EndElements" << std::endl;
-            
+
             out.close();
             return true;
         }
     };
-    
+
 }
 
 /****************************************************************************/
@@ -3944,17 +4890,20 @@ namespace GEO {
         dimension_ = 3;
         attributes_ = MESH_NO_ATTRIBUTES;
         elements_ = MESH_ALL_ELEMENTS;
+        verbose_ = true;
     }
 
     /************************************************************************/
-    
+
     bool GEOGRAM_API mesh_load(
         const std::string& filename, Mesh& M,
         const MeshIOFlags& ioflags
     ) {
-        Logger::out("I/O")
-            << "Loading file " << filename << "..."
-            << std::endl;
+        if(ioflags.verbose()) {
+            Logger::out("I/O")
+                << "Loading file " << filename << "..."
+                << std::endl;
+        }
 
         M.clear();
 
@@ -3977,7 +4926,7 @@ namespace GEO {
             return false;
         }
 
-        if(!M.vertices.single_precision()) {
+        if(!M.vertices.single_precision() && M.vertices.nb() > 0) {
             index_t nb = M.vertices.nb() * M.vertices.dimension();
             double* p = M.vertices.point_ptr(0);
             bool has_nan = false;
@@ -4004,8 +4953,10 @@ namespace GEO {
             }
         }
 
-        M.show_stats("I/O");
-        
+        if(ioflags.verbose()) {
+            M.show_stats("I/O");
+        }
+
         return true;
     }
 
@@ -4013,9 +4964,19 @@ namespace GEO {
         const Mesh& M, const std::string& filename,
         const MeshIOFlags& ioflags
     ) {
-        Logger::out("I/O")
-            << "Saving file " << filename << "..."
-            << std::endl;
+        if(ioflags.verbose()) {
+            Logger::out("I/O")
+                << "Saving file " << filename << "..."
+                << std::endl;
+        }
+
+        if( !FileSystem::can_write_directory(
+                FileSystem::dir_name(FileSystem::absolute_path(filename)), true)
+          ) {
+            Logger::err("I/O") << "Failed to open \""
+                               << filename << "\" for writing" << std::endl;
+            return false;
+        }
 
         MeshIOHandler_var handler = MeshIOHandler::get_handler(filename);
         if(handler != nullptr && handler->save(M, filename, ioflags)) {
@@ -4064,6 +5025,9 @@ namespace GEO {
             if(flags.has_attribute(MESH_VERTEX_REGION)) {
                 vertex_region_.bind(M.vertices.attributes(),"region");
             }
+            if(flags.has_attribute(MESH_EDGE_REGION)) {
+                edge_region_.bind(M.edges.attributes(),"region");
+            }
             if(flags.has_attribute(MESH_FACET_REGION)) {
                 facet_region_.bind(M.facets.attributes(),"region");
             }
@@ -4074,6 +5038,11 @@ namespace GEO {
             if(flags.has_attribute(MESH_VERTEX_REGION)) {
                 vertex_region_.bind_if_is_defined(
                     M.vertices.attributes(),"region"
+                );
+            }
+            if(flags.has_attribute(MESH_EDGE_REGION)) {
+                edge_region_.bind_if_is_defined(
+                    M.edges.attributes(),"region"
                 );
             }
             if(flags.has_attribute(MESH_FACET_REGION)) {
@@ -4093,6 +5062,9 @@ namespace GEO {
         if(vertex_region_.is_bound()) {
             vertex_region_.unbind();
         }
+        if(edge_region_.is_bound()) {
+            edge_region_.unbind();
+        }
         if(facet_region_.is_bound()) {
             facet_region_.unbind();
         }
@@ -4100,11 +5072,13 @@ namespace GEO {
             cell_region_.unbind();
         }
     }
-    
+
 
     void mesh_io_initialize() {
+        geo_register_MeshIOHandler_creator(LMIOHandler,   "mesh");
+        geo_register_MeshIOHandler_creator(LMIOHandler,   "meshb");
         geo_register_MeshIOHandler_creator(OBJIOHandler,  "obj");
-        geo_register_MeshIOHandler_creator(OBJIOHandler,  "eobj");        
+        geo_register_MeshIOHandler_creator(OBJIOHandler,  "eobj");
         geo_register_MeshIOHandler_creator(OBJ6IOHandler, "obj6");
         geo_register_MeshIOHandler_creator(PLYIOHandler,  "ply");
         geo_register_MeshIOHandler_creator(OFFIOHandler,  "off");
@@ -4113,20 +5087,20 @@ namespace GEO {
         geo_register_MeshIOHandler_creator(PTSIOHandler,  "pts");
         geo_register_MeshIOHandler_creator(TETIOHandler,  "tet");
         geo_register_MeshIOHandler_creator(TET6IOHandler, "tet6");
-        geo_register_MeshIOHandler_creator(TET8IOHandler, "tet8");      
+        geo_register_MeshIOHandler_creator(TET8IOHandler, "tet8");
         geo_register_MeshIOHandler_creator(GeogramIOHandler, "geogram");
         geo_register_MeshIOHandler_creator(GeogramIOHandler, "geogram_ascii");
         geo_register_MeshIOHandler_creator(GraphiteIOHandler, "graphite");
         geo_register_MeshIOHandler_creator(PDBIOHandler, "pdb");
         geo_register_MeshIOHandler_creator(PDBIOHandler, "pdb1");
         geo_register_MeshIOHandler_creator(OVMIOHandler, "ovm");
-        geo_register_MeshIOHandler_creator(MSHIOHandler, "msh");        
+        geo_register_MeshIOHandler_creator(MSHIOHandler, "msh");
     }
 
-    
+
     bool GEOGRAM_API mesh_load(
         InputGeoFile& geofile, Mesh& M,
-        const MeshIOFlags& ioflags 
+        const MeshIOFlags& ioflags
     ) {
         GeogramIOHandler geogram;
         return geogram.load(geofile, M, ioflags);
@@ -4134,10 +5108,18 @@ namespace GEO {
 
     bool GEOGRAM_API mesh_save(
         const Mesh& M, OutputGeoFile& geofile,
-        const MeshIOFlags& ioflags 
+        const MeshIOFlags& ioflags
     ) {
         GeogramIOHandler geogram;
         return geogram.save(M, geofile, ioflags);
     }
-    
+
+    bool Mesh::load(const std::string& filename) {
+        return mesh_load(filename, *this);
+    }
+
+    bool Mesh::save(const std::string& filename) const {
+        return mesh_save(*this, filename);
+    }
+
 }

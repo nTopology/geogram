@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2014, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -26,19 +26,13 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine,
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
@@ -67,30 +61,28 @@ namespace GEO {
     /******************************************************************/
 
     std::map<std::string, AttributeStoreCreator_var>
-         AttributeStore::type_name_to_creator_;
+    AttributeStore::type_name_to_creator_;
 
     std::map<std::string, std::string>
-         AttributeStore::typeid_name_to_type_name_;
+    AttributeStore::typeid_name_to_type_name_;
 
     std::map<std::string, std::string>
-         AttributeStore::type_name_to_typeid_name_;
+    AttributeStore::type_name_to_typeid_name_;
 
-    AttributeStore::AttributeStore(
-        index_t elemsize,
-        index_t dim
-    ) :
+    AttributeStore::AttributeStore(size_t elemsize, index_t dim) :
         element_size_(elemsize),
         dimension_(dim),
         cached_base_addr_(nullptr),
         cached_size_(0),
         cached_capacity_(0),
-        lock_()
+        lock_(GEOGRAM_SPINLOCK_INIT)
     {
     }
 
     void AttributeStore::notify(
         Memory::pointer base_addr, index_t size, index_t dim
     ) {
+        Process::acquire_spinlock(lock_);
         if(
             size != cached_size_ ||
             base_addr != cached_base_addr_ ||
@@ -103,6 +95,7 @@ namespace GEO {
                 cur->notify(cached_base_addr_, cached_size_, dim);
             }
         }
+        Process::release_spinlock(lock_);
     }
 
     AttributeStore::~AttributeStore() {
@@ -131,38 +124,154 @@ namespace GEO {
         Process::release_spinlock(lock_);
     }
 
-    void AttributeStore::apply_permutation(
-        const vector<index_t>& permutation
+    void AttributeStore::apply_permutation_with_lifecycle(
+	const vector<index_t>& permutation_in
     ) {
-        geo_debug_assert(permutation.size() <= cached_size_);
-        Permutation::apply(
-            cached_base_addr_, permutation, element_size_ * dimension_
-        );
+	Memory::pointer pdata = cached_base_addr_;
+	vector<index_t>& perm = const_cast<vector<index_t>&>(permutation_in);
+	geo_debug_assert(Permutation::is_valid(perm));
+	size_t item_size = element_size_ * dimension_;
+	Memory::pointer temp = static_cast<Memory::pointer>(alloca(item_size));
+	for(index_t k = 0; k < perm.size(); ++k) {
+	    if(Permutation::is_marked(perm, k)) {
+		continue;
+	    }
+	    index_t i = k;
+	    index_t j = perm[k];
+
+	    lifecycle_->copy_construct_array(
+		temp, pdata + i * item_size, dimension_
+	    );
+
+	    Permutation::mark(perm, k);
+	    while(j != k) {
+		lifecycle_->assign_array(
+		    pdata + i * item_size, pdata + j * item_size, dimension_
+		);
+		index_t nj = perm[j];
+		Permutation::mark(perm, j);
+		i = j;
+		j = nj;
+	    }
+	    lifecycle_->assign_array(pdata + i * item_size, temp, dimension_);
+	    lifecycle_->destroy_array(temp, dimension_);
+	}
+	for(index_t k = 0; k < perm.size(); ++k) {
+	    Permutation::unmark(perm, k);
+	}
     }
 
-    void AttributeStore::compress(
-        const vector<index_t>& old2new
-    ) {
+    void AttributeStore::apply_permutation(const vector<index_t>& permutation) {
+        geo_debug_assert(permutation.size() <= cached_size_);
+	if(lifecycle_.is_null()) {
+	    Permutation::apply(
+		cached_base_addr_, permutation, element_size_ * dimension_
+	    );
+	} else {
+	    apply_permutation_with_lifecycle(permutation);
+	}
+    }
+
+    void AttributeStore::compress(const vector<index_t>& old2new) {
         geo_debug_assert(old2new.size() <= cached_size_);
-        index_t item_size = element_size_ * dimension_;
-        for(index_t i=0; i<old2new.size(); ++i) {
-            index_t j = old2new[i];
-            if(j == index_t(-1) || j == i) {
-                continue;
-            }
-            geo_debug_assert(j <= i);
-            Memory::copy(
-                cached_base_addr_+j*item_size,
-                cached_base_addr_+i*item_size,
-                item_size
-            );
-        }
+        size_t item_size = size_t(element_size_) * dimension_;
+	for(index_t i=0; i<old2new.size(); ++i) {
+	    index_t j = old2new[i];
+	    if(j == NO_INDEX || j == i) {
+		continue;
+	    }
+	    geo_debug_assert(j <= i);
+	    if(lifecycle_.is_null())  {
+		Memory::copy(
+		    cached_base_addr_+size_t(j)*item_size,
+		    cached_base_addr_+size_t(i)*item_size,
+		    item_size
+		);
+	    } else {
+		lifecycle_->assign_array(
+		    cached_base_addr_+size_t(j)*item_size,
+		    cached_base_addr_+size_t(i)*item_size,
+		    dimension_
+		);
+	    }
+	}
     }
 
     void AttributeStore::zero() {
-        Memory::clear(
-            cached_base_addr_, element_size_ * dimension_ * cached_size_
-        );
+	if(lifecycle_.is_null()) {
+	    Memory::clear(
+		cached_base_addr_, element_size_ * dimension_ * cached_size_
+	    );
+	} else {
+	    index_t nb_elements = cached_size_ * dimension_;
+	    for(index_t i=0; i<nb_elements; ++i) {
+		lifecycle_->reset(cached_base_addr_ + i * element_size_);
+	    }
+	}
+    }
+
+    void AttributeStore::swap_items(index_t i, index_t j) {
+        geo_debug_assert(i < cached_size_);
+        geo_debug_assert(j < cached_size_);
+	size_t item_size = element_size_ * dimension_;
+	if(lifecycle_.is_null()) {
+	    void* temp = alloca(item_size);
+	    Memory::copy(
+		temp,
+		cached_base_addr_+i*item_size,
+		item_size
+	    );
+	    Memory::copy(
+		cached_base_addr_+i*item_size,
+		cached_base_addr_+j*item_size,
+		item_size
+	    );
+	    Memory::copy(
+		cached_base_addr_+j*item_size,
+		temp,
+		item_size
+	    );
+	} else {
+	    for(index_t c=0; c<dimension_; ++c) {
+		lifecycle_->swap(
+		    cached_base_addr_+i*item_size+c*element_size(),
+		    cached_base_addr_+j*item_size+c*element_size()
+		);
+	    }
+	}
+    }
+
+    void AttributeStore::scale_item(index_t to, double s) {
+        geo_argused(to);
+        geo_argused(s);
+    }
+
+    void AttributeStore::madd_item(index_t to, double s, index_t from) {
+        geo_argused(to);
+        geo_argused(s);
+        geo_argused(from);
+    }
+
+    void AttributeStore::register_attribute_creator(
+        AttributeStoreCreator* creator,
+        const std::string& element_type_name,
+        const std::string& element_typeid_name
+    ) {
+        if(element_type_name_is_known(element_type_name)) {
+            Logger::warn("Attributes") << element_type_name
+                                       << " already registered"
+                                       << std::endl;
+            if(element_typeid_name_is_known(element_typeid_name)) {
+                bool already_registered_attribute_has_same_type = (
+                    type_name_to_typeid_name_[element_type_name] ==
+                    element_typeid_name
+                );
+                geo_assert(already_registered_attribute_has_same_type);
+            }
+        }
+        type_name_to_creator_[element_type_name] = creator;
+        typeid_name_to_type_name_[element_typeid_name] = element_type_name;
+        type_name_to_typeid_name_[element_type_name] = element_typeid_name;
     }
 
     /*************************************************************************/
@@ -249,11 +358,48 @@ namespace GEO {
         return it->second;
     }
 
+    bool AttributesManager::get_doubles(
+        const std::string& name, vector<double>& out, index_t& dim
+    ) const {
+        const AttributeStore* store = find_attribute_store(name);
+        if(
+            store == nullptr ||
+            !store->elements_type_matches(typeid(double).name())
+        ) {
+            return false;
+        }
+        dim = store->dimension();
+        const double* p = static_cast<const double*>(store->data());
+        out.assign(p, p + store->size() * dim);
+        return true;
+    }
+
+    bool AttributesManager::set_doubles(
+        const std::string& name, const vector<double>& in, index_t dim
+    ) {
+        AttributeStore* store = find_attribute_store(name);
+        if(store == nullptr) {
+            if(in.size() != size_t(size()) * dim) {
+                return false;                    // do not create on size mismatch
+            }
+            store = new TypedAttributeStore<double>(dim);
+            bind_attribute_store(name, store);   // sizes it to size_, takes ownership
+        }
+        if(
+            !store->elements_type_matches(typeid(double).name()) ||
+            store->dimension() != dim ||
+            in.size() != size_t(store->size()) * dim
+        ) {
+            return false;
+        }
+        Memory::copy(store->data(), in.data(), in.size() * sizeof(double));
+        return true;
+    }
+
 
     void AttributesManager::delete_attribute_store(const std::string& name) {
         auto it = attributes_.find(name);
         geo_assert(it != attributes_.end());
-        geo_assert(!it->second->has_observers());
         delete it->second;
         attributes_.erase(it);
     }
@@ -305,9 +451,96 @@ namespace GEO {
         }
     }
 
+    void AttributesManager::swap_items(index_t i, index_t j) {
+        for(auto& cur : attributes_) {
+            cur.second->swap_items(i,j);
+        }
+    }
+
+    void AttributesManager::zero_item(index_t i) {
+        for(auto& cur : attributes_) {
+            cur.second->zero_item(i);
+        }
+    }
+
+    void AttributesManager::scale_item(index_t i, double s) {
+        for(auto& cur : attributes_) {
+            cur.second->scale_item(i,s);
+        }
+    }
+
+    void AttributesManager::madd_item(index_t i, double s, index_t j) {
+        for(auto& cur : attributes_) {
+            cur.second->madd_item(i,s,j);
+        }
+    }
+
+    bool AttributesManager::copy_attribute(
+        const std::string& name, const std::string& new_name
+    ) {
+        const auto old_itr = attributes_.find(name);
+        if( old_itr == attributes_.end() ) {
+            return false;
+        }
+        const AttributeStore* store = old_itr->second;
+
+        const auto new_itr = attributes_.find(new_name);
+        if( new_itr != attributes_.end() ) {
+            AttributeStore* new_store = new_itr->second;
+            if( !store->elements_type_matches(
+                    new_store->element_typeid_name())
+              ) {
+                return false;
+            }
+            if(
+                (store->size() != new_store->size()) &&
+                (store->dimension() != new_store->dimension()) &&
+                (store->element_size() != new_store->element_size())
+            ) {
+                return false;
+            }
+
+	    geo_debug_assert(store->lifecycle() == new_store->lifecycle());
+	    if(store->lifecycle() == nullptr) {
+		memcpy(
+		    new_store->data(), store->data(),
+		    store->size() * store->dimension() * store->element_size()
+		);
+	    } else {
+		store->lifecycle()->assign_array(
+		    Memory::pointer(new_store->data()),
+		    Memory::const_pointer(store->data()),
+		    store->size() * store->dimension()
+		);
+	    }
+        } else {
+            AttributeStore* new_store = store->clone();
+            attributes_[new_name] = new_store;
+        }
+
+        return true;
+    }
+
+    bool AttributesManager::rename_attribute(
+        const std::string& old_name, const std::string& new_name
+    ) {
+        const auto old_itr = attributes_.find(old_name);
+        if( old_itr == attributes_.end() ) {
+            return false;
+        }
+        const auto new_itr = attributes_.find(new_name);
+        if( new_itr != attributes_.end() ) {
+            return false;
+        }
+        attributes_[new_name] = old_itr->second;
+        attributes_.erase(old_itr);
+        return true;
+    }
+
+
     /************************************************************************/
 
-    index_t ReadOnlyScalarAttributeAdapter::nb_scalar_elements_per_item(
+    index_t ScalarAttributeAdapterBase::nb_scalar_elements_per_item(
         const AttributeStore* store
     ) {
         ElementType et = element_type(store);
@@ -323,7 +556,7 @@ namespace GEO {
         return result;
     }
 
-    std::string ReadOnlyScalarAttributeAdapter::attribute_base_name(
+    std::string ScalarAttributeAdapterBase::attribute_base_name(
         const std::string& name
     ) {
         size_t pos = name.find('[');
@@ -333,7 +566,7 @@ namespace GEO {
         return name.substr(0,pos);
     }
 
-    index_t ReadOnlyScalarAttributeAdapter::attribute_element_index(
+    index_t ScalarAttributeAdapterBase::attribute_element_index(
         const std::string& name
     ) {
         index_t result = 0;
@@ -341,21 +574,21 @@ namespace GEO {
         if(pos != std::string::npos) {
             try {
                 if(pos+2 > name.length()) {
-                    result = index_t(-1);
+                    result = NO_INDEX;
                 } else {
                     result = String::to_uint(
                         name.substr(pos+1, name.length()-pos-2)
                     );
                 }
             } catch(...) {
-                result = index_t(-1);
+                result = NO_INDEX;
             }
         }
         return result;
     }
 
-    ReadOnlyScalarAttributeAdapter::ElementType
-    ReadOnlyScalarAttributeAdapter::element_type(const AttributeStore* store) {
+    ScalarAttributeAdapterBase::ElementType
+    ScalarAttributeAdapterBase::element_type(const AttributeStore* store) {
         if(store->element_typeid_name() == typeid(Numeric::uint8).name()) {
             return ET_UINT8;
         }
@@ -407,7 +640,7 @@ namespace GEO {
         return ET_NONE;
     }
 
-    void ReadOnlyScalarAttributeAdapter::bind_if_is_defined(
+    void ScalarAttributeAdapterBase::bind_if_is_defined(
         const AttributesManager& manager, const std::string& name
     ) {
         geo_assert(!is_bound());
@@ -415,9 +648,9 @@ namespace GEO {
         element_index_ = attribute_element_index(name);
         store_ = manager_->find_attribute_store(attribute_base_name(name));
 
-        if(store_ == nullptr || element_index_ == index_t(-1)) {
+        if(store_ == nullptr || element_index_ == NO_INDEX) {
             store_ = nullptr;
-            element_index_ = index_t(-1);
+            element_index_ = NO_INDEX;
             return;
         }
 
@@ -425,7 +658,7 @@ namespace GEO {
 
         if(element_type_ == ET_NONE) {
             store_ = nullptr;
-            element_index_ = index_t(-1);
+            element_index_ = NO_INDEX;
             return;
         }
 
@@ -434,7 +667,7 @@ namespace GEO {
         // or 3*store's dimension if a vec3)
         if(element_index_ >= nb_scalar_elements_per_item(store_)) {
             store_ = nullptr;
-            element_index_ = index_t(-1);
+            element_index_ = NO_INDEX;
             element_type_ = ET_NONE;
             return;
         }
@@ -442,7 +675,7 @@ namespace GEO {
         register_me(const_cast<AttributeStore*>(store_));
     }
 
-    bool ReadOnlyScalarAttributeAdapter::is_defined(
+    bool ScalarAttributeAdapterBase::is_defined(
         const AttributesManager& manager, const std::string& name
     ) {
         std::string attribute_name = attribute_base_name(name);
@@ -455,7 +688,7 @@ namespace GEO {
         }
 
         index_t element_index = attribute_element_index(name);
-        if(element_index == index_t(-1)) {
+        if(element_index == NO_INDEX) {
             return false;
         }
 
@@ -473,4 +706,3 @@ namespace GEO {
     /************************************************************************/
 
 }
-

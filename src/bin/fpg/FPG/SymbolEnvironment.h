@@ -3,14 +3,13 @@
 
 #include <string>
 #include <vector>
-//#include <ext/hash_map>
 #include <map>
 
 #include <FPG/Symbol.h>
 
 namespace AST {
-  struct FunctionDefinition;
-  struct Node;
+    struct FunctionDefinition;
+    struct Node;
 }
 
 struct Collect_variables;

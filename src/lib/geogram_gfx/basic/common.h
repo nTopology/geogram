@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2014, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -13,7 +13,7 @@
  *  * Neither the name of the ALICE Project-Team nor the names of its
  *  contributors may be used to endorse or promote products derived from this
  *  software without specific prior written permission.
- * 
+ *
  *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -26,19 +26,13 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine, 
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX 
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
@@ -56,19 +50,22 @@
  *  included before anything else by all header files in geogram_gfx.
  */
 
+#define IMGUI_DISABLE_OBSOLETE_FUNCTIONS
+#define IMGUI_DISABLE_OBSOLETE_KEYIO
+
 namespace GEO {
 
-    
+
     namespace Graphics {
 
         /**
          * \brief Initialize Geogram graphics subsystem
          * \details This function must be called once, after a valid OpenGL context
-         *  is created, at the beginning of a program to initialize the geogram_gfx 
-         *  library. It also installs a exit() handler that calls function terminate() 
+         *  is created, at the beginning of a program to initialize the geogram_gfx
+         *  library. It also installs a exit() handler that calls function terminate()
          *  when the program exists normally.
          * \warning This function cannot be called before a valid OpenGL context is
-         *  available. 
+         *  available.
          */
         void GEOGRAM_GFX_API initialize();
 
@@ -81,8 +78,7 @@ namespace GEO {
          */
         void GEOGRAM_GFX_API terminate();
     }
-    
+
 }
 
 #endif
-

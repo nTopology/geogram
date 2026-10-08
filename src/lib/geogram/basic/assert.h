@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2014, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -13,7 +13,7 @@
  *  * Neither the name of the ALICE Project-Team nor the names of its
  *  contributors may be used to endorse or promote products derived from this
  *  software without specific prior written permission.
- * 
+ *
  *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -26,19 +26,13 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine, 
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX 
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
@@ -96,7 +90,7 @@ namespace GEO {
      *  on other systems, calls geo_abort().
      */
     GEO_NORETURN_DECL void GEOGRAM_API geo_breakpoint() GEO_NORETURN;
-    
+
     /**
      * \brief Prints an assertion failure
      * \details This function is called when a boolean condition is not met.
@@ -152,11 +146,11 @@ namespace GEO {
  * \param[in] x the boolean expression of the condition
  * \see geo_assertion_failed()
  */
-#define geo_assert(x) {                                      \
-        if(!(x)) {                                               \
-            GEO::geo_assertion_failed(#x, __FILE__, __LINE__);   \
-        }                                                        \
-}
+#define geo_assert(x) {                                         \
+        if(!(x)) {                                              \
+            GEO::geo_assertion_failed(#x, __FILE__, __LINE__);  \
+        }                                                       \
+    }
 
 /**
  * \brief Verifies that a value is in a legal range
@@ -168,21 +162,21 @@ namespace GEO {
  * \param[in] max_val maximum allowed value
  * \see geo_range_assertion_failed()
  */
-#define geo_range_assert(x, min_val, max_val) {              \
-        if(((x) < (min_val)) || ((x) > (max_val))) {             \
-            GEO::geo_range_assertion_failed(x, min_val, max_val, \
-                __FILE__, __LINE__                               \
-            );                                                   \
-        }                                                        \
-}
+#define geo_range_assert(x, min_val, max_val) {                         \
+        if(((x) < (min_val)) || ((x) > (max_val))) {                    \
+            GEO::geo_range_assertion_failed(x, min_val, max_val,        \
+                                            __FILE__, __LINE__          \
+                                           );                           \
+        }                                                               \
+    }
 
 /**
  * \brief Sets a non reachable point in the program
  * \details
  */
-#define geo_assert_not_reached {                             \
-        GEO::geo_should_not_have_reached(__FILE__, __LINE__);    \
-}
+#define geo_assert_not_reached {                                \
+        GEO::geo_should_not_have_reached(__FILE__, __LINE__);   \
+    }
 
 /**
  * \def geo_debug_assert(x)
@@ -197,9 +191,11 @@ namespace GEO {
 #ifdef GEO_DEBUG
 #define geo_debug_assert(x) geo_assert(x)
 #define geo_debug_range_assert(x, min_val, max_val) geo_range_assert(x, min_val, max_val)
+#define geo_debug(x) x
 #else
 #define geo_debug_assert(x)
 #define geo_debug_range_assert(x, min_val, max_val)
+#define geo_debug(x)
 #endif
 
 /**
@@ -221,4 +217,3 @@ namespace GEO {
 #endif
 
 #endif
-

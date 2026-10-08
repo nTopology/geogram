@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2014, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -13,7 +13,7 @@
  *  * Neither the name of the ALICE Project-Team nor the names of its
  *  contributors may be used to endorse or promote products derived from this
  *  software without specific prior written permission.
- * 
+ *
  *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -26,19 +26,13 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine, 
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX 
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
@@ -70,9 +64,9 @@ namespace {
      * \param[in] s fourth vertex of the tetrahedron
      * \param[out] t_circumcenter computed circumcenter of the tetrahedron
      * \param[out] squared_radius computed squared radius of the tetrahedron
-     * \param[out] dihedral_angles if non-nullptr, 
+     * \param[out] dihedral_angles if non-nullptr,
      *   computed dihedral angles of the tetrahedron
-     * \return true if successful, false otherwise 
+     * \return true if successful, false otherwise
      *  (for instance, if the tetrahedron is flat).
      */
     bool tetra_circumcenter_squaredradius(
@@ -101,7 +95,7 @@ namespace {
 
         squared_radius = length2(
             d_t_circumcenter) / (tet_vol_x_12 * tet_vol_x_12
-            );
+                                );
         d_t_circumcenter = (1.0 / tet_vol_x_12) * d_t_circumcenter;
         t_circumcenter = p + d_t_circumcenter;
 
@@ -140,11 +134,11 @@ namespace {
     }
 
     /**
-     * \brief Gets a Delaunay vertex by tetrahedron index 
+     * \brief Gets a Delaunay vertex by tetrahedron index
      *  and local vertex index.
      * \param[in] delaunay the Delaunay triangulation
      * \param[in] c the index of the tetrahedron
-     * \param[in] lv the local index of the vertex (0,1,2 or 3) 
+     * \param[in] lv the local index of the vertex (0,1,2 or 3)
      *  in tetrahedron \p c.
      * \return a const reference to the vertex, as a vec3.
      */
@@ -165,7 +159,7 @@ namespace {
      * \brief Computes the normal to a tetrahedron facet.
      * \param[in] delaunay the Delaunay triangulation
      * \param[in] t the index of the tetrahedron
-     * \param[in] f the local index (0,1,2 or 3) of 
+     * \param[in] f the local index (0,1,2 or 3) of
      *  the facet in the tetrahedron \p t
      * \return the normal to the facet \p f or tetrahedron \p t
      */
@@ -196,14 +190,14 @@ namespace GEO {
         Delaunay_var delaunay = Delaunay::create(3, "PDEL");
         delaunay->set_vertices(nb_pts, pts);
         Logger::out("LFS") << "Done Delaunay" << std::endl;
-        
+
         vector<vec3> circumcenter(delaunay->nb_cells());
         vector<bool> voronoi_cell_is_infinite(
             delaunay->nb_vertices(), false
         );
         vector<bool> is_sliver(delaunay->nb_cells());
 
-        static const index_t NO_POLE = index_t(-1);
+        static constexpr index_t NO_POLE = NO_INDEX;
         // Index of incident tet whose circumcenter is the pole
         vector<index_t> positive_pole(delaunay->nb_vertices(),NO_POLE);
         vector<index_t> negative_pole(delaunay->nb_vertices(),NO_POLE);
@@ -213,7 +207,7 @@ namespace GEO {
         );
         vector<double> dist(delaunay->nb_vertices(), 0.0);
 
-        Logger::out("LFS") << "(1) Circumcenters and slivers" << std::endl; 
+        Logger::out("LFS") << "(1) Circumcenters and slivers" << std::endl;
         // Step 1: compute circumcenters and check for slivers
         const double sliver_quality = sliver_angle_threshold_ / 180.0 * M_PI;
         for(index_t t = 0; t < delaunay->nb_cells(); t++) {
@@ -246,14 +240,14 @@ namespace GEO {
             if(is_sliver[t]) {
                 continue;
             }
-            signed_index_t f_inf = -1;
+            index_t f_inf = NO_INDEX;
             for(index_t f = 0; f < 4; f++) {
-                if(delaunay->cell_adjacent(t, f) == -1) {
-                    f_inf = signed_index_t(f);
+                if(delaunay->cell_adjacent(t, f) == NO_INDEX) {
+                    f_inf = index_t(f);
                     break;
                 }
             }
-            if(f_inf == -1) {
+            if(f_inf == NO_INDEX) {
                 // tet t does not have facet on border
                 const vec3& c = circumcenter[t];
                 for(index_t lv = 0; lv < 4; lv++) {
@@ -275,7 +269,7 @@ namespace GEO {
             }
         }
 
-        Logger::out("LFS") << "(3) Negative poles" << std::endl;        
+        Logger::out("LFS") << "(3) Negative poles" << std::endl;
         // Step 3: compute negative poles
         std::fill(dist.begin(), dist.end(), 0.0);
         for(index_t t = 0; t < delaunay->nb_cells(); t++) {
@@ -284,7 +278,7 @@ namespace GEO {
             }
             bool t_is_infinite = false;
             for(index_t f = 0; f < 4; f++) {
-                if(delaunay->cell_adjacent(t, f) == -1) {
+                if(delaunay->cell_adjacent(t, f) == NO_INDEX) {
                     t_is_infinite = true;
                     break;
                 }
@@ -343,7 +337,6 @@ namespace GEO {
         spatial_search_ = Delaunay::create(3, "NN");
         spatial_search_->set_vertices(poles_.size() / 3, poles_.data());
 
-        Logger::out("LFS") << "Done init." << std::endl;        
+        Logger::out("LFS") << "Done init." << std::endl;
     }
 }
-

@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2014, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -26,19 +26,13 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine,
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
@@ -119,6 +113,26 @@ namespace GEO {
      */
     typedef vecng<4, Numeric::int32> vec4i;
 
+    /**
+     * \brief Represents points and vectors in 2d with
+     *  unsigned integer coordinates.
+     * \details Syntax is (mostly) compatible with GLSL.
+     */
+    typedef vecng<2, Numeric::uint32> vec2u;
+
+    /**
+     * \brief Represents points and vectors in 3d with
+     *  unsigned integer coordinates.
+     * \details Syntax is (mostly) compatible with GLSL.
+     */
+    typedef vecng<3, Numeric::uint32> vec3u;
+
+    /**
+     * \brief Represents points and vectors in 4d with
+     *  unsigned integer coordinates.
+     * \details Syntax is (mostly) compatible with GLSL.
+     */
+    typedef vecng<4, Numeric::uint32> vec4u;
 
     /**
      * \brief Represents a 2x2 matrix.
@@ -137,6 +151,47 @@ namespace GEO {
      * \details Syntax is (mostly) compatible with GLSL.
      */
     typedef Matrix<4, Numeric::float64> mat4;
+
+    /************************************************************************/
+
+    /**
+     * \brief Computes the determinant of a 2x2 matrix
+     * \param[in] M a const reference to the matrix
+     * \return the determinant
+     */
+    inline double det(const mat2& M) {
+        return det2x2(
+            M(0,0), M(0,1),
+            M(1,0), M(1,1)
+        );
+    }
+
+    /**
+     * \brief Computes the determinant of a 3x3 matrix
+     * \param[in] M a const reference to the matrix
+     * \return the determinant
+     */
+    inline double det(const mat3& M) {
+        return det3x3(
+            M(0,0), M(0,1), M(0,2),
+            M(1,0), M(1,1), M(1,2),
+            M(2,0), M(2,1), M(2,2)
+        );
+    }
+
+    /**
+     * \brief Computes the determinant of a 4x4 matrix
+     * \param[in] M a const reference to the matrix
+     * \return the determinant
+     */
+    inline double det(const mat4& M) {
+        return det4x4(
+            M(0,0), M(0,1), M(0,2), M(0,3),
+            M(1,0), M(1,1), M(1,2), M(1,3),
+            M(2,0), M(2,1), M(2,2), M(2,3),
+            M(3,0), M(3,1), M(3,2), M(3,3)
+        );
+    }
 
     /************************************************************************/
 
@@ -213,7 +268,7 @@ namespace GEO {
          */
         inline double cos_angle(const vec3& a, const vec3& b) {
             double lab = ::sqrt(length2(a)*length2(b));
-            double result = (lab > 1e-20) ? (dot(a, b) / lab) : 1.0;
+            double result = (lab > 1e-50) ? (dot(a, b) / lab) : 1.0;
             // Numerical precision problem may occur, and generate
             // normalized dot products that are outside the valid
             // range of acos.
@@ -267,15 +322,14 @@ namespace GEO {
          */
         inline double angle(const vec2& a, const vec2& b) {
             return det(a, b) > 0 ?
-                   ::acos(cos_angle(a, b)) :
-                   -::acos(cos_angle(a, b));
+                ::acos(cos_angle(a, b)) :
+                -::acos(cos_angle(a, b));
         }
 
         /**
          * \brief Computes the normal of a 3d triangle
-         * \param[in] p1 first vertex of the triangle
-         * \param[in] p2 second vertex of the triangle
-         * \param[in] p3 third vertex of the triangle
+         * \param[in] p1 , p2 , p3 the three vertices of the
+         *    triangle
          * \return the normal of the triangle (\p p1, \p p2, \p p3).
          */
         inline vec3 triangle_normal(
@@ -659,6 +713,7 @@ namespace GEO {
         double a, b, c, d;
     };
 
+    /*******************************************************************/
 
     /**
      * \brief Axis-aligned bounding box.
@@ -667,6 +722,56 @@ namespace GEO {
     public:
         double xyz_min[3];
         double xyz_max[3];
+
+	/**
+	 * \brief Constructs an uninitialized box
+	 */
+	Box() {
+	}
+
+	/**
+	 * \brief Constructs a box from lower and upper bounds
+	 * \param[in] x1 , y1 , z1 the lower bounds
+	 * \param[in] x2 , y2 , z2 the upper bounds
+	 */
+	Box(double x1, double y1, double z1, double x2, double y2, double z2) {
+	    xyz_min[0] = x1;
+	    xyz_min[1] = y1;
+	    xyz_min[2] = z1;
+	    xyz_max[0] = x2;
+	    xyz_max[1] = y2;
+	    xyz_max[2] = z2;
+	}
+
+	/**
+	 * \brief Constructs a box from lower and upper bounds
+	 * \param[in] lo the lower bound as a vec3
+	 * \param[in] hi the upper bound as a vec3
+	 */
+	Box(const vec3& lo, const vec3& hi) {
+	    xyz_min[0] = lo.x;
+	    xyz_min[1] = lo.y;
+	    xyz_min[2] = lo.z;
+	    xyz_max[0] = hi.x;
+	    xyz_max[1] = hi.y;
+	    xyz_max[2] = hi.z;
+	}
+
+	/**
+	 * \brief Gets the lower bounds
+	 * \return the lower bounds as a vec3
+	 */
+	vec3 lo() const {
+	    return vec3(xyz_min);
+	}
+
+	/**
+	 * \brief Gets the higher bounds
+	 * \return the higher bounds as a vec3
+	 */
+	vec3 hi() const {
+	    return vec3(xyz_max);
+	}
 
         /**
          * \brief Tests whether a box contains a point.
@@ -684,7 +789,24 @@ namespace GEO {
             }
             return true;
         }
+
+	/**
+	 * \brief Enlarges the box
+	 * \param[in] d the amount that should be subtracted from the lower
+	 *  bounds and added to the upper bounds
+	 */
+	void enlarge(double d) {
+	    xyz_min[0] -= d;
+	    xyz_min[1] -= d;
+	    xyz_min[2] -= d;
+	    xyz_max[0] += d;
+	    xyz_max[1] += d;
+	    xyz_max[2] += d;
+	}
+
     };
+
+    typedef Box Box3d;
 
     /**
      * \brief Tests whether two Boxes have a non-empty intersection.
@@ -719,7 +841,129 @@ namespace GEO {
         }
     }
 
-   /*******************************************************************/
+    /*******************************************************************/
+
+    /**
+     * \brief Axis-aligned bounding box.
+     */
+    class Box2d {
+    public:
+        double xy_min[2];
+        double xy_max[2];
+
+	/**
+	 * \brief Constructs an uninitialized Box2d
+	 */
+	Box2d() {
+	}
+
+	/**
+	 * \brief Constructs a box from lower and upper bounds
+	 * \param[in] x1 , y1 the lower bounds
+	 * \param[in] x2 , y2 the upper bounds
+	 */
+	Box2d(double x1, double y1, double x2, double y2) {
+	    xy_min[0] = x1;
+	    xy_min[1] = y1;
+	    xy_max[0] = x2;
+	    xy_max[1] = y2;
+	}
+
+	/**
+	 * \brief Constructs a box from lower and upper bounds
+	 * \param[in] lo the lower bound as a vec2
+	 * \param[in] hi the upper bound as a vec2
+	 */
+	Box2d(const vec2& lo, const vec2& hi) {
+	    xy_min[0] = lo.x;
+	    xy_min[1] = lo.y;
+	    xy_max[0] = hi.x;
+	    xy_max[1] = hi.y;
+	}
+
+	/**
+	 * \brief Gets the lower bounds
+	 * \return the lower bounds as a vec2
+	 */
+	vec2 lo() const {
+	    return vec2(xy_min);
+	}
+
+	/**
+	 * \brief Gets the higher bounds
+	 * \return the higher bounds as a vec2
+	 */
+	vec2 hi() const {
+	    return vec2(xy_max);
+	}
+
+        /**
+         * \brief Tests whether a box contains a point.
+         * \param[in] b the point
+         * \return true if this box contains \p b, false otherwise
+         */
+        bool contains(const vec2& b) const {
+            for(coord_index_t c = 0; c < 2; ++c) {
+                if(b[c] < xy_min[c]) {
+                    return false;
+                }
+                if(b[c] > xy_max[c]) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+	/**
+	 * \brief Enlarges the box
+	 * \param[in] d the amount that should be subtracted from the lower
+	 *  bounds and added to the upper bounds
+	 */
+	void enlarge(double d) {
+	    xy_min[0] -= d;
+	    xy_min[1] -= d;
+	    xy_max[0] += d;
+	    xy_max[1] += d;
+	}
+    };
+
+
+    /**
+     * \brief Tests whether two Box2d have a non-empty intersection.
+     * \param[in] B1 first box
+     * \param[in] B2 second box
+     * \return true if \p B1 and \p B2 have a non-empty intersection,
+     *  false otherwise.
+     */
+    inline bool bboxes_overlap(const Box2d& B1, const Box2d& B2) {
+        for(coord_index_t c = 0; c < 2; ++c) {
+            if(B1.xy_max[c] < B2.xy_min[c]) {
+                return false;
+            }
+            if(B1.xy_min[c] > B2.xy_max[c]) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * \brief Computes the smallest Box2d that encloses two Box2d.
+     * \param[out] target the smallest axis-aligned box
+     *  that encloses \p B1 and \p B2
+     * \param[in] B1 first box
+     * \param[in] B2 second box
+     */
+    inline void bbox_union(Box2d& target, const Box2d& B1, const Box2d& B2) {
+        for(coord_index_t c = 0; c < 2; ++c) {
+            target.xy_min[c] = std::min(B1.xy_min[c], B2.xy_min[c]);
+            target.xy_max[c] = std::max(B1.xy_max[c], B2.xy_max[c]);
+        }
+    }
+
+    /*******************************************************************/
+
+#ifndef GOMGEN
 
     /**
      * \brief Applies a 3d transform to a 3d vector.
@@ -729,30 +973,16 @@ namespace GEO {
      *  Internally, the vector is converted into
      *  a 4d vector, with w coordinate set to zero.
      * \param[in] v the input 3d vector to be transformed
-     * \param[in] m the transform, as a 4x4 matrix, using
+     * \param[in] M the transform, as a 4x4 matrix, using
      *  homogeneous coordinates
      * \tparam FT type of the coordinates
      * \return the transformed 3d vector
      */
-    template <class FT> vecng<3,FT> transform_vector(
-        const vecng<3,FT>& v,
-        const Matrix<4,FT>& m
-    ){
-        index_t i,j ;
-        FT result[4] ;
-
-        for(i=0; i<4; i++) {
-            result[i] = 0 ;
-        }
-        for(i=0; i<4; i++) {
-            for(j=0; j<3; j++) {
-                result[i] += v[j] * m(j,i) ;
-            }
-        }
-
-        return vecng<3,FT>(
-            result[0], result[1], result[2]
-        ) ;
+    template <class FT> [[deprecated("use operators and vec3/4 conversions")]]
+    inline vecng<3,FT> transform_vector(
+        const vecng<3,FT>& v, const Matrix<4,FT>& M
+    ) {
+	return vecng<3,FT>( vecng<4,FT>(v,FT(0.0)) * M );
     }
 
     /**
@@ -764,61 +994,62 @@ namespace GEO {
      *  a 4d vector, with w coordinate set to one. Transformed
      *  coordinates are divided by the transformed w to form
      *  a 3d point.
-     * \param[in] v the input 3d point to be transformed
-     * \param[in] m the transform, as a 4x4 matrix, using
+     * \param[in] p the input 3d point to be transformed
+     * \param[in] M the transform, as a 4x4 matrix, using
      *  homogeneous coordinates
      * \tparam FT type of the coordinates
      * \return the transformed 3d point
      */
-    template <class FT> vecng<3,FT> transform_point(
-        const vecng<3,FT>& v,
-        const Matrix<4,FT>& m
-    ){
-        index_t i,j ;
-        FT result[4] ;
+    template <class FT> [[deprecated("use operators and vec3/4 conversions")]]
+    inline vecng<3,FT> transform_point(
+        const vecng<3,FT>& p, const Matrix<4,FT>& M
+    ) {
+	vecng<4,FT> q = vecng<4,FT>(p,FT(1.0)) * M;
+	return vecng<3,FT>(q.x/q.w, q.y/q.w, q.z/q.w);
+    }
 
-        for(i=0; i<4; i++) {
-            result[i] = 0 ;
-        }
-        for(i=0; i<4; i++) {
-            for(j=0; j<3; j++) {
-                result[i] += v[j] * m(j,i) ;
-            }
-            result[i] += m(3,i);
-        }
 
-        return vecng<3,FT>(
-            result[0] / result[3],
-            result[1] / result[3],
-            result[2] / result[3]
-        ) ;
+    /**
+     * \brief Applies a 3d transform to a 3d point.
+     * \details Convention is the same as in math, i.e.
+     *  vector is a column vector, multiplied on the right
+     *  of the transform.
+     *  Internally, the point is converted into
+     *  a 4d vector, with w coordinate set to one. Transformed
+     *  coordinates are divided by the transformed w to form
+     *  a 3d point.
+     * \param[in] p the input 3d point to be transformed
+     * \param[in] M the transform, as a 4x4 matrix, using
+     *  homogeneous coordinates
+     * \tparam FT type of the coordinates
+     * \return the transformed 3d point
+     */
+    template <class FT> [[deprecated("use operators and vec3/4 conversions")]]
+    inline vecng<3,FT> transform_point(
+        const Matrix<4,FT>& M, const vecng<3,FT>& p
+    ) {
+	vecng<4,FT> q = M * vecng<4,FT>(p,FT(1.0));
+	return vecng<3,FT>(q.x/q.w, q.y/q.w, q.z/q.w);
     }
 
     /**
-     * \brief Applies a 4d transform to a 4d point.
+     * \brief Applies a 4d transform to a 4d vector.
      * \details Convention is the same as in OpenGL, i.e.
      *  vector is a row vector, multiplied on the left
      *  of the transform.
-     * \param[in] v the input 4d point to be transformed
-     * \param[in] m the transform, as a 4x4 matrix
+     * \param[in] v the input 4d vector to be transformed
+     * \param[in] M the transform, as a 4x4 matrix
      * \tparam FT type of the coordinates
      * \return the transformed 4d vector
      */
-    template <class FT> vecng<4,FT> transform_vector(
-        const vecng<4,FT>& v,
-        const Matrix<4,FT>& m
+    template <class FT> [[deprecated("use operators and vec3/4 conversions")]]
+    inline vecng<4,FT> transform_vector(
+	const vecng<4,FT>& v, const Matrix<4,FT>& M
     ) {
-        index_t i,j ;
-        FT res[4] = {FT(0), FT(0), FT(0), FT(0)};
-
-        for(i=0; i<4; i++) {
-            for(j=0; j<4; j++) {
-                res[i] += v[j] * m(j,i) ;
-            }
-        }
-
-        return vecng<4,FT>(res[0], res[1], res[2], res[3]) ;
+	return v*M;
     }
+
+#endif
 
     /******************************************************************/
 
@@ -858,7 +1089,28 @@ namespace GEO {
 
     /******************************************************************/
 
+    /**
+     * \brief A Ray, in parametric form.
+     */
+    struct Ray {
+        /**
+         * \brief Ray constructor.
+         * \param[in] O the origin of the ray.
+         * \param[in] D the direction of the ray.
+         */
+        Ray(vec3 O, vec3 D) : origin(O), direction(D) {
+        }
+        /**
+         * \brief Ray constructor.
+         */
+        Ray() {
+        }
+        vec3 origin;
+        vec3 direction;
+    };
+
+    /******************************************************************/
+
 }
 
 #endif
-

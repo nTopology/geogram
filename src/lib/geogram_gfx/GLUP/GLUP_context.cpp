@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2016, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -13,7 +13,7 @@
  *  * Neither the name of the ALICE Project-Team nor the names of its
  *  contributors may be used to endorse or promote products derived from this
  *  software without specific prior written permission.
- * 
+ *
  *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -26,24 +26,19 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine, 
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX 
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
 
 #include <geogram_gfx/GLUP/GLUP_context.h>
+#include <geogram_gfx/GLUP/GLUP_private.h>
 #include <geogram_gfx/GLUP/shaders/embedded_shaders.h>
 #include <geogram_gfx/basic/GLSL.h>
 
@@ -79,96 +74,105 @@
 namespace {
     using namespace GEO;
 
-    
+
     void vertex_shader_preamble_pseudo_file(
-	GLSL::PseudoFileProvider* provider, std::vector<GLSL::Source>& sources
+        GLSL::PseudoFileProvider* provider, std::vector<GLSL::Source>& sources
     ) {
-	GLUP::Context* ctxt = dynamic_cast<GLUP::Context*>(provider);
-	geo_assert(ctxt != nullptr);
-	ctxt->get_vertex_shader_preamble_pseudo_file(sources);
-	sources.push_back("#define ");
-	sources.push_back(ctxt->profile_name());
-	sources.push_back("\n");
+        GLUP::Context* ctxt = dynamic_cast<GLUP::Context*>(provider);
+        geo_assert(ctxt != nullptr);
+        ctxt->get_vertex_shader_preamble_pseudo_file(sources);
+        sources.push_back("#define ");
+        sources.push_back(ctxt->profile_name());
+        sources.push_back("\n");
     }
 
     void fragment_shader_preamble_pseudo_file(
-	GLSL::PseudoFileProvider* provider, std::vector<GLSL::Source>& sources
+        GLSL::PseudoFileProvider* provider, std::vector<GLSL::Source>& sources
     ) {
-	GLUP::Context* ctxt = dynamic_cast<GLUP::Context*>(provider);
-	geo_assert(ctxt != nullptr);
-	ctxt->get_fragment_shader_preamble_pseudo_file(sources);
-	sources.push_back("#define ");
-	sources.push_back(ctxt->profile_name());
-	sources.push_back("\n");
+        GLUP::Context* ctxt = dynamic_cast<GLUP::Context*>(provider);
+        geo_assert(ctxt != nullptr);
+        ctxt->get_fragment_shader_preamble_pseudo_file(sources);
+        sources.push_back("#define ");
+        sources.push_back(ctxt->profile_name());
+        sources.push_back("\n");
     }
 
     void geometry_shader_preamble_pseudo_file(
-	GLSL::PseudoFileProvider* provider, std::vector<GLSL::Source>& sources
+        GLSL::PseudoFileProvider* provider, std::vector<GLSL::Source>& sources
     ) {
-	GLUP::Context* ctxt = dynamic_cast<GLUP::Context*>(provider);
-	geo_assert(ctxt != nullptr);
-	ctxt->get_geometry_shader_preamble_pseudo_file(sources);
-	sources.push_back("#define ");
-	sources.push_back(ctxt->profile_name());
-	sources.push_back("\n");
+        GLUP::Context* ctxt = dynamic_cast<GLUP::Context*>(provider);
+        geo_assert(ctxt != nullptr);
+        ctxt->get_geometry_shader_preamble_pseudo_file(sources);
+        sources.push_back("#define ");
+        sources.push_back(ctxt->profile_name());
+        sources.push_back("\n");
     }
 
     void marching_cells_pseudo_file(
-	GLSL::PseudoFileProvider* provider, std::vector<GLSL::Source>& sources
+        GLSL::PseudoFileProvider* provider, std::vector<GLSL::Source>& sources
     ) {
-	GLUP::Context* ctxt = dynamic_cast<GLUP::Context*>(provider);
-	geo_assert(ctxt != nullptr);
-	ctxt->get_marching_cells_pseudo_file(sources);
-	sources.push_back("#define ");
-	sources.push_back(ctxt->profile_name());
-	sources.push_back("\n");
+        GLUP::Context* ctxt = dynamic_cast<GLUP::Context*>(provider);
+        geo_assert(ctxt != nullptr);
+        ctxt->get_marching_cells_pseudo_file(sources);
+        sources.push_back("#define ");
+        sources.push_back(ctxt->profile_name());
+        sources.push_back("\n");
     }
 
     void tess_control_shader_preamble_pseudo_file(
-	GLSL::PseudoFileProvider* provider, std::vector<GLSL::Source>& sources
+        GLSL::PseudoFileProvider* provider, std::vector<GLSL::Source>& sources
     ) {
-	GLUP::Context* ctxt = dynamic_cast<GLUP::Context*>(provider);
-	geo_assert(ctxt != nullptr);
-	ctxt->get_tess_control_shader_preamble_pseudo_file(sources);
-	sources.push_back("#define ");
-	sources.push_back(ctxt->profile_name());
-	sources.push_back("\n");
+        GLUP::Context* ctxt = dynamic_cast<GLUP::Context*>(provider);
+        geo_assert(ctxt != nullptr);
+        ctxt->get_tess_control_shader_preamble_pseudo_file(sources);
+        sources.push_back("#define ");
+        sources.push_back(ctxt->profile_name());
+        sources.push_back("\n");
     }
 
     void tess_evaluation_shader_preamble_pseudo_file(
-	GLSL::PseudoFileProvider* provider, std::vector<GLSL::Source>& sources
+        GLSL::PseudoFileProvider* provider, std::vector<GLSL::Source>& sources
     ) {
-	GLUP::Context* ctxt = dynamic_cast<GLUP::Context*>(provider);
-	geo_assert(ctxt != nullptr);
-	ctxt->get_tess_evaluation_shader_preamble_pseudo_file(sources);
-	sources.push_back("#define ");
-	sources.push_back(ctxt->profile_name());
-	sources.push_back("\n");
+        GLUP::Context* ctxt = dynamic_cast<GLUP::Context*>(provider);
+        geo_assert(ctxt != nullptr);
+        ctxt->get_tess_evaluation_shader_preamble_pseudo_file(sources);
+        sources.push_back("#define ");
+        sources.push_back(ctxt->profile_name());
+        sources.push_back("\n");
     }
 
     void toggles_pseudo_file(
-	GLSL::PseudoFileProvider* provider, std::vector<GLSL::Source>& sources
+        GLSL::PseudoFileProvider* provider, std::vector<GLSL::Source>& sources
     ) {
-	GLUP::Context* ctxt = dynamic_cast<GLUP::Context*>(provider);
-	geo_assert(ctxt != nullptr);
-	ctxt->get_toggles_pseudo_file(sources);
+        GLUP::Context* ctxt = dynamic_cast<GLUP::Context*>(provider);
+        geo_assert(ctxt != nullptr);
+        ctxt->get_toggles_pseudo_file(sources);
     }
 
     void primitive_pseudo_file(
-	GLSL::PseudoFileProvider* provider, std::vector<GLSL::Source>& sources
+        GLSL::PseudoFileProvider* provider, std::vector<GLSL::Source>& sources
     ) {
-	GLUP::Context* ctxt = dynamic_cast<GLUP::Context*>(provider);
-	geo_assert(ctxt != nullptr);
-	ctxt->get_primitive_pseudo_file(sources);
+        GLUP::Context* ctxt = dynamic_cast<GLUP::Context*>(provider);
+        geo_assert(ctxt != nullptr);
+        ctxt->get_primitive_pseudo_file(sources);
     }
 }
 
 namespace GLUP {
     using namespace GEO;
-    
+
     /*************************************************************************/
 
     void show_matrix(const GLfloat M[16]) {
+        for(index_t i=0; i<4; ++i) {
+            for(index_t j=0; j<4; ++j) {
+                std::cerr << M[4*i+j] << ' ';
+            }
+            std::cerr << std::endl;
+        }
+    }
+
+    void show_matrix(const GLdouble M[16]) {
         for(index_t i=0; i<4; ++i) {
             for(index_t j=0; j<4; ++j) {
                 std::cerr << M[4*i+j] << ' ';
@@ -181,24 +185,15 @@ namespace GLUP {
         for(index_t i=0; i<4; ++i) {
             std::cerr << v[i] << ' ';
         }
-        std::cerr << std::endl;        
+        std::cerr << std::endl;
     }
-    
-    // Used to determine buffer's maximum vertex index, that needs
-    // to be an integer multiple of the number of vertices
-    // per primitive.
-    index_t nb_vertices_per_primitive[GLUP_NB_PRIMITIVES] = {
-        1, // GLUP_POINTS     =0,
-        2, // GLUP_LINES      =1,
-        3, // GLUP_TRIANGLES  =2,
-        4, // GLUP_QUADS      =3,
-        4, // GLUP_TETRAHEDRA =4,
-        8, // GLUP_HEXAHEDRA  =5,
-        6, // GLUP_PRISMS     =6,
-        5, // GLUP_PYRAMIDS   =7,
-        4, // GLUP_CONNECTORS =8,
-	1  // GLUP_SPHERES    =9
-    };
+
+    void show_vector(const GLdouble v[4]) {
+        for(index_t i=0; i<4; ++i) {
+            std::cerr << v[i] << ' ';
+        }
+        std::cerr << std::endl;
+    }
 
     static index_t nb_vertices_per_GL_primitive(GLenum primitive) {
         index_t result = 0;
@@ -219,7 +214,7 @@ namespace GLUP {
         case GL_TRIANGLES_ADJACENCY:
             result = 6;
             break;
-#endif            
+#endif
         default:
             geo_assert_not_reached;
         }
@@ -242,7 +237,7 @@ namespace GLUP {
                         if(!strcmp(
                                extension.c_str(),
                                (const char*)cur_extension)
-                        ) {
+                          ) {
                             return true;
                         }
                     }
@@ -253,17 +248,17 @@ namespace GLUP {
 
         // If new way is unsupported or if using an old-style OpenGL
         // context, then we do it the old way.
-        
+
         // It can happen for instance with OpenGL ES 2.0, that does not
         // support glGetStringi...
-        
+
         const char* extensions = (const char*)(glGetString(GL_EXTENSIONS));
         if(extensions == nullptr) {
             return false;
         }
         return (strstr(extensions, extension.c_str()) != nullptr);
     }
-    
+
     static const char* primitive_name[GLUP_NB_PRIMITIVES] = {
         "GLUP_POINTS",
         "GLUP_LINES",
@@ -274,24 +269,26 @@ namespace GLUP {
         "GLUP_PRISMS",
         "GLUP_PYRAMIDS",
         "GLUP_CONNECTORS",
-	"GLUP_SPHERES"
+        "GLUP_SPHERES",
+        "GLUP_THICK_LINES"
     };
 
     const char* Context::glup_primitive_name(GLUPprimitive prim) {
         return primitive_name[prim];
     }
-    
+
     static index_t primitive_dimension[GLUP_NB_PRIMITIVES] = {
-        0, // GLUP_POINTS     =0,
-        1, // GLUP_LINES      =1,
-        2, // GLUP_TRIANGLES  =2,
-        2, // GLUP_QUADS      =3,
-        3, // GLUP_TETRAHEDRA =4,
-        3, // GLUP_HEXAHEDRA  =5,
-        3, // GLUP_PRISMS     =6,
-        3, // GLUP_PYRAMIDS   =7,
-        3, // GLUP_CONNECTORS =8,
-	0  // GLUP_SPHERES    =9
+        0, // GLUP_POINTS      =0,
+        1, // GLUP_LINES       =1,
+        2, // GLUP_TRIANGLES   =2,
+        2, // GLUP_QUADS       =3,
+        3, // GLUP_TETRAHEDRA  =4,
+        3, // GLUP_HEXAHEDRA   =5,
+        3, // GLUP_PRISMS      =6,
+        3, // GLUP_PYRAMIDS    =7,
+        3, // GLUP_CONNECTORS  =8,
+        0, // GLUP_SPHERES     =9,
+        1  // GLUP_THICK_LINES =10
     };
 
 
@@ -301,48 +298,48 @@ namespace GLUP {
     */
     template <class T> inline
     GLboolean invert_matrix_generic(T inv[16], const T m[16]) {
-        
+
         inv[0]  = m[5]*m[10]*m[15] - m[5]*m[11]*m[14] - m[9]*m[6]*m[15]
-                + m[9]*m[7]*m[14] + m[13]*m[6]*m[11] - m[13]*m[7]*m[10];
+            + m[9]*m[7]*m[14] + m[13]*m[6]*m[11] - m[13]*m[7]*m[10];
         inv[4]  = -m[4]*m[10]*m[15] + m[4]*m[11]*m[14] + m[8]*m[6]*m[15]
-                - m[8]*m[7]*m[14] - m[12]*m[6]*m[11] + m[12]*m[7]*m[10];
+            - m[8]*m[7]*m[14] - m[12]*m[6]*m[11] + m[12]*m[7]*m[10];
         inv[8]  = m[4]*m[9]*m[15] - m[4]*m[11]*m[13] - m[8]*m[5]*m[15]
-                + m[8]*m[7]*m[13] + m[12]*m[5]*m[11] - m[12]*m[7]*m[9];
+            + m[8]*m[7]*m[13] + m[12]*m[5]*m[11] - m[12]*m[7]*m[9];
         inv[12] = -m[4]*m[9]*m[14] + m[4]*m[10]*m[13] + m[8]*m[5]*m[14]
-                - m[8]*m[6]*m[13] - m[12]*m[5]*m[10] + m[12]*m[6]*m[9];
+            - m[8]*m[6]*m[13] - m[12]*m[5]*m[10] + m[12]*m[6]*m[9];
         inv[1]  = -m[1]*m[10]*m[15] + m[1]*m[11]*m[14] + m[9]*m[2]*m[15]
-                - m[9]*m[3]*m[14] - m[13]*m[2]*m[11] + m[13]*m[3]*m[10];
+            - m[9]*m[3]*m[14] - m[13]*m[2]*m[11] + m[13]*m[3]*m[10];
         inv[5]  = m[0]*m[10]*m[15] - m[0]*m[11]*m[14] - m[8]*m[2]*m[15]
-                + m[8]*m[3]*m[14] + m[12]*m[2]*m[11] - m[12]*m[3]*m[10];
+            + m[8]*m[3]*m[14] + m[12]*m[2]*m[11] - m[12]*m[3]*m[10];
         inv[9]  = -m[0]*m[9]*m[15] + m[0]*m[11]*m[13] + m[8]*m[1]*m[15]
-                - m[8]*m[3]*m[13] - m[12]*m[1]*m[11] + m[12]*m[3]*m[9];
+            - m[8]*m[3]*m[13] - m[12]*m[1]*m[11] + m[12]*m[3]*m[9];
         inv[13] = m[0]*m[9]*m[14] - m[0]*m[10]*m[13] - m[8]*m[1]*m[14]
-                + m[8]*m[2]*m[13] + m[12]*m[1]*m[10] - m[12]*m[2]*m[9];
+            + m[8]*m[2]*m[13] + m[12]*m[1]*m[10] - m[12]*m[2]*m[9];
         inv[2]  = m[1]*m[6]*m[15] - m[1]*m[7]*m[14] - m[5]*m[2]*m[15]
-                + m[5]*m[3]*m[14] + m[13]*m[2]*m[7] - m[13]*m[3]*m[6];
+            + m[5]*m[3]*m[14] + m[13]*m[2]*m[7] - m[13]*m[3]*m[6];
         inv[6]  = -m[0]*m[6]*m[15] + m[0]*m[7]*m[14] + m[4]*m[2]*m[15]
-                - m[4]*m[3]*m[14] - m[12]*m[2]*m[7] + m[12]*m[3]*m[6];
+            - m[4]*m[3]*m[14] - m[12]*m[2]*m[7] + m[12]*m[3]*m[6];
         inv[10] = m[0]*m[5]*m[15] - m[0]*m[7]*m[13] - m[4]*m[1]*m[15]
-                + m[4]*m[3]*m[13] + m[12]*m[1]*m[7] - m[12]*m[3]*m[5];
+            + m[4]*m[3]*m[13] + m[12]*m[1]*m[7] - m[12]*m[3]*m[5];
         inv[14] = -m[0]*m[5]*m[14] + m[0]*m[6]*m[13] + m[4]*m[1]*m[14]
-                - m[4]*m[2]*m[13] - m[12]*m[1]*m[6] + m[12]*m[2]*m[5];
+            - m[4]*m[2]*m[13] - m[12]*m[1]*m[6] + m[12]*m[2]*m[5];
         inv[3]  = -m[1]*m[6]*m[11] + m[1]*m[7]*m[10] + m[5]*m[2]*m[11]
-                - m[5]*m[3]*m[10] - m[9]*m[2]*m[7] + m[9]*m[3]*m[6];
+            - m[5]*m[3]*m[10] - m[9]*m[2]*m[7] + m[9]*m[3]*m[6];
         inv[7]  = m[0]*m[6]*m[11] - m[0]*m[7]*m[10] - m[4]*m[2]*m[11]
-                + m[4]*m[3]*m[10] + m[8]*m[2]*m[7] - m[8]*m[3]*m[6];
+            + m[4]*m[3]*m[10] + m[8]*m[2]*m[7] - m[8]*m[3]*m[6];
         inv[11] = -m[0]*m[5]*m[11] + m[0]*m[7]*m[9] + m[4]*m[1]*m[11]
-                - m[4]*m[3]*m[9] - m[8]*m[1]*m[7] + m[8]*m[3]*m[5];
+            - m[4]*m[3]*m[9] - m[8]*m[1]*m[7] + m[8]*m[3]*m[5];
         inv[15] = m[0]*m[5]*m[10] - m[0]*m[6]*m[9] - m[4]*m[1]*m[10]
-                + m[4]*m[2]*m[9] + m[8]*m[1]*m[6] - m[8]*m[2]*m[5];
-        
+            + m[4]*m[2]*m[9] + m[8]*m[1]*m[6] - m[8]*m[2]*m[5];
+
         T det = m[0]*inv[0] + m[1]*inv[4] + m[2]*inv[8] + m[3]*inv[12];
-        
+
         if (det == T(0.0)) {
             return GL_FALSE;
         }
-        
+
         det = T(1.0) / det;
-        
+
         for (index_t i = 0; i < 16; ++i) {
             inv[i] *= det;
         }
@@ -351,13 +348,13 @@ namespace GLUP {
     }
 
     GLboolean invert_matrix(GLfloat inv[16], const GLfloat m[16]) {
-	return invert_matrix_generic(inv,m);
+        return invert_matrix_generic(inv,m);
     }
 
     GLboolean invert_matrix(GLdouble inv[16], const GLdouble m[16]) {
-	return invert_matrix_generic(inv,m);
+        return invert_matrix_generic(inv,m);
     }
-    
+
     void mult_matrices(
         GLfloat out[16], const GLfloat m1[16], const GLfloat m2[16]
     ) {
@@ -383,7 +380,7 @@ namespace GLUP {
             }
         }
     }
-    
+
     void mult_matrix_vector(
         GLfloat out[4], const GLfloat m[16], const GLfloat v[4]
     ) {
@@ -416,7 +413,7 @@ namespace GLUP {
             }
         }
     }
-    
+
     void mult_matrix_vector(
         GLdouble out[4], const GLdouble m[16], const GLdouble v[4]
     ) {
@@ -451,7 +448,7 @@ namespace GLUP {
             }
         }
     }
-    
+
     void load_identity_matrix(GLfloat out[16]) {
         for(index_t i=0; i<4; ++i) {
             for(index_t j=0; j<4; ++j) {
@@ -459,9 +456,17 @@ namespace GLUP {
             }
         }
     }
-    
+
+    void load_identity_matrix(GLdouble out[16]) {
+        for(index_t i=0; i<4; ++i) {
+            for(index_t j=0; j<4; ++j) {
+                out[i*4+j] = (i == j) ? 1.0 : 0.0;
+            }
+        }
+    }
+
     /***********************************************************/
-    
+
     void StateVariableBase::initialize(
         Context* context, const char* name
     ) {
@@ -480,25 +485,27 @@ namespace GLUP {
         return GLSL::get_GLSL_include_file("GLUPGLSL/state.h");
     }
 
-    
+
     Context::Context() :
+        nb_vertices_per_primitive_{0},
+        immediate_state_(nb_vertices_per_primitive_),
         marching_tet_(GLUP_TETRAHEDRA),
         marching_hex_(GLUP_HEXAHEDRA),
         marching_prism_(GLUP_PRISMS),
         marching_pyramid_(GLUP_PYRAMIDS),
         marching_connector_(GLUP_CONNECTORS) {
 
-	geo_cite("DBLP:conf/isvc/ToledoLP07");
-	
-        matrices_dirty_=true;        
+        geo_cite("DBLP:conf/isvc/ToledoLP07");
+
+        matrices_dirty_=true;
         default_program_ = 0;
         uniform_buffer_=0;
         uniform_binding_point_=0;
         uniform_buffer_size_=0;
         uniform_buffer_data_=nullptr;
         uniform_buffer_dirty_=true;
-	lighting_dirty_=true;
-	
+        lighting_dirty_=true;
+
         matrix_mode_ = GLUP_MODELVIEW_MATRIX;
         matrices_dirty_ = true;
 
@@ -509,8 +516,8 @@ namespace GLUP {
             (CmdLine::get_arg("gfx:GL_profile") != "compatibility");
 
         use_ES_profile_ =
-            (CmdLine::get_arg("gfx:GL_profile") == "ES");            
-        
+            (CmdLine::get_arg("gfx:GL_profile") == "ES");
+
         user_program_ = 0;
         world_clip_plane_ = nullptr;
         latest_program_ = 0;
@@ -521,9 +528,21 @@ namespace GLUP {
         toggles_source_state_ = 0;
         toggles_source_undetermined_ = 0;
 
+        nb_vertices_per_primitive_[GLUP_POINTS]      = 1;
+        nb_vertices_per_primitive_[GLUP_LINES]       = 2;
+        nb_vertices_per_primitive_[GLUP_TRIANGLES]   = 3;
+        nb_vertices_per_primitive_[GLUP_QUADS]       = 4;
+        nb_vertices_per_primitive_[GLUP_TETRAHEDRA]  = 4;
+        nb_vertices_per_primitive_[GLUP_HEXAHEDRA]   = 8;
+        nb_vertices_per_primitive_[GLUP_PRISMS]      = 6;
+        nb_vertices_per_primitive_[GLUP_PYRAMIDS]    = 5;
+        nb_vertices_per_primitive_[GLUP_CONNECTORS]  = 4;
+        nb_vertices_per_primitive_[GLUP_SPHERES]     = 1;
+        nb_vertices_per_primitive_[GLUP_THICK_LINES] = 2;
+
         initialize();
     }
-    
+
     Context::~Context() {
         if(default_program_ != 0) {
             glDeleteProgram(default_program_);
@@ -558,9 +577,9 @@ namespace GLUP {
         output << "in vec3 position;\n";
         output << "void main() {\n";
         output << "   mat4 M = GLUP.modelviewprojection_matrix;\n";
-        
+
         // Parse uniform state declaration in order to use all variables.
-        
+
         std::istringstream input(Context::uniform_state_declaration());
         std::string line;
         while(std::getline(input,line)) {
@@ -588,49 +607,49 @@ namespace GLUP {
                 } else if(vartype == "mat3") {
                     output << "   M[0].xyz += GLUP." << varname << "[0];\n";
                 } else if(vartype == "mat4") {
-                    output << "   M += GLUP." << varname << ";\n";  
+                    output << "   M += GLUP." << varname << ";\n";
                 }
             }
         }
 
         output << "   gl_Position = M*vec4(position,1.0);\n";
         output << "}\n";
-        
+
         return output.str();
     }
 #endif
-    
+
     void Context::setup() {
-        
+
         uniform_buffer_dirty_=true;
-        matrices_dirty_=true;        
+        matrices_dirty_=true;
         uniform_binding_point_=1;
 
 #ifdef GEO_GL_150
-        
+
         // A minimalistic GLSL program that uses the GLUP context.
         // It is there just to use GLSL introspection API to lookup
         // the offsets of GLUP context state variables.
         // Note: it needs to use all the variables of the uniform state,
         // else, depending on the OpenGL driver / library,
-        // some variables may be optimized-out and glGetUnformIndices()
+        // some variables may be optimized-out and glGetUniformIndices()
         // returns GL_INVALID_INDEX (stupid !), this is why there is
         // this (weird) function
-        //  create_vertex_program_that_uses_all_UBO_variables()        
+        //  create_vertex_program_that_uses_all_UBO_variables()
 
         static const char* shader_source_header_ =
 #ifdef GEO_OS_ANDROID
             "#version 300 es\n"
-	    "precision highp float;\n"
-            "precision lowp sampler3D;\n" ; 	    	
-#else	    
-            "#version 150 core\n" ; 
+            "precision highp float;\n"
+            "precision lowp sampler3D;\n" ;
+#else
+        "#version 150 core\n" ;
 #endif
-	
+
         static const char* fragment_shader_source_ =
             "out vec4 colorOut;                      \n"
             "void main() {                           \n"
-            "   colorOut = vec4(1.0, 1.0, 1.0, 1.0); \n" 
+            "   colorOut = vec4(1.0, 1.0, 1.0, 1.0); \n"
             "}                                       \n";
 
         GLuint GLUP_vertex_shader = GLSL::compile_shader(
@@ -658,7 +677,7 @@ namespace GLUP {
 
         GLuint UBO_index =
             glGetUniformBlockIndex(default_program_, "GLUPStateBlock");
-        
+
         glUniformBlockBinding(
             default_program_, UBO_index, uniform_binding_point_
         );
@@ -671,7 +690,7 @@ namespace GLUP {
 
         // Create UBO
 
-        uniform_buffer_data_ = new Memory::byte[uniform_buffer_size_];
+        uniform_buffer_data_ = new Memory::byte[size_t(uniform_buffer_size_)];
         Memory::clear(uniform_buffer_data_, size_t(uniform_buffer_size_));
         glGenBuffers(1, &uniform_buffer_);
         glBindBuffer(GL_UNIFORM_BUFFER, uniform_buffer_);
@@ -681,7 +700,7 @@ namespace GLUP {
             uniform_buffer_data_,
             GL_DYNAMIC_DRAW
         );
-                
+
         glBindBufferBase(
             GL_UNIFORM_BUFFER,
             uniform_binding_point_,
@@ -690,10 +709,10 @@ namespace GLUP {
         glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
 #endif
-        
+
         setup_state_variables();
         setup_immediate_buffers();
-        
+
         //  Indicate that all toggle states should be
         // read from the state (default mode, superseded later).
         setup_shaders_source_for_toggles(0,~0);
@@ -731,7 +750,11 @@ namespace GLUP {
         uniform_state_.toggle.push_back(
             StateVariable<GLboolean>(this,"normal_mapping_enabled",GL_FALSE)
         );
-	
+        uniform_state_.toggle.push_back(
+            StateVariable<GLboolean>(
+                this,"primitive_filtering_enabled",GL_FALSE
+            )
+        );
         uniform_state_.color.push_back(
             VectorStateVariable(this, "front_color", 4)
         );
@@ -741,12 +764,12 @@ namespace GLUP {
         uniform_state_.color.push_back(
             VectorStateVariable(this, "mesh_color", 4)
         );
-        
+
         uniform_state_.light_vector.initialize(this, "light_vector", 3);
         uniform_state_.light_half_vector.initialize(
             this, "light_half_vector", 3
         );
-        
+
         uniform_state_.mesh_width.initialize(this, "mesh_width", 1.0f);
         uniform_state_.cells_shrink.initialize(this, "cells_shrink", 0.0f);
 
@@ -765,7 +788,7 @@ namespace GLUP {
         );
         uniform_state_.clip_clip_plane.initialize(
             this, "clip_clip_plane", 4
-        );        
+        );
 
         uniform_state_.texture_mode.initialize(
             this, "texture_mode", GLUP_TEXTURE_MODULATE
@@ -775,14 +798,14 @@ namespace GLUP {
             this, "texture_type", GLUP_TEXTURE_2D
         );
 
-	uniform_state_.alpha_threshold.initialize(
-	    this, "alpha_threshold", 0.5f
-	);
+        uniform_state_.alpha_threshold.initialize(
+            this, "alpha_threshold", 0.5f
+        );
 
-	uniform_state_.specular.initialize(
-	    this, "specular", 1.0f
-	);
-	
+        uniform_state_.specular.initialize(
+            this, "specular", 1.0f
+        );
+
         uniform_state_.modelview_matrix.initialize(this, "modelview_matrix");
         uniform_state_.modelviewprojection_matrix.initialize(
             this, "modelviewprojection_matrix"
@@ -792,18 +815,18 @@ namespace GLUP {
         uniform_state_.texture_matrix.initialize(this, "texture_matrix");
 
         uniform_state_.inverse_modelviewprojection_matrix.initialize(
-	    this, "inverse_modelviewprojection_matrix"
-	);
+            this, "inverse_modelviewprojection_matrix"
+        );
         uniform_state_.inverse_modelview_matrix.initialize(
-	    this, "inverse_modelview_matrix"
-	);
+            this, "inverse_modelview_matrix"
+        );
         uniform_state_.inverse_projection_matrix.initialize(
-	    this, "inverse_projection_matrix"
-	);	
-	uniform_state_.viewport.initialize(this, "viewport", 4);
+            this, "inverse_projection_matrix"
+        );
+        uniform_state_.viewport.initialize(this, "viewport", 4);
 
         uniform_state_.point_size.initialize(this, "point_size", 1.0f);
-        
+
         matrix_mode_ = GLUP_MODELVIEW_MATRIX;
         update_matrices();
     }
@@ -812,61 +835,61 @@ namespace GLUP {
 
         glupGenVertexArrays(1,&immediate_state_.VAO());
         glupBindVertexArray(immediate_state_.VAO());
-        
-        for(index_t i=0; i<immediate_state_.buffer.size(); ++i) {
+
+        for(index_t i=0; i<ImmediateState::NB_IMMEDIATE_BUFFERS; ++i) {
             update_buffer_object(
                 immediate_state_.buffer[i].VBO(),
                 GL_ARRAY_BUFFER,
                 immediate_state_.buffer[i].size_in_bytes(),
-                nullptr // no need to copy the buffer, it will be overwritten after.
+                nullptr // no need to copy the buffer, will be overwritten after
             );
         }
-        
+
         bind_immediate_state_buffers_to_VAO();
         glupBindVertexArray(0);
     }
 
     void Context::stream_immediate_buffers() {
-	if(immediate_state_.nb_vertices() == IMMEDIATE_BUFFER_SIZE) {
-	    for(index_t i=0; i<immediate_state_.buffer.size(); ++i) {
-		if(
-		    immediate_state_.buffer[i].is_enabled() &&
-		    immediate_state_.buffer[i].VBO() != 0
-		) {
-		    stream_buffer_object(
-			immediate_state_.buffer[i].VBO(),
-			GL_ARRAY_BUFFER,
-			immediate_state_.buffer[i].size_in_bytes(),
-			immediate_state_.buffer[i].data()
-		    );
-		}
-	    }
-	} else {
-	    for(index_t i=0; i<immediate_state_.buffer.size(); ++i) {
-		if(
-		    immediate_state_.buffer[i].is_enabled() &&
-		    immediate_state_.buffer[i].VBO() != 0
-		) {
-		    size_t bytes =
-			immediate_state_.nb_vertices() *
-			immediate_state_.buffer[i].dimension() *
-			sizeof(GLfloat);
-		    glBindBuffer(
-			GL_ARRAY_BUFFER, immediate_state_.buffer[i].VBO()
-		    );
-		    glBufferSubData(
-			GL_ARRAY_BUFFER,
-			0,
-			GLsizeiptr(bytes),
-			immediate_state_.buffer[i].data()
-		    );
-		}
-	    }
-	}
-        glBindBuffer(GL_ARRAY_BUFFER,0);        
+        if(immediate_state_.nb_vertices() == IMMEDIATE_BUFFER_SIZE) {
+            for(index_t i=0; i<ImmediateState::NB_IMMEDIATE_BUFFERS; ++i) {
+                if(
+                    immediate_state_.buffer[i].is_enabled() &&
+                    immediate_state_.buffer[i].VBO() != 0
+                ) {
+                    stream_buffer_object(
+                        immediate_state_.buffer[i].VBO(),
+                        GL_ARRAY_BUFFER,
+                        immediate_state_.buffer[i].size_in_bytes(),
+                        immediate_state_.buffer[i].data()
+                    );
+                }
+            }
+        } else {
+            for(index_t i=0; i<ImmediateState::NB_IMMEDIATE_BUFFERS; ++i) {
+                if(
+                    immediate_state_.buffer[i].is_enabled() &&
+                    immediate_state_.buffer[i].VBO() != 0
+                ) {
+                    size_t bytes =
+                        immediate_state_.nb_vertices() *
+                        immediate_state_.buffer[i].dimension() *
+                        sizeof(GLfloat);
+                    glBindBuffer(
+                        GL_ARRAY_BUFFER, immediate_state_.buffer[i].VBO()
+                    );
+                    glBufferSubData(
+                        GL_ARRAY_BUFFER,
+                        0,
+                        GLsizeiptr(bytes),
+                        immediate_state_.buffer[i].data()
+                    );
+                }
+            }
+        }
+        glBindBuffer(GL_ARRAY_BUFFER,0);
     }
 
-    
+
     Memory::pointer Context::get_state_variable_address(const char* name_in) {
         std::string name = std::string("GLUPStateBlock.") + name_in;
         GLint offset = GLSL::get_uniform_variable_offset(
@@ -875,172 +898,10 @@ namespace GLUP {
         return uniform_buffer_data_ + offset;
     }
 
-    void Context::copy_from_GL_state(GLUPbitfield which_attributes) {
-#ifndef GEO_GL_LEGACY
-        geo_argused(which_attributes);
-        return;
-#else        
-        // No "GL state" in core profile.
-        if(use_core_profile_) {
-            return;
-        }
-        
-        uniform_buffer_dirty_ = true;
-        
-        //  I observed that without these instructions,
-        // glGet() does not always
-        // return the latest set values under Windows.
-        glFlush();
-        glFinish();
-
-        if(which_attributes & GLUP_MATRICES_ATTRIBUTES_BIT) {
-            matrices_dirty_ = true;            
-            glGetFloatv(
-                GL_PROJECTION_MATRIX,
-                matrix_stack_[GLUP_PROJECTION_MATRIX].top()
-            );
-            glGetFloatv(
-                GL_MODELVIEW_MATRIX,
-                matrix_stack_[GLUP_MODELVIEW_MATRIX].top()
-            );
-            glGetFloatv(
-                GL_TEXTURE_MATRIX,
-                matrix_stack_[GLUP_TEXTURE_MATRIX].top()
-            );
-        }
-
-        if(which_attributes & GLUP_CLIPPING_ATTRIBUTES_BIT) {
-            uniform_state_.toggle[GLUP_CLIPPING].set(
-                glIsEnabled(GL_CLIP_PLANE0)
-            );
-            GLdouble clip_plane_d[4];
-            glGetClipPlane(GL_CLIP_PLANE0, clip_plane_d);
-            copy_vector(
-                uniform_state_.clip_plane.get_pointer(), clip_plane_d, 4
-            );
-
-	    mult_matrix_vector(
-                uniform_state_.world_clip_plane.get_pointer(),
-                uniform_state_.modelview_matrix.get_pointer(),
-                uniform_state_.clip_plane.get_pointer()            
-            );
-
-	    GLfloat projection_invert[16];
-	    GLboolean OK = invert_matrix(
-		projection_invert,
-		uniform_state_.projection_matrix.get_pointer()
-	    );
-	    if(!OK) {
-		Logger::warn("GLUP") << "Singular projection matrix"
-				     << std::endl;
-		show_matrix(uniform_state_.projection_matrix.get_pointer());
-	    }
-	    mult_matrix_vector(
-		uniform_state_.clip_clip_plane.get_pointer(),
-		projection_invert,
-		uniform_state_.clip_plane.get_pointer()
-	    );
-	    
-        }
-        
-        if(which_attributes & GLUP_LIGHTING_ATTRIBUTES_BIT) {
-            lighting_dirty_ = true;
-            uniform_state_.toggle[GLUP_LIGHTING].set(glIsEnabled(GL_LIGHTING));
-            GLfloat light[4];
-            glGetLightfv(GL_LIGHT0, GL_POSITION, light);
-            copy_vector(uniform_state_.light_vector.get_pointer(), light, 3);
-        }            
-
-        if(which_attributes & GLUP_COLORS_ATTRIBUTES_BIT) {
-            glGetMaterialfv(
-                GL_FRONT, GL_DIFFUSE,
-                uniform_state_.color[GLUP_FRONT_COLOR].get_pointer()
-            );
-            glGetMaterialfv(
-                GL_BACK, GL_DIFFUSE,
-                uniform_state_.color[GLUP_BACK_COLOR].get_pointer()
-            );
-        }
-#endif        
-    }
-
-    void Context::copy_to_GL_state(GLUPbitfield which_attributes) {
-#ifndef GEO_GL_LEGACY
-        geo_argused(which_attributes);
-        return;
-#else        
-        // No "GL state" in core profile.
-        if(use_core_profile_) {
-            return;
-        }
-
-        GLint matrix_mode_save;
-        glGetIntegerv(GL_MATRIX_MODE, &matrix_mode_save);
-
-        if(which_attributes & GLUP_MATRICES_ATTRIBUTES_BIT) {
-            glMatrixMode(GL_PROJECTION);
-            glLoadMatrixf(matrix_stack_[GLUP_PROJECTION_MATRIX].top());
-            glMatrixMode(GL_MODELVIEW);
-            glLoadMatrixf(matrix_stack_[GLUP_MODELVIEW_MATRIX].top());
-            glMatrixMode(GL_TEXTURE);
-            glLoadMatrixf(matrix_stack_[GLUP_TEXTURE_MATRIX].top());
-        }
-
-        if(which_attributes & GLUP_CLIPPING_ATTRIBUTES_BIT) {
-            if(uniform_state_.toggle[GLUP_CLIPPING].get()) {
-                glEnable(GL_CLIP_PLANE0);
-            } else {
-                glDisable(GL_CLIP_PLANE0);
-            }
-            GLdouble clip_plane_d[4];
-            glGetClipPlane(GL_CLIP_PLANE0, clip_plane_d);
-            copy_vector(
-                clip_plane_d, uniform_state_.clip_plane.get_pointer(), 4
-            );
-            glMatrixMode(GL_MODELVIEW);
-            glPushMatrix();
-            glLoadIdentity();
-            glClipPlane(GL_CLIP_PLANE0, clip_plane_d);
-            glPopMatrix();
-        }
-
-        if(which_attributes & GLUP_LIGHTING_ATTRIBUTES_BIT) {
-            if(uniform_state_.toggle[GLUP_LIGHTING].get()) {
-                glEnable(GL_LIGHTING);
-                glEnable(GL_LIGHT0);
-            } else {
-                glDisable(GL_LIGHTING);
-                glDisable(GL_LIGHT0);
-            }
-            GLfloat light[4];
-            copy_vector(light, uniform_state_.light_vector.get_pointer(), 3);
-            light[3] = 0.0f;
-            glMatrixMode(GL_MODELVIEW);
-            glPushMatrix();
-            glLoadIdentity();
-            glLightfv(GL_LIGHT0, GL_POSITION, light);
-            glPopMatrix();
-        }
-
-        if(which_attributes & GLUP_COLORS_ATTRIBUTES_BIT) {
-            glMaterialfv(
-                GL_FRONT, GL_DIFFUSE,
-                uniform_state_.color[GLUP_FRONT_COLOR].get_pointer()
-            );
-            glMaterialfv(
-                GL_BACK, GL_DIFFUSE,
-                uniform_state_.color[GLUP_BACK_COLOR].get_pointer()
-            );
-        }
-
-        glMatrixMode(GLenum(matrix_mode_save));
-#endif        
-    }
-    
     void Context::bind_uniform_state(GLuint program) {
 #ifndef GEO_GL_150
         geo_argused(program);
-#else        
+#else
         GLuint UBO_index = glGetUniformBlockIndex(
             program, "GLUPStateBlock"
         );
@@ -1049,9 +910,9 @@ namespace GLUP {
                 program, UBO_index, uniform_binding_point_
             );
         }
-#endif        
+#endif
     }
-    
+
     void Context::begin(GLUPprimitive primitive) {
         update_toggles_config();
         create_program_if_needed(primitive);
@@ -1062,19 +923,19 @@ namespace GLUP {
                 << " not implemented in this profile" << std::endl;
         }
 
-        GEO_CHECK_GL();    
+        GEO_CHECK_GL();
         update_uniform_buffer();
         GEO_CHECK_GL();
-        
+
         //   If the primitive has a special VAO to be used for immediate
         // mode, then bind it.
         if(primitive_info_[primitive].VAO != 0) {
-            GEO_CHECK_GL();            
+            GEO_CHECK_GL();
             glupBindVertexArray(
                 primitive_info_[primitive].VAO
-            );            
+            );
         } else {
-            GEO_CHECK_GL();                        
+            GEO_CHECK_GL();
             // Else use the regular VAO used by all immediate-mode primitives
             // (if there is one).
             if(immediate_state_.VAO() != 0) {
@@ -1082,60 +943,53 @@ namespace GLUP {
             }
         }
 
-        GEO_CHECK_GL();                    
+        GEO_CHECK_GL();
 
         if(uniform_state_.toggle[GLUP_VERTEX_COLORS].get()) {
             immediate_state_.buffer[GLUP_COLOR_ATTRIBUTE].enable();
-        } else {
-            immediate_state_.buffer[GLUP_COLOR_ATTRIBUTE].disable();
+        }
+        GEO_CHECK_GL();
+
+        if(uniform_state_.toggle[GLUP_TEXTURING].get()) {
+            immediate_state_.buffer[GLUP_TEX_COORD_ATTRIBUTE].enable();
         }
 
         GEO_CHECK_GL();
-        
-        if(uniform_state_.toggle[GLUP_TEXTURING].get()) {
-            immediate_state_.buffer[GLUP_TEX_COORD_ATTRIBUTE].enable();
-        } else {
-            immediate_state_.buffer[GLUP_TEX_COORD_ATTRIBUTE].disable();
-        }
-
-        GEO_CHECK_GL();        
 
         if(
-	    uniform_state_.toggle[GLUP_LIGHTING].get() &&
-	    uniform_state_.toggle[GLUP_VERTEX_NORMALS].get()
-	) {
+            uniform_state_.toggle[GLUP_LIGHTING].get() &&
+            uniform_state_.toggle[GLUP_VERTEX_NORMALS].get()
+        ) {
             immediate_state_.buffer[GLUP_NORMAL_ATTRIBUTE].enable();
-        } else {
-            immediate_state_.buffer[GLUP_NORMAL_ATTRIBUTE].disable();
         }
 
-        GEO_CHECK_GL();        	
-	
+        GEO_CHECK_GL();
+
         immediate_state_.begin(primitive);
 
-        GEO_CHECK_GL();        
-        
+        GEO_CHECK_GL();
+
         if(primitive_info_[primitive].vertex_gather_mode) {
-            index_t n = nb_vertices_per_primitive[primitive];
+            index_t n = nb_vertices_per_primitive_[primitive];
             GLenum GL_primitive = primitive_info_[primitive].GL_primitive;
             n /= nb_vertices_per_GL_primitive(GL_primitive);
 
-            for(index_t i=0; i<immediate_state_.buffer.size(); ++i) {
-                if(immediate_state_.buffer[i].is_enabled()) {                
+            for(index_t i=0; i<ImmediateState::NB_IMMEDIATE_BUFFERS; ++i) {
+                if(immediate_state_.buffer[i].is_enabled()) {
                     for(index_t j=0; j<n; ++j) {
                         glEnableVertexAttribArray(i*n+j);
                     }
                 }
             }
         } else {
-            for(index_t i=0; i<immediate_state_.buffer.size(); ++i) {
+            for(index_t i=0; i<ImmediateState::NB_IMMEDIATE_BUFFERS; ++i) {
                 if(immediate_state_.buffer[i].is_enabled()) {
                     glEnableVertexAttribArray(i);
-                    
+
                     // If not using VBO, specify vertex attrib pointer
-                    // using old style API. 
-                    
-                    if(immediate_state_.buffer[i].VBO() == 0) {                
+                    // using old style API.
+
+                    if(immediate_state_.buffer[i].VBO() == 0) {
                         glVertexAttribPointer(
                             i,
                             GLint(immediate_state_.buffer[i].dimension()),
@@ -1148,48 +1002,48 @@ namespace GLUP {
         }
 
         GEO_CHECK_GL();
-        
+
         prepare_to_draw(primitive);
 
         GEO_CHECK_GL();
-        
+
         if(user_program_ != 0) {
             use_program(user_program_);
         } else {
             use_program(primitive_info_[primitive].program(toggles_config_));
         }
 
-        GEO_CHECK_GL();        
+        GEO_CHECK_GL();
     }
 
     void Context::end() {
-        GEO_CHECK_GL();         
+        GEO_CHECK_GL();
         flush_immediate_buffers();
-        GEO_CHECK_GL();         
+        GEO_CHECK_GL();
         use_program(0);
-        GEO_CHECK_GL();                 
+        GEO_CHECK_GL();
 
         if(primitive_info_[immediate_state_.primitive()].vertex_gather_mode) {
-            index_t n = nb_vertices_per_primitive[immediate_state_.primitive()];
+            index_t n=nb_vertices_per_primitive_[immediate_state_.primitive()];
             GLenum GL_primitive =
                 primitive_info_[immediate_state_.primitive()].GL_primitive;
             n /= nb_vertices_per_GL_primitive(GL_primitive);
-            for(index_t i=0; i<immediate_state_.buffer.size(); ++i) {
+            for(index_t i=0; i<ImmediateState::NB_IMMEDIATE_BUFFERS; ++i) {
                 if(immediate_state_.buffer[i].is_enabled()) {
-		    for(index_t j=0; j<n; ++j) {
-			GEO_CHECK_GL();
-			glDisableVertexAttribArray(i*n+j);
-			GEO_CHECK_GL();                                     
-		    }
-		}
+                    for(index_t j=0; j<n; ++j) {
+                        GEO_CHECK_GL();
+                        glDisableVertexAttribArray(i*n+j);
+                        GEO_CHECK_GL();
+                    }
+                }
             }
         } else {
-            for(index_t i=0; i<immediate_state_.buffer.size(); ++i) {
-                if(immediate_state_.buffer[i].is_enabled()) {		
-		    GEO_CHECK_GL();                
-		    glDisableVertexAttribArray(i);
-		    GEO_CHECK_GL();
-		}
+            for(index_t i=0; i<ImmediateState::NB_IMMEDIATE_BUFFERS; ++i) {
+                if(immediate_state_.buffer[i].is_enabled()) {
+                    GEO_CHECK_GL();
+                    glDisableVertexAttribArray(i);
+                    GEO_CHECK_GL();
+                }
             }
         }
 
@@ -1197,22 +1051,30 @@ namespace GLUP {
             uniform_state_.toggle[GLUP_PICKING].get() &&
             uniform_state_.picking_mode.get() == GLUP_PICK_PRIMITIVE
         ) {
-            GEO_CHECK_GL();                            
+            GEO_CHECK_GL();
             update_base_picking_id(0);
-            GEO_CHECK_GL();                                        
+            GEO_CHECK_GL();
         }
 
         if(
             primitive_info_[immediate_state_.primitive()].VAO != 0 ||
             immediate_state_.VAO() != 0
         ) {
-            GEO_CHECK_GL();                            
+            GEO_CHECK_GL();
             glupBindVertexArray(0);
-            GEO_CHECK_GL();                                        
+            GEO_CHECK_GL();
         }
-        GEO_CHECK_GL();         
+        GEO_CHECK_GL();
         done_draw(immediate_state_.primitive());
         GEO_CHECK_GL();
+
+        // Disable all immediate buffers (except GLUP_VERTEX_ATTRIBUTE that is
+        // always enabled).
+        for(index_t i=0; i<ImmediateState::NB_IMMEDIATE_BUFFERS; ++i) {
+            if(i != GLUP_VERTEX_ATTRIBUTE) {
+                immediate_state_.buffer[i].disable();
+            }
+        }
     }
 
     void Context::draw_arrays(
@@ -1236,22 +1098,22 @@ namespace GLUP {
             use_program(primitive_info_[primitive].program(toggles_config_));
         }
         glDrawArrays(primitive_info_[primitive].GL_primitive, first, count);
-        GEO_CHECK_GL();         
+        GEO_CHECK_GL();
         use_program(0);
-        GEO_CHECK_GL();         
+        GEO_CHECK_GL();
         done_draw(primitive);
-        GEO_CHECK_GL();         
+        GEO_CHECK_GL();
     }
 
     void Context::draw_elements(
         GLUPprimitive primitive, GLUPsizei count,
         GLUPenum type, const GLUPvoid* indices
     ) {
-        GEO_CHECK_GL();    
+        GEO_CHECK_GL();
         update_toggles_config();
-        GEO_CHECK_GL();            
+        GEO_CHECK_GL();
         create_program_if_needed(primitive);
-        GEO_CHECK_GL();            
+        GEO_CHECK_GL();
         if(!primitive_supports_array_mode(primitive)) {
             Logger::warn("GLUP")
                 << profile_name()
@@ -1260,42 +1122,38 @@ namespace GLUP {
                 << " does not support array mode." << std::endl;
             return;
         }
-        GEO_CHECK_GL();            
+        GEO_CHECK_GL();
         prepare_to_draw(primitive);
-        GEO_CHECK_GL();            
+        GEO_CHECK_GL();
         update_uniform_buffer();
-        GEO_CHECK_GL();            
+        GEO_CHECK_GL();
         if(user_program_ != 0) {
             use_program(user_program_);
         } else {
             use_program(primitive_info_[primitive].program(toggles_config_));
         }
-        GEO_CHECK_GL();                    
+        GEO_CHECK_GL();
         glDrawElements(
             primitive_info_[primitive].GL_primitive, count, type, indices
         );
-        GEO_CHECK_GL(); 
+        GEO_CHECK_GL();
         use_program(0);
-        GEO_CHECK_GL();         
+        GEO_CHECK_GL();
         done_draw(primitive);
-        GEO_CHECK_GL();         
+        GEO_CHECK_GL();
     }
 
     void Context::prepare_to_draw(GLUPprimitive primitive) {
-#ifndef GEO_GL_440
-        geo_argused(primitive);
-#else
 
-        if(primitive == GLUP_POINTS || primitive == GLUP_SPHERES) {
+	// Note: webGL does not have glPointSize(), so gl_PoinSize
+	// is set by the points vertex shader
+	if(primitive == GLUP_SPHERES || primitive == GLUP_POINTS) {
+#ifdef GL_PROGRAM_POINT_SIZE
             glEnable(GL_PROGRAM_POINT_SIZE);
-        } else if(primitive == GLUP_LINES && !use_core_profile_) {
-            // Note: glLineWidth is deprecated in OpenGL core profile,
-            // for now we still use it if we got a compatibility profile,
-            // but for core profile, we are for now unable to display
-            // thick lines (TODO: develop a shader for that, painful...)
-            glLineWidth(uniform_state_.mesh_width.get());
+#endif
         }
-        
+
+#ifdef GEO_GL_440
         if(primitive_info_[primitive].GL_primitive == GL_PATCHES) {
             // We generate an isoline for each patch, with the
             // minimum tesselation level. This generates two
@@ -1303,74 +1161,91 @@ namespace GLUP {
             // shader).
             static float levels[4] = {1.0, 1.0, 0.0, 0.0};
             glPatchParameterfv(GL_PATCH_DEFAULT_OUTER_LEVEL, levels);
-                
+
             // Specify number of vertices for GL_PATCH.
             glPatchParameteri(
-                GL_PATCH_VERTICES, GLint(nb_vertices_per_primitive[primitive])
+                GL_PATCH_VERTICES, GLint(nb_vertices_per_primitive_[primitive])
             );
         }
 #endif
     }
 
     void Context::done_draw(GLUPprimitive primitive) {
-        geo_argused(primitive);
+	if(primitive == GLUP_SPHERES || primitive == GLUP_POINTS) {
+#ifdef GL_PROGRAM_POINT_SIZE
+            glDisable(GL_PROGRAM_POINT_SIZE);
+#endif
+        }
     }
-    
+
     void Context::update_matrices() {
-        
+
         if(!matrices_dirty_) {
             return;
         }
 
-        GLfloat* modelview = matrix_stack_[GLUP_MODELVIEW_MATRIX].top();
-        GLfloat* projection = matrix_stack_[GLUP_PROJECTION_MATRIX].top();
-	GLfloat* modelviewproject =
-	    uniform_state_.modelviewprojection_matrix.get_pointer();
-	GLfloat* modelviewproject_invert =
-	    uniform_state_.inverse_modelviewprojection_matrix.get_pointer();
-	GLfloat* modelview_invert =
-	    uniform_state_.inverse_modelview_matrix.get_pointer();
-	GLfloat* projection_invert =
-	    uniform_state_.inverse_projection_matrix.get_pointer();
-	
-        copy_vector(
-            uniform_state_.modelview_matrix.get_pointer(), modelview, 16
+        double* modelview_matrix  = matrix_stack_[GLUP_MODELVIEW_MATRIX].top();
+        double* projection_matrix = matrix_stack_[GLUP_PROJECTION_MATRIX].top();
+        double  modelviewprojection_matrix[16];
+        double  inverse_modelviewprojection_matrix[16];
+        double  inverse_modelview_matrix[16];
+        double  inverse_projection_matrix[16];
+
+        mult_matrices(
+            modelviewprojection_matrix, modelview_matrix, projection_matrix
         );
-        mult_matrices(modelviewproject, modelview, projection);
 
-        GLboolean OK = invert_matrix(projection_invert, projection);
-        if(!OK) {
-            Logger::warn("GLUP") << "Singular Projection matrix"
-                                 << std::endl;
-            show_matrix(projection);
-        }
-	
-        OK = invert_matrix(modelview_invert, modelview);
-        if(!OK) {
-            Logger::warn("GLUP") << "Singular ModelView matrix"
-                                 << std::endl;
-            show_matrix(modelview);
-        }
-
-	OK = invert_matrix(modelviewproject_invert, modelviewproject);
-        if(!OK) {
+        if(!invert_matrix(
+               inverse_modelviewprojection_matrix, modelviewprojection_matrix
+           )) {
             Logger::warn("GLUP") << "Singular ModelViewProjection matrix"
                                  << std::endl;
-            show_matrix(modelviewproject);
+            show_matrix(modelviewprojection_matrix);
         }
-	
-        GLfloat* normal_matrix = uniform_state_.normal_matrix.get_pointer();
-        //   Copy the upper leftmost 3x3 part of the transpose of
-        // modelview_invert_matrix to normal_matrix
-        for(index_t i=0; i<3; ++i) {
-            for(index_t j=0; j<3; ++j) {
-                // Yes, it is i*4
-                //   (with a '4' though it is a mat3 with a '3'),
-                // mat3 rows are padded-aligned in UBOs !
-                // TODO: query padding in UBO using introspection
-                // (is it possible ? does not seem to work, so
-                //  is padding with 4 universal ??)
-                normal_matrix[i*4+j] = modelview_invert[j*4+i];
+
+        if(!invert_matrix(inverse_modelview_matrix, modelview_matrix)) {
+            Logger::warn("GLUP") << "Singular ModelView matrix"
+                                 << std::endl;
+            show_matrix(modelview_matrix);
+        }
+
+        if(!invert_matrix(inverse_projection_matrix, projection_matrix)) {
+            Logger::warn("GLUP") << "Singular Projection matrix"
+                                 << std::endl;
+            show_matrix(projection_matrix);
+        }
+
+        copy_vector(
+            uniform_state_.modelview_matrix.get_pointer(),
+            modelview_matrix, 16
+        );
+
+        copy_vector(
+            uniform_state_.modelviewprojection_matrix.get_pointer(),
+            modelviewprojection_matrix, 16
+        );
+
+        copy_vector(
+            uniform_state_.projection_matrix.get_pointer(),
+            projection_matrix, 16
+        );
+
+        {
+            GLfloat* normal_matrix = uniform_state_.normal_matrix.get_pointer();
+            //   Copy the upper leftmost 3x3 part of the transpose of
+            // modelview_invert_matrix to normal_matrix
+            for(index_t i=0; i<3; ++i) {
+                for(index_t j=0; j<3; ++j) {
+                    // Yes, it is i*4
+                    //   (with a '4' though it is a mat3 with a '3'),
+                    // mat3 rows are padded-aligned in UBOs !
+                    // TODO: query padding in UBO using introspection
+                    // (is it possible ? does not seem to work, so
+                    //  is padding with 4 universal ??)
+                    normal_matrix[i*4+j] = GLfloat(
+                        inverse_modelview_matrix[j*4+i]
+                    );
+                }
             }
         }
 
@@ -1381,38 +1256,41 @@ namespace GLUP {
         );
 
         copy_vector(
-            uniform_state_.projection_matrix.get_pointer(),
-            matrix_stack_[GLUP_PROJECTION_MATRIX].top(),
+            uniform_state_.inverse_modelviewprojection_matrix.get_pointer(),
+            inverse_modelviewprojection_matrix,
             16
         );
-        
+
+        copy_vector(
+            uniform_state_.inverse_modelview_matrix.get_pointer(),
+            inverse_modelview_matrix,
+            16
+        );
+
+        copy_vector(
+            uniform_state_.inverse_projection_matrix.get_pointer(),
+            inverse_projection_matrix,
+            16
+        );
+
         mult_matrix_vector(
             uniform_state_.world_clip_plane.get_pointer(),
             uniform_state_.modelview_matrix.get_pointer(),
-            uniform_state_.clip_plane.get_pointer()            
+            uniform_state_.clip_plane.get_pointer()
         );
 
-	OK = invert_matrix(
-	    projection_invert,
-	    uniform_state_.projection_matrix.get_pointer()
-	);
-	if(!OK) {
-	    Logger::warn("GLUP") << "Singular projection matrix"
-				 << std::endl;
-	    show_matrix(uniform_state_.projection_matrix.get_pointer());
-	}
-	mult_matrix_vector(
-	    uniform_state_.clip_clip_plane.get_pointer(),
-	    projection_invert,
-	    uniform_state_.clip_plane.get_pointer()
-	);
+        mult_matrix_vector(
+            uniform_state_.clip_clip_plane.get_pointer(),
+            uniform_state_.inverse_projection_matrix.get_pointer(),
+            uniform_state_.clip_plane.get_pointer()
+        );
 
-	GLint viewport[4];
-	glGetIntegerv(GL_VIEWPORT, viewport);
-	for(index_t i=0; i<4; ++i) {
-	    uniform_state_.viewport.get_pointer()[i] = GLfloat(viewport[i]);
-	}
-	
+        GLint viewport[4];
+        glGetIntegerv(GL_VIEWPORT, viewport);
+        for(index_t i=0; i<4; ++i) {
+            uniform_state_.viewport.get_pointer()[i] = GLfloat(viewport[i]);
+        }
+
         matrices_dirty_ = false;
     }
 
@@ -1423,27 +1301,27 @@ namespace GLUP {
 
         GLfloat* light_vector =
             uniform_state_.light_vector.get_pointer();
-        
+
         GLfloat* light_half_vector =
             uniform_state_.light_half_vector.get_pointer();
 
         // Normalize light vector
-        
+
         normalize_vector(light_vector);
 
         // Compute half vector
-        
+
         copy_vector(light_half_vector, light_vector, 3);
         light_half_vector[2] += 1.0f;
-        normalize_vector(light_half_vector);        
-        
+        normalize_vector(light_half_vector);
+
         lighting_dirty_ = false;
     }
 
     void Context::update_base_picking_id(GLint new_value) {
 #ifndef GEO_GL_150
         geo_argused(new_value);
-#else        
+#else
         Memory::pointer address = uniform_state_.base_picking_id.address();
         index_t offset = index_t(address - uniform_buffer_data_);
         uniform_state_.base_picking_id.set(new_value);
@@ -1455,9 +1333,9 @@ namespace GLUP {
             address
         );
         glBindBuffer(GL_UNIFORM_BUFFER, 0);
-#endif        
+#endif
     }
-    
+
     void Context::do_update_uniform_buffer() {
         if(!uniform_buffer_dirty_) {
             return;
@@ -1469,7 +1347,7 @@ namespace GLUP {
             update_lighting();
         }
 #ifdef GEO_GL_150
-	#ifdef GL_CLIP_DISTANCE0
+#ifdef GL_CLIP_DISTANCE0
         if(!use_ES_profile_) {
             if(uniform_state_.toggle[GLUP_CLIPPING].get()) {
                 glEnable(GL_CLIP_DISTANCE0);
@@ -1477,7 +1355,7 @@ namespace GLUP {
                 glDisable(GL_CLIP_DISTANCE0);
             }
         }
-	#endif
+#endif
         if(uniform_buffer_ != 0) {
             glBindBuffer(GL_UNIFORM_BUFFER, uniform_buffer_);
             glBufferSubData(
@@ -1488,13 +1366,13 @@ namespace GLUP {
             );
             glBindBuffer(GL_UNIFORM_BUFFER, 0);
         }
-#endif        
+#endif
         uniform_buffer_dirty_ = false;
     }
 
     void Context::flush_immediate_buffers() {
 
-        
+
         if(immediate_state_.nb_vertices() == 0) {
             return;
         }
@@ -1506,21 +1384,21 @@ namespace GLUP {
 
         if(vertex_id_VBO_ != 0) {
             if(
-                uniform_state_.toggle[GLUP_PICKING].get() || (               
-                    primitive_dimension[immediate_state_.primitive()] >= 2 && 
+                uniform_state_.toggle[GLUP_PICKING].get() || (
+                    primitive_dimension[immediate_state_.primitive()] >= 2 &&
                     uniform_state_.toggle[GLUP_DRAW_MESH].get()
-                )
+                ) || (immediate_state_.primitive() == GLUP_THICK_LINES)
             ) {
                 glEnableVertexAttribArray(GLUP_VERTEX_ID_ATTRIBUTE);
                 vertex_id_attrib_enabled = true;
             }
         }
-        
+
         GLsizei nb_vertices = GLsizei(immediate_state_.nb_vertices());
 
         if(primitive_info_[immediate_state_.primitive()].vertex_gather_mode) {
             nb_vertices /= GLsizei(
-                nb_vertices_per_primitive[immediate_state_.primitive()]
+                nb_vertices_per_primitive_[immediate_state_.primitive()]
             );
             nb_vertices *= GLsizei(
                 nb_vertices_per_GL_primitive(
@@ -1531,8 +1409,10 @@ namespace GLUP {
 
         GEO_CHECK_GL();
         if(primitive_info_[immediate_state_.primitive()].elements_VBO != 0) {
+
             index_t nb_primitives = index_t(nb_vertices) /
-                nb_vertices_per_primitive[immediate_state_.primitive()];
+                nb_vertices_per_primitive_[immediate_state_.primitive()];
+
             index_t nb_elements = nb_primitives *
                 primitive_info_[immediate_state_.primitive()].
                 nb_elements_per_primitive ;
@@ -1550,16 +1430,18 @@ namespace GLUP {
                 nb_vertices
             );
         }
-        GEO_CHECK_GL();        
+        GEO_CHECK_GL();
 
         // Picking mode uses GLSL primitive_id variable, and add
-        // GLUP state base_picking_id to it. This code updates
+        // GLUP state base_picking_id to it. It is the same thing
+        // for primitive filtering. This code updates
         // GLUP state base_picking_id and adds the number of drawn
         // primitives to it, so that the next batch will start with
         // the correct base_picking_id
         if(
-            uniform_state_.toggle[GLUP_PICKING].get() &&
-            uniform_state_.picking_mode.get() == GLUP_PICK_PRIMITIVE
+            (uniform_state_.toggle[GLUP_PICKING].get() &&
+             uniform_state_.picking_mode.get() == GLUP_PICK_PRIMITIVE) ||
+            uniform_state_.toggle[GLUP_PRIMITIVE_FILTERING].get()
         ) {
             update_base_picking_id(
                 uniform_state_.base_picking_id.get() +
@@ -1587,100 +1469,124 @@ namespace GLUP {
             return;
         }
 
-        GEO_CHECK_GL();    	
+        GEO_CHECK_GL();
         glBindAttribLocation(program, GLUP_VERTEX_ATTRIBUTE, "vertex_in");
         glBindAttribLocation(program, GLUP_COLOR_ATTRIBUTE, "color_in");
         glBindAttribLocation(program, GLUP_TEX_COORD_ATTRIBUTE, "tex_coord_in");
-        glBindAttribLocation(program, GLUP_NORMAL_ATTRIBUTE, "normal_in");	
+        glBindAttribLocation(program, GLUP_NORMAL_ATTRIBUTE, "normal_in");
         if(vertex_id_VBO_ != 0) {
             glBindAttribLocation(
-		program, GLUP_VERTEX_ID_ATTRIBUTE, "vertex_id_in"
-	    );            
+                program, GLUP_VERTEX_ID_ATTRIBUTE, "vertex_id_in"
+            );
         }
-        GEO_CHECK_GL();    	
+        GEO_CHECK_GL();
         GLSL::link_program(program);
-        GEO_CHECK_GL();    	
-        bind_uniform_state(program);            
-        GEO_CHECK_GL();    	
+        GEO_CHECK_GL();
+        bind_uniform_state(program);
+        GEO_CHECK_GL();
 
         //  Bind default texture units. We use different texture
         // units because there is a mode where both a 1D and another
         // texture is bound ("indirect texturing").
-	
+
         GLSL::set_program_uniform_by_name(
             program, "texture2Dsampler", GLint(GLUP_TEXTURE_2D_UNIT)
-        );        
+        );
         GLSL::set_program_uniform_by_name(
             program, "texture1Dsampler", GLint(GLUP_TEXTURE_1D_UNIT)
         );
         GLSL::set_program_uniform_by_name(
             program, "texture3Dsampler", GLint(GLUP_TEXTURE_3D_UNIT)
         );
-	
-        GEO_CHECK_GL();    	
+        GLSL::set_program_uniform_by_name(
+            program, "texturePrimitiveFiltersampler",
+            GLint(GLUP_TEXTURE_PRIMITIVE_FILTERING_UNIT)
+        );
+
+        GEO_CHECK_GL();
     }
 
     void Context::set_primitive_info_vertex_gather_mode(
         GLUPprimitive glup_primitive, GLenum GL_primitive, GLuint program
     ) {
         set_primitive_info(glup_primitive, GL_primitive, program, false);
-        index_t n = nb_vertices_per_primitive[glup_primitive];
+        index_t n = nb_vertices_per_primitive_[glup_primitive];
         n /= nb_vertices_per_GL_primitive(GL_primitive);
-        
+
+
+        // Note: normally we should use ImmediateState::NB_IMMEDIATE_BUFFERS
+        // but:
+        // - GLUP_PYRAMIDS use GL_POINTS (because they have 5 vertices, and
+        //    5 is a prime number, so we cannot use several OpenGL vertices)
+        // - ImmediateState::NB_IMMEDIATE_BUFFERS = 4
+        //   (there is vertex pos, color, tex_coord and normal)
+        // So this makes 5*4 = 20 attributes (and most OpenGL implementations
+        //   are limited to 16 attributes per vertex)
+        // This is no big drama:
+        // - but normals are not needed for volumetric primitives (well, we
+        //   could use them for gradients of volumetric property, but we do
+        //   not do that yet).
+        index_t nb_immediate_buffers = 3;
+
         // Attribute location are bound here, programmatically,
         // since their index depends on the number of vertices,
         // and GLSL does not like to have that in the declaration
         // (when saying layout(binding = nb_vertices), the GLSL
         // compiler does not "see" that nb_vertices is a constant).
-	
-        GEO_CHECK_GL();    	
+
+        GEO_CHECK_GL();
         glBindAttribLocation(program, 0, "vertex_in");
         glBindAttribLocation(program, n, "color_in");
         glBindAttribLocation(program, 2*n, "tex_coord_in");
-        glBindAttribLocation(program, 3*n, "normal_in");
-	
-        GEO_CHECK_GL();    	
+
+        // Normally it should be 3*n, but remember, we ignored vertices
+        // normals, because they do not fit, and it is no big drama because
+        // volumetric primitives do not need them in general. So I bind them
+        // to tex coords just to avoid having a dangling attribute.
+        glBindAttribLocation(program, 2*n, "normal_in");
+
+        GEO_CHECK_GL();
         GLSL::link_program(program);
 
-        GEO_CHECK_GL();    		
-        bind_uniform_state(program);            
+        GEO_CHECK_GL();
+        bind_uniform_state(program);
 
         //  Bind default texture units. We use different texture
         // units because there is a mode where both a 1D and another
         // texture is bound ("indirect texturing").
 
-        GEO_CHECK_GL();    			
+        GEO_CHECK_GL();
         GLSL::set_program_uniform_by_name(
             program, "texture2Dsampler", GLint(GLUP_TEXTURE_2D_UNIT)
-        );        
+        );
         GLSL::set_program_uniform_by_name(
             program, "texture1Dsampler", GLint(GLUP_TEXTURE_1D_UNIT)
         );
         GLSL::set_program_uniform_by_name(
             program, "texture3Dsampler", GLint(GLUP_TEXTURE_3D_UNIT)
         );
-        
+
         primitive_info_[glup_primitive].vertex_gather_mode = true;
-    
+
         //   We need a special VAO: memory layout is different since
         // we use a single vertex with an array of n attributes...
         //   Note: since the function can be called several times (one
         // per toggles configuration), make sure the VAO does not already
         // exists.
-        GEO_CHECK_GL();    			
+        GEO_CHECK_GL();
         if(primitive_info_[glup_primitive].VAO == 0) {
-	    GEO_CHECK_GL();    				    
+            GEO_CHECK_GL();
             glupGenVertexArrays(
                 1, &(primitive_info_[glup_primitive].VAO)
             );
-	    GEO_CHECK_GL();    				    
+            GEO_CHECK_GL();
             glupBindVertexArray(
                 primitive_info_[glup_primitive].VAO
             );
-	    GEO_CHECK_GL();    			
-            for(index_t i=0; i<immediate_state_.buffer.size(); ++i) {
+            GEO_CHECK_GL();
+            for(index_t i=0; i<nb_immediate_buffers; ++i) {
                 glBindBuffer(GL_ARRAY_BUFFER,immediate_state_.buffer[i].VBO());
-		GEO_CHECK_GL();    					
+                GEO_CHECK_GL();
                 for(index_t j=0; j<n; ++j) {
                     glVertexAttribPointer(
                         i*n+j,
@@ -1688,13 +1594,13 @@ namespace GLUP {
                         GL_FLOAT,
                         GL_FALSE,
                         GLsizei(sizeof(GL_FLOAT)*4*n),        // stride
-                        (const GLvoid*)(sizeof(GL_FLOAT)*4*j) // pointer   
+                        (const GLvoid*)(sizeof(GL_FLOAT)*4*j) // pointer
                     );
-		    GEO_CHECK_GL();		    
+                    GEO_CHECK_GL();
                 }
             }
 
-            glBindBuffer(GL_ARRAY_BUFFER,0);        
+            glBindBuffer(GL_ARRAY_BUFFER,0);
             glupBindVertexArray(0);
         }
     }
@@ -1702,20 +1608,20 @@ namespace GLUP {
     void Context::set_primitive_info_immediate_index_mode(
         GLUPprimitive glup_primitive, GLenum GL_primitive, GLuint program,
         index_t nb_elements_per_glup_primitive,
-        index_t* element_indices 
+        index_t* element_indices
     ) {
-        
+
         set_primitive_info(glup_primitive, GL_primitive, program);
 
         if(primitive_info_[glup_primitive].elements_VBO == 0) {
 
             index_t nb_glup_primitives =
                 IMMEDIATE_BUFFER_SIZE /
-                nb_vertices_per_primitive[glup_primitive];
+                nb_vertices_per_primitive_[glup_primitive];
 
             index_t nb_elements =
                 nb_glup_primitives * nb_elements_per_glup_primitive;
-            
+
             GLuint elements_VBO = 0;
             glGenBuffers(1, &elements_VBO);
             glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, elements_VBO);
@@ -1732,7 +1638,7 @@ namespace GLUP {
                     );
                     ++cur_element;
                 }
-                cur_vertex_offset += nb_vertices_per_primitive[glup_primitive];
+                cur_vertex_offset += nb_vertices_per_primitive_[glup_primitive];
             }
 
             glBufferData(
@@ -1740,18 +1646,18 @@ namespace GLUP {
                 GLsizeiptr(sizeof(Numeric::uint16) * nb_elements),
                 indices, GL_STATIC_DRAW
             );
-            
+
             delete[] indices;
 
             glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-            
+
             primitive_info_[glup_primitive].elements_VBO = elements_VBO;
             primitive_info_[glup_primitive].nb_elements_per_primitive =
                 nb_elements_per_glup_primitive;
             primitive_info_[glup_primitive].primitive_elements =
                 element_indices;
         }
-        
+
         if(primitive_info_[glup_primitive].VAO == 0) {
             glupGenVertexArrays(1,&primitive_info_[glup_primitive].VAO);
             glupBindVertexArray(primitive_info_[glup_primitive].VAO);
@@ -1767,20 +1673,20 @@ namespace GLUP {
                 glBindBuffer(GL_ARRAY_BUFFER, vertex_id_VBO_);
                 glVertexAttribPointer(
                     GLUP_VERTEX_ID_ATTRIBUTE,
-                    1,                 // 1 component per attribute
+                    1,             // 1 component per attribute
                     GL_UNSIGNED_SHORT, // components are bytes
-                    GL_FALSE,          // do not normalize
-                    0,                 // stride
-                    nullptr            // pointer (relative to bound VBO beginning)
+                    GL_FALSE,      // do not normalize
+                    0,             // stride
+                    nullptr        // pointer (relative to bound VBO beginning)
                 );
             }
-            
+
             glupBindVertexArray(0);
             glBindBuffer(GL_ARRAY_BUFFER,0);
             glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,0);
         }
     }
-    
+
     void Context::setup_primitives() {
         primitive_info_.resize(GLUP_NB_PRIMITIVES);
     }
@@ -1799,7 +1705,7 @@ namespace GLUP {
         primitive_source_ = primitive;
     }
 
-    
+
     std::string Context::primitive_declaration(GLUPprimitive prim) const {
         std::string result =
             std::string("const int glup_primitive = ") +
@@ -1808,19 +1714,25 @@ namespace GLUP {
             String::to_string(primitive_dimension[prim]) +
             ";\n" +
             "const int glup_primitive_nb_vertices = " +
-            String::to_string(nb_vertices_per_primitive[prim]) +
+            String::to_string(nb_vertices_per_primitive_[prim]) +
             ";\n" +
-	    "#define GLUP_PRIMITIVE_DIMENSION " +
-	    String::to_string(primitive_dimension[prim]) +
-            "\n"	    
+            "#define GLUP_PRIMITIVE_DIMENSION " +
+            String::to_string(primitive_dimension[prim]) +
+            "\n"
             ;
-        
+
         return result;
     }
-    
+
     void Context::update_toggles_config() {
+        // In picking mode, ignore all toggles, except
+        // primitive filtering
         if(uniform_state_.toggle[GLUP_PICKING].get()) {
             toggles_config_ = (1u << GLUP_PICKING);
+            if(uniform_state_.toggle[GLUP_PRIMITIVE_FILTERING].get()) {
+                toggles_config_ = toggles_config_ |
+                    (1u << GLUP_PRIMITIVE_FILTERING);
+            }
         } else {
             toggles_config_ = 0;
             for(index_t i=0; i<uniform_state_.toggle.size(); ++i) {
@@ -1834,8 +1746,8 @@ namespace GLUP {
     void Context::create_program_if_needed(GLUPprimitive primitive) {
         primitive_source_ = primitive;
         if(
-	    !primitive_info_[primitive].program_is_initialized(toggles_config_)
-	) {
+            !primitive_info_[primitive].program_is_initialized(toggles_config_)
+        ) {
             setup_shaders_source_for_primitive(primitive);
             setup_shaders_source_for_toggles_config(toggles_config_);
             switch(primitive) {
@@ -1844,6 +1756,9 @@ namespace GLUP {
                 break;
             case GLUP_LINES:
                 setup_GLUP_LINES();
+                break;
+            case GLUP_THICK_LINES:
+                setup_GLUP_THICK_LINES();
                 break;
             case GLUP_TRIANGLES:
                 setup_GLUP_TRIANGLES();
@@ -1874,11 +1789,14 @@ namespace GLUP {
             }
         }
     }
-    
+
     void Context::setup_GLUP_POINTS() {
     }
 
     void Context::setup_GLUP_LINES() {
+    }
+
+    void Context::setup_GLUP_THICK_LINES() {
     }
 
     void Context::setup_GLUP_TRIANGLES() {
@@ -1904,7 +1822,7 @@ namespace GLUP {
 
     void Context::setup_GLUP_SPHERES() {
     }
-    
+
     void Context::shrink_cells_in_immediate_buffers() {
         if(
             uniform_state_.cells_shrink.get() == 0.0f   ||
@@ -1915,10 +1833,10 @@ namespace GLUP {
         ) {
             return;
         }
-        
+
         GLfloat s = uniform_state_.cells_shrink.get();
         GLfloat g[3];
-        index_t nb_v = nb_vertices_per_primitive[immediate_state_.primitive()];
+        index_t nb_v = nb_vertices_per_primitive_[immediate_state_.primitive()];
         index_t v=0;
         while(v < immediate_state_.nb_vertices()) {
             g[0] = 0.0f;
@@ -1937,15 +1855,15 @@ namespace GLUP {
                 GLfloat* p = immediate_state_.buffer[0].element_ptr(v+lv);
                 p[0] = s*g[0] + (1.0f - s)*p[0];
                 p[1] = s*g[1] + (1.0f - s)*p[1];
-                p[2] = s*g[2] + (1.0f - s)*p[2];                    
+                p[2] = s*g[2] + (1.0f - s)*p[2];
             }
             v += nb_v;
         }
     }
-    
+
     void Context::create_CPU_side_uniform_buffer() {
         uniform_buffer_dirty_=true;
-        matrices_dirty_=true;        
+        matrices_dirty_=true;
         uniform_binding_point_=1;
 
         std::map<std::string, GLsizei> type_to_size;
@@ -1979,8 +1897,8 @@ namespace GLUP {
                 }
             }
         }
-        
-        uniform_buffer_data_ = new Memory::byte[uniform_buffer_size_];
+
+        uniform_buffer_data_ = new Memory::byte[size_t(uniform_buffer_size_)];
         Memory::clear(uniform_buffer_data_, size_t(uniform_buffer_size_));
 
         setup_state_variables();
@@ -1991,7 +1909,7 @@ namespace GLUP {
     }
 
     void Context::bind_immediate_state_buffers_to_VAO() {
-        for(index_t i=0; i<immediate_state_.buffer.size(); ++i) {
+        for(index_t i=0; i<ImmediateState::NB_IMMEDIATE_BUFFERS; ++i) {
             glBindBuffer(
                 GL_ARRAY_BUFFER,
                 immediate_state_.buffer[i].VBO()
@@ -2034,7 +1952,7 @@ namespace GLUP {
         }
     }
 
-    
+
     bool Context::cell_is_clipped(index_t first_v) {
         if(!uniform_state_.toggle[GLUP_CLIPPING].get()) {
             return false;
@@ -2044,7 +1962,7 @@ namespace GLUP {
         }
         index_t nb_visible=0;
         index_t nb_in_cell =
-            nb_vertices_per_primitive[immediate_state_.primitive()];
+            nb_vertices_per_primitive_[immediate_state_.primitive()];
         for(index_t lv=0; lv<nb_in_cell; ++lv) {
             nb_visible += (v_is_visible_[first_v + lv]);
         }
@@ -2093,7 +2011,7 @@ namespace GLUP {
             glBindBuffer(GL_ARRAY_BUFFER, 0);
             glupBindVertexArray(0);
         }
-        
+
     }
 
     void Context::get_vertex_shader_preamble_pseudo_file(
@@ -2101,33 +2019,33 @@ namespace GLUP {
     ) {
         geo_argused(sources);
     }
-    
+
     void Context::get_fragment_shader_preamble_pseudo_file(
         std::vector<GLSL::Source>& sources
     ) {
-        geo_argused(sources);        
+        geo_argused(sources);
     }
 
     void Context::get_geometry_shader_preamble_pseudo_file(
         std::vector<GLSL::Source>& sources
     ) {
-        geo_argused(sources);        
+        geo_argused(sources);
     }
 
     void Context::get_tess_control_shader_preamble_pseudo_file(
         std::vector<GLSL::Source>& sources
     ) {
-        geo_argused(sources);        
+        geo_argused(sources);
     }
 
     void Context::get_tess_evaluation_shader_preamble_pseudo_file(
         std::vector<GLSL::Source>& sources
     ) {
-        geo_argused(sources);        
+        geo_argused(sources);
     }
-    
+
     void Context::get_toggles_pseudo_file(
-        std::vector<GLSL::Source>& sources        
+        std::vector<GLSL::Source>& sources
     ) {
         std::string toggle_enabled_source =
             "bool glupIsEnabled(in int toggle) {\n";
@@ -2160,13 +2078,13 @@ namespace GLUP {
     }
 
     void Context::get_primitive_pseudo_file(
-        std::vector<GLSL::Source>& sources        
+        std::vector<GLSL::Source>& sources
     ) {
         sources.push_back(primitive_declaration(primitive_source_));
     }
 
     void Context::get_marching_cells_pseudo_file(
-        std::vector<GLSL::Source>& sources        
+        std::vector<GLSL::Source>& sources
     ) {
         const MarchingCell& marching_cell = get_marching_cell();
         sources.push_back(
@@ -2176,7 +2094,7 @@ namespace GLUP {
             marching_cell.GLSL_compute_intersections()
         );
     }
-    
+
     const MarchingCell& Context::get_marching_cell() const {
         const MarchingCell* result = nullptr;
         switch(primitive_source_) {
@@ -2185,21 +2103,22 @@ namespace GLUP {
             break;
         case GLUP_HEXAHEDRA:
             result = &marching_hex_;
-            break;            
+            break;
         case GLUP_PRISMS:
             result = &marching_prism_;
-            break;            
+            break;
         case GLUP_PYRAMIDS:
             result = &marching_pyramid_;
-            break;            
+            break;
         case GLUP_CONNECTORS:
             result = &marching_connector_;
-            break;            
+            break;
         case GLUP_POINTS:
         case GLUP_LINES:
+        case GLUP_THICK_LINES:
         case GLUP_TRIANGLES:
         case GLUP_QUADS:
-	case GLUP_SPHERES:
+        case GLUP_SPHERES:
         case GLUP_NB_PRIMITIVES:
             geo_assert_not_reached;
         }
@@ -2214,48 +2133,47 @@ namespace GLUP {
 
         GLSL::register_GLSL_include_file(
             "GLUP/current_profile/vertex_shader_preamble.h",
-	    vertex_shader_preamble_pseudo_file
+            vertex_shader_preamble_pseudo_file
         );
-            
+
         GLSL::register_GLSL_include_file(
             "GLUP/current_profile/fragment_shader_preamble.h",
-	    fragment_shader_preamble_pseudo_file
+            fragment_shader_preamble_pseudo_file
         );
-        
+
         GLSL::register_GLSL_include_file(
             "GLUP/current_profile/geometry_shader_preamble.h",
-	    geometry_shader_preamble_pseudo_file
+            geometry_shader_preamble_pseudo_file
         );
 
         GLSL::register_GLSL_include_file(
             "GLUP/current_profile/marching_cells.h",
-	    marching_cells_pseudo_file
+            marching_cells_pseudo_file
         );
-            
+
         GLSL::register_GLSL_include_file(
             "GLUP/current_profile/tess_control_shader_preamble.h",
-	    tess_control_shader_preamble_pseudo_file
+            tess_control_shader_preamble_pseudo_file
         );
 
         GLSL::register_GLSL_include_file(
             "GLUP/current_profile/tess_evaluation_shader_preamble.h",
-	    tess_evaluation_shader_preamble_pseudo_file
+            tess_evaluation_shader_preamble_pseudo_file
         );
 
         GLSL::register_GLSL_include_file(
             "GLUP/current_profile/toggles.h",
-	    toggles_pseudo_file
+            toggles_pseudo_file
         );
 
         GLSL::register_GLSL_include_file(
             "GLUP/current_profile/primitive.h",
-	    primitive_pseudo_file
+            primitive_pseudo_file
         );
-            
+
         GLUP::register_embedded_shaders_GLUP();
-        
+
         initialized = true;
     }
-    
-}
 
+}

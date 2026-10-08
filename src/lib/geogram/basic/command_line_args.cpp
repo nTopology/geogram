@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2014, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -13,7 +13,7 @@
  *  * Neither the name of the ALICE Project-Team nor the names of its
  *  contributors may be used to endorse or promote products derived from this
  *  software without specific prior written permission.
- * 
+ *
  *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -26,19 +26,13 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine, 
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX 
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
@@ -93,11 +87,19 @@ namespace {
             "pre:repair", false,
             "Repair input mesh"
         );
+        declare_arg(
+            "pre:intersect", false,
+            "Remove intersections in input mesh"
+        );
+        declare_arg(
+            "pre:remove_internal_shells", true,
+            "Remove internal shells after intersection"
+        );
         declare_arg_percent(
             "pre:epsilon", 0,
             "Colocate tolerance (in % of bounding box diagonal)",
             ARG_ADVANCED
-        );  
+        );
         declare_arg_percent(
             "pre:max_hole_area", 0,
             "Fill holes smaller than (in % total area)"
@@ -113,10 +115,6 @@ namespace {
         declare_arg(
             "pre:vcluster_bins", 0,
             "Number of bins for vertex clustering"
-        );
-        declare_arg(
-            "pre:brutal_kill_borders", 0,
-            "Brutally kill facets incident to border (nb iter)"
         );
     }
 
@@ -151,18 +149,18 @@ namespace {
             ARG_ADVANCED
         );
 
-#ifdef GEOGRAM_WITH_VORPALINE   
+#ifdef GEOGRAM_WITH_VORPALINE
         declare_arg(
             "remesh:sharp_edges", false,
             "Reconstruct sharp edges", ARG_ADVANCED
         );
-        
+
         declare_arg(
             "remesh:Nfactor", 5.0,
             "For sharp_edges", ARG_ADVANCED
         );
 #endif
-        
+
         declare_arg(
             "remesh:multi_nerve", true,
             "Insert new vertices to preserve topology",
@@ -192,6 +190,11 @@ namespace {
             "algo:nn_search", "BNN",
             "Nearest neighbors search (BNN, ...)"
         );
+	declare_arg(
+	    "algo:random_seed", -1,
+	    "seed for random number generator"
+	    " (-1: use default, -2: non-deterministic)"
+	);
         declare_arg(
             "algo:delaunay", "NN",
             "Delaunay algorithm"
@@ -299,7 +302,7 @@ namespace {
             "opt:Newton_m", 0,
             "Number of evaluations for Hessian approximation"
         );
-#endif  
+#endif
     }
 
     /**
@@ -313,13 +316,13 @@ namespace {
             "sys:assert", "abort",
             "Assertion behavior (abort, throw, breakpoint)"
         );
-#else        
+#else
         declare_arg(
             "sys:assert", "throw",
             "Assertion behavior (abort, throw, breakpoint)"
         );
 #endif
-        
+
         declare_arg(
             "sys:multithread", Process::multithreading_enabled(),
             "Enables multi-threaded computations"
@@ -341,6 +344,10 @@ namespace {
             "Uses double precision in output .mesh files"
         );
         declare_arg(
+            "sys:ascii", false,
+            "Use ASCII files whenever supported"
+        );
+        declare_arg(
             "sys:compression_level", 3,
             "Compression level for created .geogram files, in [0..9]"
         );
@@ -357,7 +364,7 @@ namespace {
             "sys:show_win32_console", false,
             "Display MSDOS window"
         );
-#endif  
+#endif
     }
 
     /**
@@ -373,8 +380,12 @@ namespace {
             "nl:CUDA", false,
             "Use NVidia CUDA (if available in the system)"
         );
+        declare_arg(
+            "nl:CUDA:matrix_format", "fp64",
+            "one of fp32, fp64, fp32_precond"
+        );
     }
-    
+
     /**
      * \brief Imports the Logger option group
      */
@@ -451,8 +462,8 @@ namespace {
             "Use also triangles seen from 1 and 2 seeds"
         );
         declare_arg(
-           "co3ne:strict", false,
-           "enforce combinatorial tests for triangles seen from 3 seeds as well"
+            "co3ne:strict", false,
+            "enforce combinatorial tests for triangles seen from 3 seeds as well"
         );
         declare_arg(
             "co3ne:use_normals", true,
@@ -519,7 +530,7 @@ namespace {
             "poly:tessellate_non_convex_facets", false,
             "tessellate non-convex facets"
         );
-    }    
+    }
 
     /**
      * \brief Imports the hex-dominant meshing option group
@@ -630,7 +641,7 @@ namespace {
             "maximum scaling correction factor (use 1.0 to disable)"
         );
     }
-    
+
     /**
      * \brief Imports the tetrahedral meshing option group
      */
@@ -650,7 +661,7 @@ namespace {
         );
         declare_arg(
             "tet:quality", 2.0,
-        "desired element quality (the lower, the better, 2.0 means reasonable)"
+            "desired element quality (the lower, the better, 2.0 means reasonable)"
         );
     }
 
@@ -659,21 +670,14 @@ namespace {
      */
     void import_arg_group_gfx() {
         declare_arg_group("gfx", "OpenGL graphics options", ARG_ADVANCED);
-
-
-// Default profile will be "core" in a short future for all architectures,
-// but some users reported problems with it, so I keep for now
-// "compatibility" as the default (except on Mac/OS that prefers "core")        
         declare_arg(
             "gfx:GL_profile",
-#if defined(GEO_OS_APPLE)
-            "core",
-#elif defined(GEO_OS_ANDROID)
-            "ES",           
+#if defined(GEO_OS_ANDROID)
+            "ES",
 #else
-            "compatibility",        
-#endif      
-            "one of core,compatibility,ES"
+            "core",
+#endif
+            "one of core,ES"
         );
         declare_arg(
             "gfx:GL_version", 0.0,
@@ -684,22 +688,18 @@ namespace {
             "OpenGL debugging context"
         );
         declare_arg(
-            "gfx:GLSL", true,
-            "Use GLSL shaders (requires a decently recent gfx board)"
-        );
-        declare_arg(
             "gfx:GLSL_version", 0.0,
             "If non-zero, overrides GLSL version detection"
         );
         declare_arg(
             "gfx:GLUP_profile", "auto",
-            "one of auto, GLUP150, GLUP440, VanillaGL"
+            "one of auto, GLUP150, GLUP440, GLUPES2"
         );
         declare_arg("gfx:full_screen", false, "full screen mode");
         declare_arg(
             "gfx:no_decoration", false,
             "no window decoration (full screen mode)"
-        );      
+        );
         declare_arg(
             "gfx:transparent", false,
             "use transparent backgroung (desktop integration)"
@@ -707,9 +707,22 @@ namespace {
         declare_arg(
             "gfx:GLSL_tesselation", true, "use tesselation shaders if available"
         );
-        declare_arg("gfx:geometry", "800x800", "resolution");
+        declare_arg("gfx:geometry", "1024x1024", "resolution");
+        declare_arg("gfx:keypress", "", "initial key sequence sent to viewer");
+	declare_arg(
+	    "gfx:adapter", "default",
+	    "one of default, intel, nvidia (for optimus-prime systems)"
+	);
+	declare_arg(
+	    "gfx:hidden", false,
+	    "if set, window is hidden (useful for offscreen rendering)"
+	);
+	declare_arg(
+	    "gfx:monitor", -1,
+	    "monitor where to open window, or -1 for default"
+	);
     }
-    
+
     /**
      * \brief Imports the biblio option group
      */
@@ -721,7 +734,27 @@ namespace {
             "dump all command line arguments in biblio. report"
         );
     }
-    
+
+    /**
+     * \brief Imports the gui option group.
+     */
+    void import_arg_group_gui() {
+        declare_arg_group("gui", "gui options", ARG_ADVANCED);
+        declare_arg("gui:state", "", "gui layout state");
+        declare_arg("gui:style", "Dark", "gui style, one of Dark,Light");
+        declare_arg("gui:font_size", 18, "font size");
+        declare_arg("gui:expert", false, "expert mode for developpers");
+#ifdef GEO_OS_ANDROID
+        declare_arg(
+	    "gui:phone_screen", true, "running on a phone (or testing)"
+	);
+#else
+        declare_arg(
+	    "gui:phone_screen", false, "running on a phone (or testing)"
+	);
+#endif
+    }
+
     /************************************************************************/
 
     /**
@@ -762,6 +795,8 @@ namespace {
     void set_profile_repair() {
         set_arg("pre", true);
         set_arg("pre:repair", true);
+        set_arg("pre:intersect", true);
+        set_arg("pre:intersect_remove_internal_shells",true);
         set_arg("post", false);
         set_arg("remesh", false);
     }
@@ -800,7 +835,7 @@ namespace {
     void set_profile_quad() {
         set_arg("quad", true);
     }
-    
+
     /**
      * \brief Sets the tetrahedral meshing profile
      */
@@ -828,11 +863,11 @@ namespace GEO {
                 return true;
             }
             imported.insert(name);
-            
+
             if(name == "standard") {
                 import_arg_group_global();
                 import_arg_group_sys();
-                import_arg_group_nl();          
+                import_arg_group_nl();
                 import_arg_group_log();
                 import_arg_group_biblio();
             } else if(name == "global") {
@@ -867,6 +902,8 @@ namespace GEO {
                 import_arg_group_poly();
             } else if(name == "gfx") {
                 import_arg_group_gfx();
+            } else if(name == "gui") {
+                import_arg_group_gui();
             } else {
                 Logger::instance()->set_quiet(false);
                 Logger::err("CmdLine")
@@ -911,4 +948,3 @@ namespace GEO {
         }
     }
 }
-

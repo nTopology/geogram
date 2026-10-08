@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2014, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -13,7 +13,7 @@
  *  * Neither the name of the ALICE Project-Team nor the names of its
  *  contributors may be used to endorse or promote products derived from this
  *  software without specific prior written permission.
- * 
+ *
  *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -26,19 +26,13 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine, 
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX 
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
@@ -71,27 +65,27 @@ namespace GEO {
         /**
          * \brief AmbientOcclusionImpl destructor.
          */
-        ~AmbientOcclusionImpl();
+        ~AmbientOcclusionImpl() override;
 
         /**
          * \copydoc FullScreenEffectImpl::required_GLSL_version()
          */
-        virtual double required_GLSL_version() const;
-        
+        double required_GLSL_version() const override;
+
         /**
          * \copydoc FullScreenEffectImpl::pre_render()
          */
-        virtual void pre_render(index_t w, index_t h);
+        void pre_render(index_t w, index_t h) override;
 
         /**
          * \copydoc FullScreenEffectImpl::post_render()
          */
-        virtual void post_render();
+        void post_render() override;
 
         /**
          * \copydoc FullScreenEffectImpl::update()
          */
-        virtual void update();
+        void update() override;
 
         /**
          * \brief Gets the lightness.
@@ -166,55 +160,55 @@ namespace GEO {
             nb_directions_ = x;
         }
 
-	/**
-	 * \brief Gets the maximum radius around a pixel
-	 *  where ambient occlusion is computed.
-	 * \return the radius, relative to screen size, 
-	 *  in 0.0 ... 1.0.
-	 */
-	double get_max_radius() const {
-	    return max_radius_;
-	}
+        /**
+         * \brief Gets the maximum radius around a pixel
+         *  where ambient occlusion is computed.
+         * \return the radius, relative to screen size,
+         *  in 0.0 ... 1.0.
+         */
+        double get_max_radius() const {
+            return max_radius_;
+        }
 
-	/**
-	 * \brief Sets the maximum radius around a pixel
-	 *  where ambient occlusion is computed.
-	 * \param[in] x the radius, relative to screen size, 
-	 *  in 0.0 ... 1.0.
-	 */
-	void set_max_radius(double x) {
-	    max_radius_ = x;
-	    geo_clamp(max_radius_, 0.0, 1.0);
-	}
+        /**
+         * \brief Sets the maximum radius around a pixel
+         *  where ambient occlusion is computed.
+         * \param[in] x the radius, relative to screen size,
+         *  in 0.0 ... 1.0.
+         */
+        void set_max_radius(double x) {
+            max_radius_ = x;
+            geo_clamp(max_radius_, 0.0, 1.0);
+        }
 
-	/**
-	 * \brief Gets the multiplicative factor applied to
-	 *  each step when traversing from a pixel.
-	 * \return the multiplicative step.
-	 */
-	double get_step_mul() const {
-	    return step_mul_;
-	}
+        /**
+         * \brief Gets the multiplicative factor applied to
+         *  each step when traversing from a pixel.
+         * \return the multiplicative step.
+         */
+        double get_step_mul() const {
+            return step_mul_;
+        }
 
-	/**
-	 * \brief Sets the multiplicative factor applied to
-	 *  each step when traversing from a pixel.
-	 * \param[in] x the multiplicative step.
-	 */
-	void set_step_mul(double x) {
-	    step_mul_ = std::max(x,1.0);
-	}
-	
+        /**
+         * \brief Sets the multiplicative factor applied to
+         *  each step when traversing from a pixel.
+         * \param[in] x the multiplicative step.
+         */
+        void set_step_mul(double x) {
+            step_mul_ = std::max(x,1.0);
+        }
+
     protected:
         /**
          * \copydoc FullScreenEffectImpl::initialize()
          */
-        virtual void initialize(index_t w, index_t h);
-        
+        void initialize(index_t w, index_t h) override;
+
         /**
          * \copydoc FullScreenEffectImpl::resize()
          */
-        virtual void resize(index_t w, index_t h);
+        void resize(index_t w, index_t h) override;
 
         /**
          * \brief Creates a texture with random values
@@ -238,33 +232,33 @@ namespace GEO {
         void compute_SSAO();
 
         /**
-         * \brief Applies a Gaussian blur to the (raw) ambient occlusion 
+         * \brief Applies a Gaussian blur to the (raw) ambient occlusion
          *  computed by apply_shader().
-         * \details The input and the result are both in blur_1_. 
-         *  The function uses blur_2_ as a work variable. It does two passes 
-         *  of 1D blurring (horizontal and vertical, one from blur_1_ to 
+         * \details The input and the result are both in blur_1_.
+         *  The function uses blur_2_ as a work variable. It does two passes
+         *  of 1D blurring (horizontal and vertical, one from blur_1_ to
          *  blur_2_ and the other from blur_2_ to blur_1_.
          */
         void blur();
 
         /**
          * \brief Gets the inverse of the projection transform.
-         * \details It is used by the SSAO shader, to inverse-map 
+         * \details It is used by the SSAO shader, to inverse-map
          *   screen-space coordinates into world space.
          */
         void get_proj_inv();
-        
+
     private:
         index_t lightness_;
         index_t contrast_;
         index_t blur_width_;
         index_t nb_directions_;
-	double  max_radius_;
-	double  step_mul_;
+        double  max_radius_;
+        double  step_mul_;
 
         GLint proj_inv_loc_;
         GLfloat proj_inv_[16];
-        
+
         GLuint random_tex_;
         GLuint SSAO_program_;
 
@@ -278,7 +272,7 @@ namespace GEO {
      * \brief An automatic reference-counted pointer to an AmbientOcclusionImpl.
      */
     typedef SmartPointer<AmbientOcclusionImpl> AmbientOcclusionImpl_var ;
-    
+
 }
 
 #endif

@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2014, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -13,7 +13,7 @@
  *  * Neither the name of the ALICE Project-Team nor the names of its
  *  contributors may be used to endorse or promote products derived from this
  *  software without specific prior written permission.
- * 
+ *
  *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -26,19 +26,13 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine, 
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX 
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
@@ -61,15 +55,15 @@ namespace GEO {
         /**
          * \brief Initializes some GLSL functions and objects.
          * \details Called by GEO::Graphics::initialize()
-         */  
+         */
         void GEOGRAM_GFX_API initialize();
 
         /**
          * \brief Terminates GLSL functions and objects.
          * \details Called by GEO::Graphics::terminate()
-         */  
+         */
         void GEOGRAM_GFX_API terminate();
-        
+
         /**
          * \brief Exception thrown when a GLSL shader fails to
          *  compiled.
@@ -81,7 +75,7 @@ namespace GEO {
             /**
              * \brief Gets the string identifying the exception
              */
-            virtual const char* what() const GEO_NOEXCEPT;
+            const char* what() const GEO_NOEXCEPT override;
         };
 
 
@@ -98,7 +92,7 @@ namespace GEO {
         /**
          * \brief A GLSL source.
          * \details Can be a pointer to a static string in constant memory
-         *  or a dynamically created string. 
+         *  or a dynamically created string.
          */
         class Source {
         public:
@@ -152,7 +146,7 @@ namespace GEO {
             const char* text() {
                 return text_;
             }
-            
+
         protected:
             /**
              * \brief Copies a Source.
@@ -166,7 +160,7 @@ namespace GEO {
                     text_ = rhs.text_;
                 }
             }
-            
+
         private:
             const char* text_;
             std::string text_string_;
@@ -180,10 +174,10 @@ namespace GEO {
          */
         class GEOGRAM_GFX_API PseudoFileProvider {
         public:
-            /**
-             * \brief PseudoFileProvider destructor.
-             */
-            virtual ~PseudoFileProvider();
+        /**
+         * \brief PseudoFileProvider destructor.
+         */
+        virtual ~PseudoFileProvider();
         };
 
         /**
@@ -236,22 +230,22 @@ namespace GEO {
         const char* get_GLSL_include_file(
             const std::string& name
         );
-        
+
         /**
          * \brief Compiles a shader for a specific target.
-         * \details This version of compile_shader() supports the 
-         *  include directive through the GLSL pseudo file system. 
+         * \details This version of compile_shader() supports the
+         *  include directive through the GLSL pseudo file system.
          *  Errors are detected and displayed to std::err.
-         * \param[in] target the OpenGL shader target 
+         * \param[in] target the OpenGL shader target
          *   (one of GL_COMPUTE_SHADER,
-         *   GL_VERTEX_SHADER, GL_TESS_CONTROL_SHADER, 
+         *   GL_VERTEX_SHADER, GL_TESS_CONTROL_SHADER,
          *   GL_TESS_EVALUATION_SHADER, GL_GEOMETRY_SHADER, GL_FRAGMENT_SHADER)
-         * \param[in] source an ASCII string that contain 
-         *   the source of the shader 
-         * \param[in] provider a pointer to an object that implements the PseudoFileProvider
-         *   interface (typically a GLUP Context) 
+         * \param[in] source an ASCII string that contain
+         *   the source of the shader
+         * \param[in] provider a pointer to an object that implements
+	 *   the PseudoFileProvider interface (typically a GLUP Context)
          * \return the OpenGL opaque Id of the created shader object
-         * \throw GLSLCompileError
+         * \throw GLSLCompileError if the shader could not be compiled
          */
         GLuint GEOGRAM_GFX_API compile_shader_with_includes(
             GLenum target, const char* source, PseudoFileProvider* provider
@@ -260,42 +254,45 @@ namespace GEO {
 
         /**
          * \brief Compiles a program from shader sources.
-         * \param[in] provider a pointer to an object that implements the PseudoFileProvider
-         *   interface (typically a GLUP Context)
-         * \param[in] shader1 , shader2 , shader3 , shader4 , shader5 , shader6 up to
-         *  six shader sources definition. Each shader source definition should begin
-         *  with //stage STAGE where STAGE is one of GL_VERTEX_SHADER, GL_FRAGMENT_SHADER,
-         *  GL_GEOMETRY_SHADER, GL_TESSELLATION_SHADER, GL_TESS_EVALUATION_SHADER
+         * \param[in] provider a pointer to an object that implements
+	 *   the PseudoFileProvider interface (typically a GLUP Context)
+         * \param[in] shader1 , shader2 , shader3 , shader4 , shader5 ,
+	 *  shader6 up to six shader sources definition.
+	 *  Each shader source definition should begin
+         *  with //stage STAGE where STAGE is one of GL_VERTEX_SHADER,
+	 *  GL_FRAGMENT_SHADER, GL_GEOMETRY_SHADER, GL_TESSELLATION_SHADER,
+	 *  GL_TESS_EVALUATION_SHADER
          * \return the OpenGL opaque Id of the created program object
-         * \throw GLSLCompileError
+         * \throw GLSLCompileError if the shaders could not be compiled
          */
         GLuint GEOGRAM_GFX_API compile_program_with_includes_no_link(
             PseudoFileProvider* provider,
-            const char* shader1, const char* shader2 = nullptr, const char* shader3 = nullptr,
-            const char* shader4 = nullptr, const char* shader5 = nullptr, const char* shader6 = nullptr
+            const char* shader1, const char* shader2 = nullptr,
+	    const char* shader3 = nullptr, const char* shader4 = nullptr,
+	    const char* shader5 = nullptr, const char* shader6 = nullptr
         );
 
-        
-        /************************************************************/        
-        
+
+        /************************************************************/
+
         /**
          * \brief Compiles a shader for a specific target.
          * \details One can split the source of the shader into
          *  different strings, one of them being used for library
          *  functions common to different shaders.
-         *  It may seem more natural to generate a shader object with library 
+         *  It may seem more natural to generate a shader object with library
          *  functions, but OpenGL documentation does not recommend
-         *  to do so (and it did not seem to work). Errors are detected and 
+         *  to do so (and it did not seem to work). Errors are detected and
          *  displayed to std::err.
-         * \param[in] target the OpenGL shader target 
+         * \param[in] target the OpenGL shader target
          *  (one of GL_COMPUTE_SHADER,
-         *   GL_VERTEX_SHADER, GL_TESS_CONTROL_SHADER, 
+         *   GL_VERTEX_SHADER, GL_TESS_CONTROL_SHADER,
          *   GL_TESS_EVALUATION_SHADER, GL_GEOMETRY_SHADER, GL_FRAGMENT_SHADER)
-         * \param[in] sources an array of pointer to ASCII strings 
-         *   that contain the source of the shader 
+         * \param[in] sources an array of pointer to ASCII strings
+         *   that contain the source of the shader
          * \param[in] nb_sources number of strings in \p sources
          * \return the OpenGL opaque Id of the created shader object
-         * \throw GLSLCompileError
+         * \throw GLSLCompileError if the shader could not be compiled
          */
         GLuint GEOGRAM_GFX_API compile_shader(
             GLenum target, const char** sources, index_t nb_sources
@@ -306,19 +303,19 @@ namespace GEO {
          * \details One can split the source of the shader into
          *  different strings, one of them being used for library
          *  functions common to different shaders.
-         *  It may seem more natural to generate a shader object with library 
+         *  It may seem more natural to generate a shader object with library
          *  functions, but OpenGL documentation does not recommend
-         *  to do so (and it did not seem to work). Errors are detected and 
+         *  to do so (and it did not seem to work). Errors are detected and
          *  displayed to std::err.
-         * \param[in] target the OpenGL shader target 
+         * \param[in] target the OpenGL shader target
          *  (one of GL_COMPUTE_SHADER,
-         *   GL_VERTEX_SHADER, GL_TESS_CONTROL_SHADER, 
+         *   GL_VERTEX_SHADER, GL_TESS_CONTROL_SHADER,
          *   GL_TESS_EVALUATION_SHADER, GL_GEOMETRY_SHADER, GL_FRAGMENT_SHADER)
-         * \param[in] source1 , source2 , ... ASCII strings that will be 
+         * \param[in] source1 , source2 , ... ASCII strings that will be
          *  concatened to form the source of the shader. It needs to be
          *  terminated by 0.
          * \return the OpenGL opaque Id of the created shader object
-         * \throw GLSLCompileError
+         * \throw GLSLCompileError if the shader could not be compiled
          * \note Could have been implemented using varargs, but I had
          *  problems with it (crashes that I could not fix), and it is
          *  not recommended anyway (does not have typechecking).
@@ -344,7 +341,7 @@ namespace GEO {
             const char* source17 = nullptr,
             const char* source18 = nullptr,
             const char* source19 = nullptr,
-            const char* source20 = nullptr            
+            const char* source20 = nullptr
         );
 
 
@@ -354,13 +351,13 @@ namespace GEO {
          * \param[in] program the program to be linked
          */
         void GEOGRAM_GFX_API link_program(GLuint program);
-        
+
         /**
-         * \brief Creates a GLSL program from a zero-terminated 
+         * \brief Creates a GLSL program from a zero-terminated
          *  list of shaders
          * \details Errors are detected and displayed to the Logger.
          * \note link_program() needs to be called after.
-         *   If the program has vertex attributes, then 
+         *   If the program has vertex attributes, then
          *   glBindAttribLocation() needs to be called after
          *   create_program_from_shaders_no_link() and before
          *   link_program().
@@ -372,36 +369,36 @@ namespace GEO {
         );
 
         /**
-         * \brief Creates a GLSL program from a zero-terminated 
+         * \brief Creates a GLSL program from a zero-terminated
          *  list of shaders
          * \details Errors are detected and displayed to the Logger.
-         * \note If the program has vertex attributes and needs 
-         *  glBindAttribLocation(), then use 
+         * \note If the program has vertex attributes and needs
+         *  glBindAttribLocation(), then use
          *  create_program_from_shaders_no_link() instead.
          * \param[in] shader the first shader of the list
          * \return the OpenGL opaque Id of the created program
          */
         GLuint GEOGRAM_GFX_API create_program_from_shaders(GLuint shader, ...);
-        
+
         /**
          * \brief Creates a GLSL program from a string.
          * \details The string may contain several shaders. Each shader
-         *   is delimited by begin-end statements: 
+         *   is delimited by begin-end statements:
          *   #begin(SHADER_TYPE) / #end(SHADER_TYPE)
-         *   where SHADER_TYPE is one of GL_VERTEX_SHADER, GL_FRAGMENT_SHADER, 
-         *   GL_GEOMETRY_SHADER, GL_TESS_CONTROL_SHADER, 
+         *   where SHADER_TYPE is one of GL_VERTEX_SHADER, GL_FRAGMENT_SHADER,
+         *   GL_GEOMETRY_SHADER, GL_TESS_CONTROL_SHADER,
          *   GL_TESS_EVALUATION_SHADER.
          * \note link_program() needs to be called after.
-         * \param[in,out] string the combined shaders that constitute the 
-         *  program. 
-         * \param[in] copy_string if true, the input string is copied 
-         *   internally. The function temporarily modifies the input string 
+         * \param[in,out] string the combined shaders that constitute the
+         *  program.
+         * \param[in] copy_string if true, the input string is copied
+         *   internally. The function temporarily modifies the input string
          *   (and then restores it on exit). This may
-         *   be forbidden when input string is a constant char array 
-         *   (string litteral in source code). In this case, the input 
+         *   be forbidden when input string is a constant char array
+         *   (string litteral in source code). In this case, the input
          *   string is copied to a temporary buffer.
          * \return the OpenGL opaque Id of the created shader object
-         * \throw GLSLCompileError
+         * \throw GLSLCompileError if the shader could not be compiled
          */
         GLuint GEOGRAM_GFX_API create_program_from_string_no_link(
             const char* string, bool copy_string = true
@@ -413,7 +410,7 @@ namespace GEO {
          *   begin-end statements (see setup_program_from_string()).
          * \note link_program() needs to be called after.
          * \param[in] filename the name of the file
-         * \throw GLSLCompileError
+         * \throw GLSLCompileError if the shader could not be compiled
          */
         GLuint GEOGRAM_GFX_API create_program_from_file_no_link(
             const std::string& filename
@@ -476,7 +473,7 @@ namespace GEO {
             glUseProgram(0);
             return true;
         }
-        
+
         template<> inline bool set_program_uniform_by_name(
             GLuint shader_id, const char* name, int val
         ) {
@@ -500,14 +497,14 @@ namespace GEO {
             }
             glUseProgram(shader_id);
 #ifdef GEO_GL_150
-            glUniform1ui(location, val) ;            
-#else            
-            glUniform1i(location, GLint(val)) ;            
-#endif            
+            glUniform1ui(location, val) ;
+#else
+            glUniform1i(location, GLint(val)) ;
+#endif
             glUseProgram(0);
             return true;
         }
-        
+
         /**
          * \brief Sets an array of uniform variables in a shader by name.
          * \param[in] shader_id the handle to the GLSL shader
@@ -541,7 +538,7 @@ namespace GEO {
             glUseProgram(0);
             return true;
         }
-	
+
         /**
          * \brief Gets the offset of a uniform variable relative
          *  to the uniform block it is declared in.
@@ -554,25 +551,25 @@ namespace GEO {
             GLuint program, const char* varname
         );
 
-	/**
-	 * \brief Queries array stride for a variable in a 
-	 *   GLSL program using introspection.
-	 * \param[in] program the handle of the program
-	 * \param[in] varname a string with the name of the array variable
-	 * \return the number of bytes between two consecutive elements of the
-	 *  array.
-	 */
-	size_t GEOGRAM_GFX_API get_uniform_variable_array_stride(
+        /**
+         * \brief Queries array stride for a variable in a
+         *   GLSL program using introspection.
+         * \param[in] program the handle of the program
+         * \param[in] varname a string with the name of the array variable
+         * \return the number of bytes between two consecutive elements of the
+         *  array.
+         */
+        size_t GEOGRAM_GFX_API get_uniform_variable_array_stride(
             GLuint program, const char* varname
-	);
+        );
 
         /**
-         * \brief Outputs to the logger everything that can 
-         *  be queried about a program using OpenGL 
+         * \brief Outputs to the logger everything that can
+         *  be queried about a program using OpenGL
          *  introspection APIs.
          */
         void GEOGRAM_GFX_API introspect_program(GLuint program);
-        
+
     }
 }
 

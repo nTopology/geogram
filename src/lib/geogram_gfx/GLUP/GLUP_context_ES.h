@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2016, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -13,7 +13,7 @@
  *  * Neither the name of the ALICE Project-Team nor the names of its
  *  contributors may be used to endorse or promote products derived from this
  *  software without specific prior written permission.
- * 
+ *
  *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -26,19 +26,13 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine, 
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX 
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
@@ -68,7 +62,6 @@ namespace GLUP {
      *  GLUP profile used on MacOS/X.
      * \note the following functionalities are not implemented (yet) in
      *   this profile:
-     *  - picking is not implemented
      *  - indirect texture mode is not implemented (but anyway, there is
      *    no texture3D in ES)
      */
@@ -79,163 +72,167 @@ namespace GLUP {
          * \brief Context_ES2 constructor.
          */
         Context_ES2();
-        
+
         /**
          * \brief Context_ES2 destructor.
          */
-        virtual ~Context_ES2();
-        
+        ~Context_ES2() override;
+
+        /**
+         * \copydoc Context::begin()
+         */
+        void begin(GLUPprimitive primitive) override;
+
+        /**
+         * \copydoc Context::end()
+         */
+        void end() override;
+
         /**
          * \copydoc Context::profile_name()
          */
-        virtual const char* profile_name() const;
+        const char* profile_name() const override;
 
         /**
          * \copydoc Context::setup()
          */
-        virtual void setup();
+        void setup() override;
 
         /**
          * \copydoc Context::primitive_supports_array_mode()
          */
-        virtual bool primitive_supports_array_mode(GLUPprimitive prim) const;
+        bool primitive_supports_array_mode(GLUPprimitive prim) const override;
 
 
         /**
          * \copydoc Context::get_primitive_pseudo_file()
          */
-        virtual void get_primitive_pseudo_file(
+        void get_primitive_pseudo_file(
             std::vector<GLSL::Source>& sources
-        );
-        
+        ) override;
+
         /**
          * \copydoc Context::get_vertex_shader_preamble_pseudo_file()
          */
-        virtual void get_vertex_shader_preamble_pseudo_file(
+        void get_vertex_shader_preamble_pseudo_file(
             std::vector<GLSL::Source>& sources
-        );
+        ) override;
 
         /**
          * \copydoc Context::get_fragment_shader_preamble_pseudo_file()
          */
-        virtual void get_fragment_shader_preamble_pseudo_file(
+        void get_fragment_shader_preamble_pseudo_file(
             std::vector<GLSL::Source>& sources
-        );
+        ) override;
 
         /**
          * \copydoc Context::get_toggles_pseudo_file()
          */
-        virtual void get_toggles_pseudo_file(
-            std::vector<GLSL::Source>& sources            
-        );
+        void get_toggles_pseudo_file(
+            std::vector<GLSL::Source>& sources
+        ) override;
 
     protected:
-        
-        /**
-         * \copydoc Context::prepare_to_draw()
-         */
-        virtual void prepare_to_draw(GLUPprimitive primitive);
 
-        /**
-         * \copydoc Context::done_draw()
-         */
-        virtual void done_draw(GLUPprimitive primitive);
-        
         /**
          * \copydoc Context::get_state_variable_address()
          */
-        Memory::pointer get_state_variable_address(const char* name);
+        Memory::pointer get_state_variable_address(const char* name) override;
 
         /**
          * \copydoc Context::do_update_uniform_buffer()
          */
-        virtual void do_update_uniform_buffer();
+        void do_update_uniform_buffer() override;
 
         /**
          * \copydoc Context::copy_uniform_state_to_current_program()
          */
-        virtual void copy_uniform_state_to_current_program();
+        void copy_uniform_state_to_current_program() override;
 
         /**
          * \copydoc Context::update_base_picking_id()
          */
-        virtual void update_base_picking_id(GLint new_value);
-        
+        void update_base_picking_id(GLint new_value) override;
+
         /**
          * \copydoc Context::setup_GLUP_POINTS()
          */
-        virtual void setup_GLUP_POINTS();
+        void setup_GLUP_POINTS() override;
 
         /**
          * \copydoc Context::setup_GLUP_LINES()
          */
-        virtual void setup_GLUP_LINES();
+        void setup_GLUP_LINES() override;
 
+        /**
+         * \copydoc Context::setup_GLUP_LINES()
+         */
+        void setup_GLUP_THICK_LINES() override;
 
         /**
          * \brief The generic primitive setup fonction used by all surfacic
          *  and volumetric primitives in this profile.
-         * \details Current GLUP primitive type is deduced from 
-         *  current value of Context::primitive_source_, set by 
+         * \details Current GLUP primitive type is deduced from
+         *  current value of Context::primitive_source_, set by
          *  Context::setup_shader_source_for_primitive().
          * \param[in] nb_elements_per_glup_primitive the number of element
          *  indices for each glup primitive. For instance, when drawing
          *  GLUP tetrahedra using OpenGL triangles, there are 4*3 = 12
          *  elements per primitive.
-         * \param[in] element_indices a pointer to an array of 
+         * \param[in] element_indices a pointer to an array of
          *  nb_elements_per_glup_primitive integers that encode the
          *  indexing of one element. This array is replicated and shifted
-         *  to generate the element index buffer. 
+         *  to generate the element index buffer.
          */
         void setup_primitive_generic(
             index_t nb_elements_per_glup_primitive,
             index_t* element_indices
         );
-        
+
         /**
          * \copydoc Context::setup_GLUP_TRIANGLES()
          */
-        virtual void setup_GLUP_TRIANGLES();
+        void setup_GLUP_TRIANGLES() override;
 
         /**
          * \copydoc Context::setup_GLUP_QUADS()
          */
-        virtual void setup_GLUP_QUADS();
+        void setup_GLUP_QUADS() override;
 
         /**
          * \copydoc Context::setup_GLUP_TETRAHEDRA()
          */
-        virtual void setup_GLUP_TETRAHEDRA();
+        void setup_GLUP_TETRAHEDRA() override;
 
         /**
          * \copydoc Context::setup_GLUP_PRISMS()
          */
-        virtual void setup_GLUP_PRISMS();
+        void setup_GLUP_PRISMS() override;
 
         /**
          * \copydoc Context::setup_GLUP_HEXAHEDRA()
          */
-        virtual void setup_GLUP_HEXAHEDRA();
+        void setup_GLUP_HEXAHEDRA() override;
 
         /**
          * \copydoc Context::setup_GLUP_PYRAMIDS()
          */
-        virtual void setup_GLUP_PYRAMIDS();
+        void setup_GLUP_PYRAMIDS() override;
 
         /**
          * \copydoc Context::setup_GLUP_CONNECTORS()
          */
-        virtual void setup_GLUP_CONNECTORS();
+        void setup_GLUP_CONNECTORS() override;
 
         /**
          * \copydoc Context::setup_GLUP_CONNECTORS()
          */
-        virtual void setup_GLUP_SPHERES();
-	
+        void setup_GLUP_SPHERES() override;
+
         /**
          * \copydoc Context::flush_immediate_buffers()
          */
-        virtual void flush_immediate_buffers();
+        void flush_immediate_buffers() override;
 
 
         /**
@@ -257,7 +254,7 @@ namespace GLUP {
          *  element buffer with the computed intersections.
          */
         bool sliced_cells_clipping() const;
-        
+
         /**
          * \brief Special implementation of flush_immediate_buffers()
          *  that performs cell-by-cell clipping on the CPU side, and
@@ -273,11 +270,11 @@ namespace GLUP {
          */
         void flush_immediate_buffers_with_sliced_cells_clipping();
 
-        
+
     private:
-        index_t nb_clip_cells_elements_;        
+        index_t nb_clip_cells_elements_;
         Numeric::uint16* clip_cells_elements_;
-        
+
         GLuint clip_cells_elements_VBO_;
         GLuint clip_cells_VAO_;
 
@@ -285,16 +282,16 @@ namespace GLUP {
         GLuint sliced_cells_vertex_attrib_VBO_[4];
         GLuint sliced_cells_VAO_;
 
-	double GLSL_version_;
+        double GLSL_version_;
 
-	bool vertex_id_VBO_bound_;
+        bool vertex_id_VBO_bound_;
+	bool does_not_need_picking_;
     };
 
     /*********************************************************************/
-    
+
 }
 
 #endif
 
 #endif
-

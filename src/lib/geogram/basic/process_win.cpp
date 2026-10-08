@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2014, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -13,7 +13,7 @@
  *  * Neither the name of the ALICE Project-Team nor the names of its
  *  contributors may be used to endorse or promote products derived from this
  *  software without specific prior written permission.
- * 
+ *
  *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -26,19 +26,13 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine, 
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX 
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
@@ -49,7 +43,6 @@
 
 #include <geogram/basic/process.h>
 #include <geogram/basic/process_private.h>
-#include <geogram/basic/atomics.h>
 #include <geogram/basic/logger.h>
 #include <geogram/basic/progress.h>
 
@@ -99,7 +92,6 @@ namespace {
          * \brief Creates and initializes the Windows ThreadManager
          */
         WindowsThreadManager() {
-            InitializeCriticalSection(&lock_);
         }
 
         /** \copydoc GEO::ThreadManager::maximum_concurrent_threads() */
@@ -109,20 +101,9 @@ namespace {
             return sysinfo.dwNumberOfProcessors;
         }
 
-        /** \copydoc GEO::ThreadManager::enter_critical_section() */
-        void enter_critical_section() override {
-            EnterCriticalSection(&lock_);
-        }
-
-        /** \copydoc GEO::ThreadManager::leave_critical_section() */
-        void leave_critical_section() override {
-            LeaveCriticalSection(&lock_);
-        }
-
     protected:
         /** \brief WindowsThreadManager destructor */
         ~WindowsThreadManager() override {
-            DeleteCriticalSection(&lock_);
         }
 
         /** \copydoc GEO::ThreadManager::run_concurrent_threads() */
@@ -164,9 +145,6 @@ namespace {
             thread->run();
             return 0;
         }
-
-    private:
-        CRITICAL_SECTION lock_;
     };
 
 #ifdef GEO_OS_WINDOWS_HAS_THREADPOOL
@@ -204,12 +182,12 @@ namespace {
         /** \brief WindowsThreadPoolManager destructor */
         ~WindowsThreadPoolManager() override {
 // It makes it crash on exit when calling these functions
-// with dynamic libs, I do not know why...            
+// with dynamic libs, I do not know why...
 // TODO: investigate...
-#ifndef GEO_DYNAMIC_LIBS            
+#ifndef GEO_DYNAMIC_LIBS
             CloseThreadpool(pool_);
             CloseThreadpoolCleanupGroup(cleanupGroup_);
-#endif            
+#endif
         }
 
         /** \copydoc GEO::ThreadManager::run_concurrent_threads() */
@@ -270,7 +248,7 @@ namespace {
 
 #endif
 
-#ifdef GEO_COMPILER_MSVC    
+#ifdef GEO_COMPILER_MSVC
     /**
      * \brief Abnormal termination handler
      * \details Exits the program. If \p message is
@@ -296,30 +274,30 @@ namespace {
     void signal_handler(int signal) {
         const char* sigstr;
         switch(signal) {
-            case SIGINT:
-                sigstr = "SIGINT";
-                break;
-            case SIGILL:
-                sigstr = "SIGILL";
-                break;
-            case SIGFPE:
-                sigstr = "SIGFPE";
-                break;
-            case SIGSEGV:
-                sigstr = "SIGSEGV";
-                break;
-            case SIGTERM:
-                sigstr = "SIGTERM";
-                break;
-            case SIGBREAK:
-                sigstr = "SIGBREAK";
-                break;
-            case SIGABRT:
-                sigstr = "SIGABRT";
-                break;
-            default:
-                sigstr = "UNKNOWN";
-                break;
+        case SIGINT:
+            sigstr = "SIGINT";
+            break;
+        case SIGILL:
+            sigstr = "SIGILL";
+            break;
+        case SIGFPE:
+            sigstr = "SIGFPE";
+            break;
+        case SIGSEGV:
+            sigstr = "SIGSEGV";
+            break;
+        case SIGTERM:
+            sigstr = "SIGTERM";
+            break;
+        case SIGBREAK:
+            sigstr = "SIGBREAK";
+            break;
+        case SIGABRT:
+            sigstr = "SIGABRT";
+            break;
+        default:
+            sigstr = "UNKNOWN";
+            break;
         }
 
         std::ostringstream os;
@@ -336,21 +314,21 @@ namespace {
     void fpe_signal_handler(int /*signal*/, int code) {
         const char* error;
         switch(code) {
-            case _FPE_INVALID:
-                error = "invalid number";
-                break;
-            case _FPE_OVERFLOW:
-                error = "overflow";
-                break;
-            case _FPE_UNDERFLOW:
-                error = "underflow";
-                break;
-            case _FPE_ZERODIVIDE:
-                error = "divide by zero";
-                break;
-            default:
-                error = "unknown";
-                break;
+        case _FPE_INVALID:
+            error = "invalid number";
+            break;
+        case _FPE_OVERFLOW:
+            error = "overflow";
+            break;
+        case _FPE_UNDERFLOW:
+            error = "underflow";
+            break;
+        case _FPE_ZERODIVIDE:
+            error = "divide by zero";
+            break;
+        default:
+            error = "unknown";
+            break;
         }
 
         std::ostringstream os;
@@ -364,7 +342,7 @@ namespace {
      * program.
      */
     void sigint_handler(int) {
-        if(Progress::current_task() != nullptr) {
+        if(Progress::current_progress_task() != nullptr) {
             Progress::cancel();
         } else {
             exit(1);
@@ -382,24 +360,24 @@ namespace {
 // Microsoft Visual C++
 // (abnormal_program_termination() does not return,
 //  but memory_exhausted_handler() needs to return
-//  something...)    
+//  something...)
 #ifdef GEO_COMPILER_MSVC
 #pragma warning(push)
 #pragma warning(disable: 4702)
 #endif
-    
+
     /**
      * Catches allocation errors
      */
     int memory_exhausted_handler(size_t) {
         abnormal_program_termination("memory exhausted");
-        return 0; 
+        return 0;
     }
 
-#ifdef GEO_COMPILER_MSVC    
+#ifdef GEO_COMPILER_MSVC
 #pragma warning(pop)
 #endif
-    
+
     /**
      * Catches invalid calls to pure virtual functions
      */
@@ -455,12 +433,12 @@ namespace {
         wprintf(L"Abnormal program termination: ");
         vwprintf(format, vl);
         wprintf(
-            L"\nModule: %s\nFile: %s\nLine: %d\n", 
+            L"\nModule: %s\nFile: %s\nLine: %d\n",
             moduleName, filename, linenumber
 
         );
         va_end(vl);
-        
+
         // Must return 1 to force the program to stop with an exception which
         // will be captured by the unhandled exception handler
         return 1;
@@ -480,7 +458,7 @@ namespace {
             abnormal_program_termination(message);
         }
 
-        // Runtime warning messages        
+        // Runtime warning messages
         if(Logger::is_initialized()) {
             Logger::err("SignalHandler") << message << std::endl;
         } else {
@@ -495,9 +473,9 @@ namespace {
         // Tell _CrtDbgReport that no further reporting is required.
         return TRUE;
     }
-    
+
 #endif
-    
+
 }
 
 /****************************************************************************/
@@ -507,7 +485,7 @@ namespace GEO {
     namespace Process {
 
         bool os_init_threads() {
-#ifdef GEO_COMPILER_MSVC
+#if defined(GEO_COMPILER_MSVC) && !defined(GEO_TBB)
 #  ifdef GEO_OS_WINDOWS_HAS_THREADPOOL
             // Env. variable to deactivate thread pool, e.g.
             // used under Wine (that does not implement thread pools yet).
@@ -532,10 +510,10 @@ namespace GEO {
             return true;
 #  endif
 #else
-           // If compiling for Windows with a compiler different from MSVC, 
-           // return false, and use OpenMP fallback from process.cpp
-           return false;
-#endif     
+            // If compiling for Windows with a compiler different from MSVC,
+            // return false, and use OpenMP fallback from process.cpp
+            return false;
+#endif
         }
 
         void os_brute_force_kill() {
@@ -595,32 +573,32 @@ namespace GEO {
 #ifdef GEO_COMPILER_MSVC
             PROCESS_MEMORY_COUNTERS info;
 #if (PSAPI_VERSION >= 2)
-            K32GetProcessMemoryInfo(GetCurrentProcess( ), &info, sizeof(info));            
-#else            
+            K32GetProcessMemoryInfo(GetCurrentProcess( ), &info, sizeof(info));
+#else
             GetProcessMemoryInfo(GetCurrentProcess( ), &info, sizeof(info));
-#endif            
+#endif
             return size_t(info.WorkingSetSize);
 #else
-           return size_t(0);
-#endif     
+            return size_t(0);
+#endif
         }
 
         size_t os_max_used_memory() {
-#ifdef GEO_COMPILER_MSVC           
+#ifdef GEO_COMPILER_MSVC
             PROCESS_MEMORY_COUNTERS info;
 #if (PSAPI_VERSION >= 2)
-            K32GetProcessMemoryInfo(GetCurrentProcess( ), &info, sizeof(info));            
-#else            
+            K32GetProcessMemoryInfo(GetCurrentProcess( ), &info, sizeof(info));
+#else
             GetProcessMemoryInfo(GetCurrentProcess( ), &info, sizeof(info));
-#endif            
+#endif
             return size_t(info.PeakWorkingSetSize);
 #else
-           return size_t(0);
-#endif     
+            return size_t(0);
+#endif
         }
 
         bool os_enable_FPE(bool flag) {
-#ifdef GEO_COMPILER_MSVC            
+#ifdef GEO_COMPILER_MSVC
             if(flag) {
                 unsigned int excepts = 0
                     // | _EM_INEXACT // inexact result
@@ -628,7 +606,7 @@ namespace GEO {
                     | _EM_UNDERFLOW // result not representable due to underflow
                     | _EM_OVERFLOW  // result not representable due to overflow
                     | _EM_INVALID   // invalid operation
-                ;
+                    ;
                 _clearfp();
                 _controlfp(~excepts, _MCW_EM);
             } else {
@@ -638,11 +616,11 @@ namespace GEO {
 #else
             geo_argused(flag);
             return false;
-#endif      
+#endif
         }
 
         bool os_enable_cancel(bool flag) {
-#ifdef GEO_COMPILER_MSVC            
+#ifdef GEO_COMPILER_MSVC
             if(flag) {
                 signal(SIGINT, sigint_handler);
             } else {
@@ -652,7 +630,7 @@ namespace GEO {
 #else
             geo_argused(flag);
             return false;
-#endif      
+#endif
         }
 
         /**
@@ -662,7 +640,7 @@ namespace GEO {
          * exception handling routines that prevent the application from being
          * blocked by a bad assertion, a runtime check or runtime error dialog.
          */
-#ifdef GEO_COMPILER_MSVC        
+#ifdef GEO_COMPILER_MSVC
         void os_install_signal_handlers() {
 
             // Install signal handlers
@@ -671,12 +649,12 @@ namespace GEO {
             signal(SIGBREAK, signal_handler);
             signal(SIGTERM, signal_handler);
 
-            // SIGFPE has a dedicated handler 
+            // SIGFPE has a dedicated handler
             // that provides more details about the error.
             typedef void (__cdecl * sighandler_t)(int);
             signal(SIGFPE, (sighandler_t) fpe_signal_handler);
 
-            // Install uncaught c++ exception handlers      
+            // Install uncaught c++ exception handlers
             std::set_terminate(uncaught_exception_handler);
 
             // Install memory allocation handler
@@ -711,7 +689,7 @@ namespace GEO {
             // _CrtDbgReport that prints the error message, print the stack
             // trace and exit the application.
             // NOTE: when this hook is installed, it takes precedence over the
-            // invalid_parameter_handler(), but not over the 
+            // invalid_parameter_handler(), but not over the
             // runtime_error_handler().
             // Windows error handling is a nightmare!
             _CrtSetReportHook(debug_report_hook);
@@ -726,22 +704,28 @@ namespace GEO {
             _CrtSetReportFile(_CRT_WARN, _CRTDBG_FILE_STDERR);
             _CrtSetReportMode(_CRT_ASSERT, _CRTDBG_MODE_FILE);
             _CrtSetReportFile(_CRT_ASSERT, _CRTDBG_FILE_STDERR);
+
+            // Do not open dialog box on error
+            SetErrorMode(SEM_NOGPFAULTERRORBOX);
         }
 #else
         void os_install_signal_handlers() {
         }
-#endif  
-        
+#endif
+
         /**
          * \brief Gets the full path to the current executable.
          */
         std::string os_executable_filename() {
-            TCHAR result[MAX_PATH];
-            GetModuleFileName( nullptr, result, MAX_PATH);
+            char result[MAX_PATH];
+            GetModuleFileNameA( nullptr, result, MAX_PATH);
             return std::string(result);
+        }
+
+        void os_print_stack_trace() {
+            // Unimplemented under Windows
         }
     }
 }
 
 #endif
-

@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2014, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -13,7 +13,7 @@
  *  * Neither the name of the ALICE Project-Team nor the names of its
  *  contributors may be used to endorse or promote products derived from this
  *  software without specific prior written permission.
- * 
+ *
  *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -26,19 +26,13 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine, 
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX 
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
@@ -55,76 +49,13 @@
 #include <geogram/basic/command_line.h>
 #include <geogram/basic/argused.h>
 #include <geogram/basic/algorithm.h>
+
 #include <stack>
 #include <queue>
 
 namespace {
 
     using namespace GEO;
-
-    /**
-     * \brief Merges the vertices of a mesh that are at the same
-     *  geometric location
-     * \param[in] M the mesh
-     * \param[in] colocate_epsilon tolerance for merging vertices
-     */
-    void repair_colocate_vertices(Mesh& M, double colocate_epsilon) {
-        vector<index_t> old2new;
-
-        index_t nb_new_vertices = 0;
-        if(colocate_epsilon == 0.0) {
-            nb_new_vertices = Geom::colocate_by_lexico_sort(
-                M.vertices.point_ptr(0), 3, M.vertices.nb(),
-                old2new, M.vertices.dimension()
-            );
-        } else {
-            nb_new_vertices = Geom::colocate(
-                M.vertices.point_ptr(0), 3, M.vertices.nb(),
-                old2new, colocate_epsilon, M.vertices.dimension()
-            );
-        }
-
-        if(nb_new_vertices == M.vertices.nb()) {
-            return;
-        }
-
-        Logger::out("Validate") << "Removed "
-            << M.vertices.nb() - nb_new_vertices
-            << " duplicated vertices" << std::endl;
-
-
-        // Replace vertex indices for edges
-        for(index_t e = 0; e < M.edges.nb(); ++e) {
-            M.edges.set_vertex(e, 0, old2new[M.edges.vertex(e,0)]);
-            M.edges.set_vertex(e, 1, old2new[M.edges.vertex(e,1)]);            
-        }
-
-        // Replace vertex indices for facets
-        for(index_t c = 0; c < M.facet_corners.nb(); ++c) {
-            M.facet_corners.set_vertex(c, old2new[M.facet_corners.vertex(c)]);
-        }
-
-        // Replace vertex indices for cells
-        for(index_t ce = 0; ce < M.cells.nb(); ++ce) {
-            for(
-                index_t c=M.cells.corners_begin(ce);
-                c<M.cells.corners_end(ce); ++c
-            ) {
-                M.cell_corners.set_vertex(c, old2new[M.cell_corners.vertex(c)]);
-            }
-        } 
-        
-        // Now old2new is "recycled" for marking vertices that
-        // need to be removed.
-        for(index_t i = 0; i < old2new.size(); i++) {
-            if(old2new[i] == i) {
-                old2new[i] = 0;
-            } else {
-                old2new[i] = 1;
-            }
-        }
-        M.vertices.delete_elements(old2new);
-    }
 
     /**
      * \brief Tests whether a facet is degenerate.
@@ -144,7 +75,7 @@ namespace {
             return std::unique(
                 vertices, vertices + nb_vertices
             ) != vertices + nb_vertices;
-        } 
+        }
         index_t c1 = M.facets.corners_begin(f);
         index_t c2 = c1 + 1;
         index_t c3 = c2 + 1;
@@ -164,24 +95,32 @@ namespace {
      * representation (used to detect duplicated facets).
      * \param[in] M the mesh that the facet belongs to
      * \param[in] f the index of the facet in \p M
+     * \return true if the facet was flipped, false otherwise
      */
-    void normalize_facet_vertices_order(Mesh& M, index_t f) {
+    bool normalize_facet_vertices_order(Mesh& M, index_t f) {
         index_t d = M.facets.nb_vertices(f);
-        index_t c_min = M.facets.corners_begin(f);
-        for(
-            index_t c = M.facets.corners_begin(f) + 1;
-            c < M.facets.corners_end(f); ++c
-        ) {
+
+        // Step 1: corner-to-vertex connections
+        // ------------------------------------
+
+        // Determine index c_min of corner with smallest vertex id
+        index_t c0 = M.facets.corners_begin(f);
+        index_t c_min = c0;
+        for(index_t c = c0 + 1; c < M.facets.corners_end(f); ++c) {
             if(M.facet_corners.vertex(c) < M.facet_corners.vertex(c_min)) {
                 c_min = c;
             }
         }
+
+        // Determine whether facet should be flipped
         index_t c_prev = M.facets.prev_corner_around_facet(f, c_min);
         index_t c_next = M.facets.next_corner_around_facet(f, c_min);
         bool direct = (
             M.facet_corners.vertex(c_next) >= M.facet_corners.vertex(c_prev)
         );
-        index_t* f_vertex = (index_t*) alloca(sizeof(signed_index_t) * d);
+
+        // Assign corner-to-vertex links
+        index_t* f_vertex = (index_t*) alloca(sizeof(index_t) * d);
         {
             index_t c = c_min;
             for(index_t i = 0; i < d; i++) {
@@ -191,9 +130,49 @@ namespace {
             }
         }
         for(index_t i = 0; i < d; i++) {
-            index_t c = M.facets.corners_begin(f);
-            M.facet_corners.set_vertex(c + i, f_vertex[i]);
+            M.facet_corners.set_vertex(c0 + i, f_vertex[i]);
         }
+
+        // Step 2: permute corner attributes, using the function
+        // that swaps attributes between two elements.
+        // -----------------------------------------------------
+
+        // Compute permutation P and inverse permutation Pinv
+        // P[i]:     from where we fetch the attributes of the i-th corner
+        // P_inv[i]: where we want to put the attributes of the i-th corner
+
+        index_t* P     = (index_t*) alloca(sizeof(index_t) * d);
+        index_t* P_inv = (index_t*) alloca(sizeof(index_t) * d);
+        {
+            index_t cur = c_min - c0;
+            for(index_t i=0; i<d; ++i) {
+                P[i] = cur;
+                if(direct) {
+                    cur = (cur == d-1) ? 0 : cur+1;
+                } else {
+                    cur = (cur == 0) ? d-1 : cur-1;
+                }
+            }
+            for(index_t i=0; i<d; ++i) {
+                P_inv[P[i]] = i;
+            }
+        }
+
+        // Permute attributes (and update P and P_inv accordingly)
+        for(index_t i=0; i<d-1; ++i) {
+            index_t j     = P[i];
+            index_t j_inv = P_inv[i];
+            if(i != j) {
+                M.facet_corners.attributes().swap_items(c0+i,c0+j);
+            }
+            std::swap(P[i],P[j_inv]);
+            std::swap(P_inv[i], P_inv[j]);
+            geo_assert(P[i]     == i);
+            geo_assert(P_inv[i] == i);
+        }
+        geo_assert(P[d-1]     == d-1);
+        geo_assert(P_inv[d-1] == d-1);
+	return !direct;
     }
 
     /**
@@ -286,24 +265,21 @@ namespace {
      * \brief Finds the non-duplicated vertices of a facet
      * \param[in] M a const reference to a mesh
      * \param[in] f a facet index in \p M
-     * \param[out] new_polygon on exit, where to append the 
+     * \param[out] new_polygon on exit, where to append the
      *              non-duplicated vertices of facet \p f
-     *              and a terminal index_t(-1)
-     * \retval true if the facet has three non-duplicated 
+     *              and a terminal NO_INDEX
+     * \retval true if the facet has three non-duplicated
      *               vertices and more
      * \retval false otherwise
      */
     bool find_facet_non_duplicated_vertices(
         const Mesh& M, index_t f, vector<index_t>& new_polygon
     ) {
-        index_t first_corner = index_t(-1);
-        
+        index_t first_corner = NO_INDEX;
+
         // Find the first vertex that is different from
         // its predecessor around the facet.
-        for(
-            index_t c1=M.facets.corners_begin(f);
-            c1<M.facets.corners_end(f); ++c1
-        ){
+        for(index_t c1: M.facets.corners(f)) {
             index_t c2 = M.facets.next_corner_around_facet(f,c1);
             if(M.facet_corners.vertex(c1) != M.facet_corners.vertex(c2)) {
                 first_corner = c2;
@@ -313,14 +289,14 @@ namespace {
 
         // All the vertices may be identical (if the facet
         // is completely degenerate).
-        if(first_corner == index_t(-1)) {
+        if(first_corner == NO_INDEX) {
             return false;
         }
 
         index_t c = first_corner;
-        index_t cur_v = index_t(-1);
+        index_t cur_v = NO_INDEX;
         index_t nb = 0;
-        
+
         do {
             index_t v = M.facet_corners.vertex(c);
             if(v != cur_v) {
@@ -330,7 +306,7 @@ namespace {
             }
             c = M.facets.next_corner_around_facet(f,c);
         } while(c != first_corner);
-        new_polygon.push_back(index_t(-1));
+        new_polygon.push_back(NO_INDEX);
 
         //   If there were only 2 non-duplicated vertices, then
         // the facet is degenerate and is "rolled back" (we do
@@ -342,8 +318,8 @@ namespace {
 
         return true;
     }
-    
-    
+
+
     /**
      * \brief Detects degenerate facets in a mesh.
      * \param[in] M the mesh
@@ -351,45 +327,67 @@ namespace {
      *  detected and all but one instance of each is marked as to be
      *  removed.
      * \param[out] remove_f indicates for each facet whether it should be
-     *  removed. If remove_f[f] != 0 if f should be removed, else f 
+     *  removed. If remove_f[f] != 0 if f should be removed, else f
      *  should be kept. If remove_f.size() == 0, then there is
-     *  no facet to remove, else remove_f.size() == M.facets.nb(). 
+     *  no facet to remove, else remove_f.size() == M.facets.nb().
      * \param[out] old_polygons if non zero, on exit contains the
      *  indices of the polygonal facets that had duplicated vertices
      * \param[out] new_polygons if non zero, on exit contains the
      *  polygonal facets to be created to replace the input polygonal
      *  facets that have duplicated vertices. Each individual facet
-     *  is terminated by index_t(-1)
+     *  is terminated by NO_INDEX
      */
     void detect_bad_facets(
         Mesh& M, bool check_duplicates, vector<index_t>& remove_f,
         vector<index_t>* old_polygons = nullptr,
-        vector<index_t>* new_polygons = nullptr
+        vector<index_t>* new_polygons = nullptr,
+        bool verbose = false
     ) {
         index_t nb_duplicates = 0;
         index_t nb_degenerate = 0;
         if(check_duplicates) {
+	    vector<char> flipped(M.facets.nb());
+
+            // Used by boolean operations
+            Attribute<index_t> operand_bit;
+            operand_bit.bind_if_is_defined(
+                M.facets.attributes(),"operand_bit"
+            );
+
             // Reorder vertices around each facet to make
-            // it easier to compare two facets.
-            for(index_t f = 0; f < M.facets.nb(); f++) {
-                normalize_facet_vertices_order(M, f);
-            }
+            // it easier to compare two facets, and memorize
+	    // initial facet orientation.
+
+	    if(M.facets.nb() > 65535) { // Do that in parallel if mesh is large
+		parallel_for(
+		    0, M.facets.nb(),
+		    [&](index_t f) {
+			flipped[f] = normalize_facet_vertices_order(M, f);
+		    }
+		);
+	    } else {
+		for(index_t f: M.facets) {
+		    flipped[f] = normalize_facet_vertices_order(M, f);
+		}
+	    }
+
             // Indirect-sort the facets in lexicographic
-            // order. 
+            // order.
             vector<index_t> f_sort(M.facets.nb());
-            for(index_t f = 0; f < M.facets.nb(); f++) {
+            for(index_t f: M.facets) {
                 f_sort[f] = f;
             }
             CompareFacets compare_facets(M);
             GEO::sort(f_sort.begin(), f_sort.end(), compare_facets);
+
             // Now f_sort[0] ... fsort[nb_facets-1] contains the indices
             // of the sorted facets. This ensures that the indices of the
             // facets with the same vertices (i.e. duplicated facets)
             // appear at contiguous sequences in fsort.
 
-            // Traverse in fsort the sequences of duplicate facets. 
-            // The algorithm detects the sequence of indices 
-            // f_sort[if1] ... f_sort[if2-1] that contain facets 
+            // Traverse in fsort the sequences of duplicate facets.
+            // The algorithm detects the sequence of indices
+            // f_sort[if1] ... f_sort[if2-1] that contain facets
             // with the same indices.
             index_t if1 = 0;
             while(if1 < M.facets.nb()) {
@@ -406,16 +404,30 @@ namespace {
                         remove_f.resize(M.facets.nb(), 0);
                     }
                     remove_f[f_sort[if2]] = 1;
+                    // Used by boolean operations
+		    // ^= instead of |= because there can be "fins" in the
+		    // input of boolean operators, and ^= discards duplicated
+		    // facets in fins.
+                    if(operand_bit.is_bound()) {
+                        operand_bit[f_sort[if1]] ^= operand_bit[f_sort[if2]];
+                    }
                     if2++;
                 }
                 if1 = if2;
             }
+
+	    // Restore initial facets orientation
+	    for(index_t f: M.facets) {
+		if(flipped[f]) {
+		    M.facets.flip(f);
+		}
+	    }
         }
 
         // Now, we tag the degenerate facets as 'to be removed'. A
         // facet is degenerate if it is incident to the same vertex several
         // times.
-        for(index_t f = 0; f < M.facets.nb(); f++) {
+        for(index_t f: M.facets) {
             if(
                 (remove_f.size() == 0 || remove_f[f] == 0) &&
                 facet_is_degenerate(M, f)
@@ -435,62 +447,18 @@ namespace {
                 ) {
                     if(find_facet_non_duplicated_vertices(
                            M,f,*new_polygons
-                    )) {
+                       )) {
                         old_polygons->push_back(f);
                     }
                 }
             }
         }
-        if(nb_duplicates != 0 || nb_degenerate != 0) {
+        if(verbose && (nb_duplicates != 0 || nb_degenerate != 0)) {
             Logger::out("Validate")
                 << "Detected " << nb_duplicates << " duplicate and "
                 << nb_degenerate << " degenerate facets"
                 << std::endl;
         }
-    }
-
-    /**
-     * \brief Detects and removes the degenerate facets in a mesh.
-     * \param[in] M the mesh
-     * \param[in] check_duplicates if true, duplicated facets are
-     *  removed.
-     */
-    void repair_remove_bad_facets(Mesh& M, bool check_duplicates) {
-        vector<index_t> remove_f;
-        vector<index_t> old_polygons;
-        vector<index_t> new_polygons;
-        detect_bad_facets(
-            M, check_duplicates, remove_f, &old_polygons, &new_polygons
-        );
-        index_t current_old_polygon=0;
-        if(remove_f.size() != 0) {
-            //   Create the new facets that correspond to input polygonal
-            // facets that had duplicated vertices.
-            //   This needs to be done before deleting the bad facets,
-            // else some vertices will become isolated and will be
-            // discarded.
-            index_t b=0;
-            index_t e=0;
-            while(b < new_polygons.size()) {
-                while(new_polygons[e] != index_t(-1)) {
-                    ++e;
-                }
-                index_t new_f = M.facets.create_polygon(e-b);
-                M.facets.attributes().copy_item(
-                    new_f, old_polygons[current_old_polygon]
-                );
-                ++current_old_polygon;
-                // We created a new facet that we want to keep !!
-                remove_f.push_back(0); 
-                for(index_t lv=0; lv<e-b; ++lv) {
-                    M.facets.set_vertex(new_f,lv,new_polygons[b+lv]);
-                }
-                ++e;
-                b=e;
-            }
-            M.facets.delete_elements(remove_f);            
-        }
-        
     }
 
     /************************************************************************/
@@ -500,7 +468,7 @@ namespace {
      * \details Reconstructs the corners.adjacent_facet links.
      *  Note that the Moebius law is not respected by this
      *  function (adjacent facets may have incoherent orientations).
-     *  This function outputs a mesh with possibly not coherently 
+     *  This function outputs a mesh with possibly not coherently
      *  oriented triangles. In other words, for two
      *  corners c1, c2, if we have:
      *   - v1 = facet_corners.vertex(c1)
@@ -514,27 +482,25 @@ namespace {
      *  then c1 and c2 are adjacent if we have:
      *   - v1=w2 and v2=w1 (as usual) or:
      *   - v1=v2 and w1=w2 ('inverted' configuration)
-     *  The output of this function can be then post-processed by 
+     *  The output of this function can be then post-processed by
      *  repair_reorient_facets_anti_moebius() to recover coherent
      *  orientations.
      * \param[in] M the mesh to repair
      */
-    void repair_connect_facets(
-        Mesh& M
-    ) {
+    void repair_connect_facets(Mesh& M) {
         const index_t NON_MANIFOLD=index_t(-2);
 
         // Reset all facet-facet adjacencies.
-        for(index_t c=0; c<M.facet_corners.nb(); ++c) {
+        for(index_t c: M.facet_corners) {
             M.facet_corners.set_adjacent_facet(c,NO_FACET);
         }
 
-        // For each vertex v, v2c[v] gives the index of a 
+        // For each vertex v, v2c[v] gives the index of a
         // corner incident to vertex v.
         vector<index_t> v2c(M.vertices.nb(),NO_CORNER);
 
-        // For each corner c, next_c_around_v[c] is the 
-        // linked list of all the corners incident to 
+        // For each corner c, next_c_around_v[c] is the
+        // linked list of all the corners incident to
         // vertex v.
         vector<index_t> next_c_around_v(M.facet_corners.nb(),NO_CORNER);
 
@@ -547,38 +513,30 @@ namespace {
         }
 
         // Compute v2c and next_c_around_v
-        for(index_t c=0; c<M.facet_corners.nb(); ++c) {
+        for(index_t c: M.facet_corners) {
             index_t v = M.facet_corners.vertex(c);
             next_c_around_v[c] = v2c[v];
             v2c[v] = c;
         }
 
-        // Compute f2c (only if M is not triangulated, 
+        // Compute f2c (only if M is not triangulated,
         // because if M is triangulated, we have f2c(c) = c/3).
         if(!M.facets.are_simplices()) {
-            for(index_t f=0; f<M.facets.nb(); ++f) {
-                for(
-                    index_t c=M.facets.corners_begin(f); 
-                    c<M.facets.corners_end(f); 
-                    ++c
-                ) {
+            for(index_t f: M.facets) {
+                for(index_t c: M.facets.corners(f)) {
                     c2f[c]=f;
                 }
             }
         }
 
-        for(index_t f1=0; f1<M.facets.nb(); ++f1) {
-            for(
-                index_t c1=M.facets.corners_begin(f1);
-                c1<M.facets.corners_end(f1); ++c1
-            ) {
-
+        for(index_t f1: M.facets) {
+            for(index_t c1: M.facets.corners(f1)) {
                 if(M.facet_corners.adjacent_facet(c1) == NO_FACET) {
                     index_t adj_corner = NO_CORNER;
                     index_t v1=M.facet_corners.vertex(c1);
                     index_t v2=M.facet_corners.vertex(
-                                   M.facets.next_corner_around_facet(f1,c1)
-                               );
+                        M.facets.next_corner_around_facet(f1,c1)
+                    );
 
                     index_t c2 = v2c[v1];
 
@@ -614,15 +572,15 @@ namespace {
                         c2 = next_c_around_v[c2];
                     }
                     if(
-                        adj_corner != NO_CORNER && 
+                        adj_corner != NO_CORNER &&
                         adj_corner != NON_MANIFOLD
                     ) {
                         M.facet_corners.set_adjacent_facet(adj_corner,f1);
-                        index_t f2 = M.facets.are_simplices() ? 
-                                     adj_corner/3 : 
-                                     c2f[adj_corner] ;
+                        index_t f2 = M.facets.are_simplices() ?
+                            adj_corner/3 :
+                            c2f[adj_corner] ;
                         M.facet_corners.set_adjacent_facet(c1,f2);
-                    } 
+                    }
                 }
             }
         }
@@ -645,10 +603,7 @@ namespace {
         index_t c12 = M.facets.next_corner_around_facet(f1, c11);
         index_t v11 = M.facet_corners.vertex(c11);
         index_t v12 = M.facet_corners.vertex(c12);
-        for(
-            index_t c21 = M.facets.corners_begin(f2);
-            c21 < M.facets.corners_end(f2); ++c21
-        ) {
+        for(index_t c21: M.facets.corners(f2)) {
             index_t c22 = M.facets.next_corner_around_facet(f2, c21);
             index_t v21 = M.facet_corners.vertex(c21);
             index_t v22 = M.facet_corners.vertex(c22);
@@ -671,18 +626,12 @@ namespace {
     void repair_dissociate(
         Mesh& M, index_t f1, index_t f2
     ) {
-        for(
-            index_t c = M.facets.corners_begin(f1);
-            c != M.facets.corners_end(f1); ++c
-        ) {
+        for(index_t c: M.facets.corners(f1)) {
             if(M.facet_corners.adjacent_facet(c) == f2) {
                 M.facet_corners.set_adjacent_facet(c, NO_FACET);
             }
         }
-        for(
-            index_t c = M.facets.corners_begin(f2);
-            c != M.facets.corners_end(f2); ++c
-        ) {
+        for(index_t c: M.facets.corners(f2)) {
             if(M.facet_corners.adjacent_facet(c) == f1) {
                 M.facet_corners.set_adjacent_facet(c, NO_FACET);
             }
@@ -710,23 +659,20 @@ namespace {
     ) {
         index_t nb_plus = 0;
         index_t nb_minus = 0;
-        for(
-            index_t c = M.facets.corners_begin(f);
-            c < M.facets.corners_end(f); ++c
-        ) {
+        for(index_t c: M.facets.corners(f)) {
             index_t f2 = M.facet_corners.adjacent_facet(c);
             if(f2 != NO_FACET && visited[index_t(f2)]) {
-                signed_index_t ori = 
+                signed_index_t ori =
                     repair_relative_orientation(M, f, c, f2);
                 switch(ori) {
-                    case 1:
-                        nb_plus++;
-                        break;
-                    case -1:
-                        nb_minus++;
-                        break;
-                    case 0:
-                        geo_assert_not_reached;
+                case 1:
+                    nb_plus++;
+                    break;
+                case -1:
+                    nb_minus++;
+                    break;
+                case 0:
+                    geo_assert_not_reached;
                 }
             }
         }
@@ -735,10 +681,7 @@ namespace {
             if(moebius_facets != nullptr) {
                 moebius_facets->resize(M.facets.nb(), 0);
                 (*moebius_facets)[f] = 1;
-                for(
-                    index_t c = M.facets.corners_begin(f);
-                    c < M.facets.corners_end(f); ++c
-                ) {
+                for(index_t c: M.facets.corners(f)) {
                     index_t f2 = M.facet_corners.adjacent_facet(c);
                     if(f2 != NO_FACET) {
                         (*moebius_facets)[f2] = 1;
@@ -747,10 +690,7 @@ namespace {
             }
             if(nb_plus > nb_minus) {
                 nb_minus = 0;
-                for(
-                    index_t c = M.facets.corners_begin(f);
-                    c < M.facets.corners_end(f); ++c
-                ) {
+                for(index_t c: M.facets.corners(f)) {
                     index_t f2 = M.facet_corners.adjacent_facet(c);
                     if(
                         f2 != NO_FACET && visited[f2] &&
@@ -761,10 +701,7 @@ namespace {
                 }
             } else {
                 nb_plus = 0;
-                for(
-                    index_t c = M.facets.corners_begin(f);
-                    c < M.facets.corners_end(f); ++c
-                ) {
+                for(index_t c: M.facets.corners(f)) {
                     index_t f2 = M.facet_corners.adjacent_facet(c);
                     if(
                         f2 != NO_FACET && visited[index_t(f2)] &&
@@ -788,10 +725,7 @@ namespace {
      * \return true if \p f is on the border of \p M, false otherwise
      */
     bool facet_is_on_border(Mesh& M, index_t f) {
-        for(
-            index_t c = M.facets.corners_begin(f);
-            c < M.facets.corners_end(f); ++c
-        ) {
+        for(index_t c: M.facets.corners(f)) {
             if(M.facet_corners.adjacent_facet(c) == NO_FACET) {
                 return true;
             }
@@ -819,18 +753,15 @@ namespace {
     ) {
         geo_assert(max_iter < 256);
         D.assign(M.facets.nb(), facet_distance_t(max_iter));
-        for(index_t f = 0; f < M.facets.nb(); f++) {
+        for(index_t f: M.facets) {
             if(facet_is_on_border(M, f)) {
                 D[f] = facet_distance_t(0);
             }
         }
         for(signed_index_t i = 1; i < signed_index_t(max_iter); i++) {
-            for(index_t f = 0; f < M.facets.nb(); f++) {
+            for(index_t f: M.facets) {
                 if(D[f] == signed_index_t(max_iter)) {
-                    for(
-                        index_t c = M.facets.corners_begin(f);
-                        c < M.facets.corners_end(f); ++c
-                    ) {
+                    for(index_t c: M.facets.corners(f)) {
                         index_t g = M.facet_corners.adjacent_facet(c);
                         if(g != NO_FACET && D[g] == facet_distance_t(i - 1)) {
                             D[f] = facet_distance_t(i);
@@ -930,23 +861,20 @@ namespace {
         index_t moebius_count = 0;
         index_t nb_visited = 0;
         for(signed_index_t i = max_iter; i >= 0; i--) {
-            for(index_t f = 0; f < M.facets.nb(); f++) {
+            for(index_t f: M.facets) {
                 if(!visited[f] && D[f] == i) {
                     Q.push(f);
                     visited[f] = true;
                     nb_visited++;
                     while(!Q.empty()) {
                         index_t f1 = Q.pop();
-                        for(
-                            index_t c = M.facets.corners_begin(f1);
-                            c != M.facets.corners_end(f1); c++
-                        ) {
+                        for(index_t c: M.facets.corners(f1)) {
                             index_t f2 = M.facet_corners.adjacent_facet(c);
                             if(f2 != NO_FACET && !visited[f2]) {
                                 visited[f2] = true;
                                 nb_visited++;
                                 repair_propagate_orientation(
-                                    M, f2, visited, 
+                                    M, f2, visited,
                                     moebius_count, moebius_facets
                                 );
                                 Q.push(f2);
@@ -980,10 +908,7 @@ namespace {
     inline index_t find_corner(
         const Mesh& M, index_t f, index_t v
     ) {
-        for(
-            index_t c = M.facets.corners_begin(f);
-            c != M.facets.corners_end(f); ++c
-        ) {
+        for(index_t c: M.facets.corners(f)) {
             if(M.facet_corners.vertex(c) == v) {
                 return c;
             }
@@ -995,7 +920,7 @@ namespace {
      * \brief Splits the non-manifold vertices
      * \param[in] M the mesh to repair
      */
-    void repair_split_non_manifold_vertices(Mesh& M) {
+    void repair_split_non_manifold_vertices(Mesh& M, bool verbose=false) {
         std::vector<bool> c_is_visited(M.facet_corners.nb(), false);
         std::vector<bool> v_is_used(M.vertices.nb(), false);
         // new vertices are stored separately to avoid
@@ -1003,11 +928,8 @@ namespace {
         // pushed back to M.vertices_.
         vector<double> new_vertices;
         index_t nb_vertices = M.vertices.nb();
-        for(index_t f = 0; f < M.facets.nb(); f++) {
-            for(
-                index_t c = M.facets.corners_begin(f);
-                c < M.facets.corners_end(f); ++c
-            ) {
+        for(index_t f: M.facets) {
+            for(index_t c: M.facets.corners(f)) {
                 if(!c_is_visited[c]) {
                     index_t cur_f = f;
                     index_t cur_c = c;
@@ -1064,27 +986,28 @@ namespace {
                             M.facet_corners.set_vertex_no_check(cur_c,new_v);
                             count++;
                             geo_assert(count < 10000);
-                        } 
+                        }
                     }
                 }
             }
         }
-        if(new_vertices.size() != 0) {
-            Logger::out("Validate")
-                << "Detected non-manifold vertices" << std::endl;
-            Logger::out("Validate") << "   (fixed by generating "
-                << nb_vertices - M.vertices.nb()
-                << " new vertices)"
-                << std::endl;
 
+        if(new_vertices.size() != 0) {
+            if(verbose) {
+                Logger::out("Validate")
+                    << "Detected non-manifold vertices" << std::endl;
+                Logger::out("Validate") << "   (fixed by generating "
+                                        << nb_vertices - M.vertices.nb()
+                                        << " new vertices)"
+                                        << std::endl;
+            }
             index_t first_v = M.vertices.create_vertices(
                 new_vertices.size() / M.vertices.dimension()
             );
-            
+
             for(index_t i=0; i<new_vertices.size(); ++i) {
                 M.vertices.point_ptr(first_v)[i] = new_vertices[i];
             }
-            
         }
     }
 }
@@ -1093,32 +1016,41 @@ namespace {
 
 namespace GEO {
 
+    void mesh_connect_and_reorient_facets_no_check(
+        Mesh& M
+    ) {
+        repair_connect_facets(M);
+        repair_reorient_facets_anti_moebius(M);
+    }
+
     void mesh_repair(
         Mesh& M, MeshRepairMode mode, double colocate_epsilon
     ) {
+        bool verbose = ((mode & MESH_REPAIR_QUIET) == 0);
+
         index_t nb_vertices_in = M.vertices.nb();
         index_t nb_facets_in = M.facets.nb();
-        
+
         if(mode & MESH_REPAIR_COLOCATE) {
-            repair_colocate_vertices(M, colocate_epsilon);
+            mesh_colocate_vertices_no_check(M, colocate_epsilon, verbose);
         }
         if(mode & MESH_REPAIR_TRIANGULATE) {
             M.facets.triangulate();
         }
-        repair_remove_bad_facets(
+        mesh_remove_bad_facets_no_check(
             M, (mode & MESH_REPAIR_DUP_F) != 0
         );
 
         repair_connect_facets(M);
         repair_reorient_facets_anti_moebius(M);
-        repair_split_non_manifold_vertices(M);
+        repair_split_non_manifold_vertices(M,verbose);
 
         if(
             (mode & MESH_REPAIR_RECONSTRUCT) != 0
         ) {
             double Marea = Geom::mesh_area(M,3);
             remove_small_connected_components(
-                M, 
+                M,
                 CmdLine::get_arg_percent("co3ne:min_comp_area",Marea),
                 CmdLine::get_arg_uint("co3ne:min_comp_facets")
             );
@@ -1127,11 +1059,11 @@ namespace GEO {
                 CmdLine::get_arg_percent("co3ne:max_hole_area",Marea),
                 CmdLine::get_arg_uint("co3ne:max_hole_edges")
             );
-            // We do that one more time, to remove the small 
+            // We do that one more time, to remove the small
             // connected components
             // yielded by the detected non-manifold edges.
             remove_small_connected_components(
-                M, 
+                M,
                 CmdLine::get_arg_percent("co3ne:min_comp_area",Marea),
                 CmdLine::get_arg_uint("co3ne:min_comp_facets")
             );
@@ -1140,10 +1072,10 @@ namespace GEO {
             // small component, to ensure that everything is correct.
             repair_connect_facets(M);
             repair_reorient_facets_anti_moebius(M);
-            repair_split_non_manifold_vertices(M);
+            repair_split_non_manifold_vertices(M,verbose);
 
         }
-        
+
         if((mode & MESH_REPAIR_QUIET) == 0) {
             if(
                 M.vertices.nb() != nb_vertices_in ||
@@ -1152,34 +1084,32 @@ namespace GEO {
                 M.show_stats("Validate");
             }
         }
+
+	if(M.vertices.dimension() >= 3) {
+	    orient_normals(M);
+	}
     }
 
     void mesh_postprocess_RDT(
-        Mesh& M
+        Mesh& M, bool verbose
     ) {
         vector<index_t> f_is_bad(M.facets.nb(), 0);
         vector<signed_index_t> v_nb_incident(M.vertices.nb(), 0);
-        detect_bad_facets(M, true, f_is_bad);
+        detect_bad_facets(M, true, f_is_bad, nullptr, nullptr, verbose);
         bool changed = false;
         do {
             changed = false;
             v_nb_incident.assign(M.vertices.nb(), 0);
-            for(index_t f = 0; f < M.facets.nb(); ++f) {
+            for(index_t f: M.facets) {
                 if(f_is_bad[f] == 0) {
-                    for(
-                        index_t c = M.facets.corners_begin(f);
-                        c < M.facets.corners_end(f); ++c
-                    ) {
+                    for(index_t c: M.facets.corners(f)) {
                         ++v_nb_incident[M.facet_corners.vertex(c)];
                     }
                 }
             }
-            for(index_t f = 0; f < M.facets.nb(); ++f) {
+            for(index_t f: M.facets) {
                 if(f_is_bad[f] == 0) {
-                    for(
-                        index_t c = M.facets.corners_begin(f);
-                        c < M.facets.corners_end(f); ++c
-                    ) {
+                    for(index_t c: M.facets.corners(f)) {
                         if(v_nb_incident[M.facet_corners.vertex(c)] == 1) {
                             f_is_bad[f] = 1;
                             changed = true;
@@ -1193,11 +1123,13 @@ namespace GEO {
 
         repair_connect_facets(M);
         repair_reorient_facets_anti_moebius(M);
-        repair_split_non_manifold_vertices(M);
+        repair_split_non_manifold_vertices(M,verbose);
 
-        M.show_stats("Validate");
+        if(verbose) {
+            M.show_stats("Validate");
+        }
     }
-    
+
     void mesh_reorient(Mesh& M, vector<index_t>* moebius_facets) {
         repair_reorient_facets_anti_moebius(M, moebius_facets);
     }
@@ -1219,16 +1151,16 @@ namespace GEO {
         const Mesh& M, vector<index_t>& v_is_isolated
     ) {
         v_is_isolated.assign(M.vertices.nb(),1);
-        for(index_t e=0; e<M.edges.nb(); ++e) {
+        for(index_t e: M.edges) {
             v_is_isolated[M.edges.vertex(e,0)] = 0;
-            v_is_isolated[M.edges.vertex(e,1)] = 0;            
+            v_is_isolated[M.edges.vertex(e,1)] = 0;
         }
-        for(index_t f=0; f<M.facets.nb(); ++f) {
+        for(index_t f: M.facets) {
             for(index_t lv=0; lv<M.facets.nb_vertices(f); ++lv) {
                 v_is_isolated[M.facets.vertex(f,lv)] = 0;
             }
         }
-        for(index_t c=0; c<M.cells.nb(); ++c) {
+        for(index_t c: M.cells) {
             for(index_t lv=0; lv<M.cells.nb_vertices(c); ++lv) {
                 v_is_isolated[M.cells.vertex(c,lv)] = 0;
             }
@@ -1239,9 +1171,118 @@ namespace GEO {
         const Mesh& M, vector<index_t>& f_is_degenerate
     ) {
         f_is_degenerate.resize(M.facets.nb());
-        for(index_t f=0; f<M.facets.nb(); ++f) {
+        for(index_t f: M.facets) {
             f_is_degenerate[f] = facet_is_degenerate(M,f);
         }
     }
-}
 
+    void mesh_colocate_vertices_no_check(
+        Mesh& M, double colocate_epsilon, bool verbose
+    ) {
+        vector<index_t> old2new;
+
+        if(M.vertices.nb() == 0) {
+            return;
+        }
+
+        index_t nb_new_vertices = 0;
+        if(colocate_epsilon == 0.0) {
+            nb_new_vertices = Geom::colocate_by_lexico_sort(
+                M.vertices.point_ptr(0), 3, M.vertices.nb(),
+                old2new, M.vertices.dimension()
+            );
+        } else {
+            nb_new_vertices = Geom::colocate(
+                M.vertices.point_ptr(0), 3, M.vertices.nb(),
+                old2new, colocate_epsilon, M.vertices.dimension()
+            );
+        }
+
+        if(nb_new_vertices == M.vertices.nb()) {
+            return;
+        }
+
+        if(verbose) {
+            Logger::out("Validate") << "Removed "
+                                    << M.vertices.nb() - nb_new_vertices
+                                    << " duplicated vertices" << std::endl;
+        }
+
+        // Replace vertex indices for edges
+        for(index_t e: M.edges) {
+            M.edges.set_vertex(e, 0, old2new[M.edges.vertex(e,0)]);
+            M.edges.set_vertex(e, 1, old2new[M.edges.vertex(e,1)]);
+        }
+
+        // Replace vertex indices for facets
+        for(index_t c: M.facet_corners) {
+            M.facet_corners.set_vertex(c, old2new[M.facet_corners.vertex(c)]);
+        }
+
+        // Replace vertex indices for cells
+        for(index_t ce: M.cells) {
+            for(index_t c: M.cells.corners(ce)) {
+                M.cell_corners.set_vertex(c, old2new[M.cell_corners.vertex(c)]);
+            }
+        }
+
+        // Now old2new is "recycled" for marking vertices that
+        // need to be removed.
+        for(index_t i = 0; i < old2new.size(); i++) {
+            if(old2new[i] == i) {
+                old2new[i] = 0;
+            } else {
+                old2new[i] = 1;
+            }
+        }
+        M.vertices.delete_elements(old2new);
+        for(index_t c: M.facet_corners) {
+            M.facet_corners.set_adjacent_facet(c, NO_INDEX);
+        }
+    }
+
+    /*************************************************************************/
+
+    void mesh_remove_bad_facets_no_check(Mesh& M, bool check_duplicates) {
+        vector<index_t> remove_f;
+        vector<index_t> old_polygons;
+        vector<index_t> new_polygons;
+        detect_bad_facets(
+            M, check_duplicates, remove_f, &old_polygons, &new_polygons
+        );
+        index_t current_old_polygon=0;
+        if(remove_f.size() != 0) {
+            //   Create the new facets that correspond to input polygonal
+            // facets that had duplicated vertices.
+            //   This needs to be done before deleting the bad facets,
+            // else some vertices will become isolated and will be
+            // discarded.
+            index_t b=0;
+            index_t e=0;
+            while(b < new_polygons.size()) {
+                while(new_polygons[e] != NO_INDEX) {
+                    ++e;
+                }
+                index_t new_f = M.facets.create_polygon(e-b);
+                M.facets.attributes().copy_item(
+                    new_f, old_polygons[current_old_polygon]
+                );
+                ++current_old_polygon;
+                // We created a new facet that we want to keep !!
+                remove_f.push_back(0);
+                for(index_t lv=0; lv<e-b; ++lv) {
+                    M.facets.set_vertex(new_f,lv,new_polygons[b+lv]);
+                }
+                ++e;
+                b=e;
+            }
+            M.facets.delete_elements(remove_f);
+        }
+        for(index_t c: M.facet_corners) {
+            M.facet_corners.set_adjacent_facet(c, NO_INDEX);
+        }
+    }
+
+    /*************************************************************************/
+
+}

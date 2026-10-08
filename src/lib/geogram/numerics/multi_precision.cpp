@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2014, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -26,209 +26,35 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine,
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
 
 #include <geogram/basic/common.h>
+#include <geogram/basic/numeric.h>
 
 // This makes sure the compiler will not optimize y = a*x+b
 // with fused multiply-add, this would break the exact
 // predicates.
-#ifdef GEO_COMPILER_MSVC
-#pragma fp_contract(off)
-#endif
+GEO_FP_CONTRACT_OFF
 
 #include <geogram/numerics/multi_precision.h>
+#include <geogram/numerics/PCK.h>
 #include <geogram/basic/process.h>
+#include <geogram/basic/logger.h>
 
 namespace {
 
     using namespace GEO;
 
     /************************************************************************/
-
-    bool expansion_length_stat_ = false;
-    std::vector<index_t> expansion_length_histo_;
-
-    /**
-     * \brief Displays statistics about expansions allocation
-     * \details An instance of the class is declared as a static variable.
-     * The statistics are automatically printed when it gets deleted when the
-     * program exits normally.
-     */
-    class ExpansionStatsDisplay {
-    public:
-        /**
-         * \brief ExpansionStatsDisplay destructor.
-         * \details Displays the statistics on exit.
-         */
-        ~ExpansionStatsDisplay() {
-            for(index_t i = 0; i < expansion_length_histo_.size(); ++i) {
-                std::cerr << "expansion len " << i
-                    << " : " << expansion_length_histo_[i] << std::endl;
-            }
-        }
-    };
-
-    ExpansionStatsDisplay expansion_stats_display_;
-
-    /************************************************************************/
-
-    /**
-     * \brief An optimized memory allocator for objects of
-     *  small size.
-     * \details It is used by the high-level class expansion_nt
-     *  that allocates expansion objects on the heap. PCK predicates
-     *  do not use it (they use the more efficient low-level API
-     *  that allocates expansion objects on the stack).
-     */
-    class Pools {
-    public:
-
-        /**
-         * \brief Creates a new Pools object
-         */
-        Pools() : pools_(1024,nullptr) {
-            chunks_.reserve(1024);
-        }
-
-        /**
-         * \brief Pools destructor.
-         */
-        ~Pools() {
-            for(index_t i=0; i<chunks_.size(); ++i) {
-                delete[] chunks_[i];
-            }
-        }
-
-        /**
-         * \brief Allocates an element.
-         * \param[in] size size in bytes of the element to be allocated
-         * \return a pointer to the allocated element
-         * \note elements allocated with fast_malloc() should be deallocated
-         *  with fast_free()
-         */
-        void* malloc(size_t size) {
-            if(size >= pools_.size()) {
-                return ::malloc(size);
-            }
-            if(pools_[size] == nullptr) {
-                new_chunk(size);
-            }
-            void* result = pools_[size];
-            pools_[size] = *static_cast<void**>(pools_[size]);
-            return result;
-        }
-
-        /**
-         * \brief Deallocates an element.
-         * \param[in] ptr a pointer to the element to be deallocated
-         * \param[in] size number of bytes of the element, as specified
-         *   in the call to fast_malloc() that allocated it
-         */
-        void free(void* ptr, size_t size) {
-            if(size >= pools_.size()) {
-                ::free(ptr);
-                return;
-            }
-            *static_cast<void**>(ptr) = pools_[size];
-            pools_[size] = ptr;
-        }
-
-
-    protected:
-        /**
-         * \brief Number of elements in each individual chunk
-         *  allocation.
-         */
-        static const index_t POOL_CHUNK_SIZE = 512;
-
-        /**
-         * \brief Allocates a new chunk of elements and prepends
-         *  it to the free list for allocations of the specified
-         *  size.
-         * \param[in] size_in size of the elements to be allocated.
-         */
-        void new_chunk(size_t size_in) {
-            size_t size = (size_in / 8 + 1)*8; // Align memory.
-            Memory::pointer chunk = new Memory::byte[size * POOL_CHUNK_SIZE];
-            for(index_t i=0; i<POOL_CHUNK_SIZE-1; ++i) {
-                Memory::pointer cur = chunk + size * i;
-                Memory::pointer next = cur + size;
-                *reinterpret_cast<void**>(cur) = next;
-            }
-            *reinterpret_cast<void**>(chunk + (size-1)*POOL_CHUNK_SIZE) =
-                pools_[size_in];
-            pools_[size_in] = chunk;
-            chunks_.push_back(chunk);
-        }
-
-
-    private:
-        /**
-         * \brief The free lists of the pools. Index corresponds
-         *  to element size in bytes.
-         */
-        std::vector<void*> pools_;
-
-        /**
-         * \brief Pointers to all the allocated chunks.
-         * \details Used by the destructor to release all the
-         *   allocated memory on exit.
-         */
-        std::vector<Memory::pointer> chunks_;
-
-    };
-
-    static Pools pools_;
-
-    /************************************************************************/
-
-    /**
-     * \brief Computes the sum of two doubles into a length 2 expansion.
-     * \details By Jonathan Shewchuk.
-     * \param[in] a first argument
-     * \param[in] b second argument
-     * \param[out] x high-magnitude component of the result
-     * \param[out] y low-magnitude component of the result
-     * \pre |\p a| > |\p b|
-     */
-    inline void fast_two_sum(double a, double b, double& x, double& y) {
-        x = a + b;
-        double bvirt = x - a;
-        y = b - bvirt;
-    }
-
-#ifdef REMOVE_ME
-    /**
-     * \brief Computes the difference of two doubles into a length 2 expansion.
-     * \details By Jonathan Shewchuk.
-     * \param[in] a first argument
-     * \param[in] b second argument
-     * \param[out] x high-magnitude component of the result
-     * \param[out] y low-magnitude component of the result
-     * \pre | \p a| > | \p b |
-     */
-    inline void fast_two_diff(double a, double b, double& x, double& y) {
-        x = a - b;
-        double bvirt = a - x;
-        y = bvirt - b;
-    }
-#endif
 
     /**
      * \brief Computes the sum of a length 2 expansion and a double
@@ -270,6 +96,8 @@ namespace {
         two_one_sum(a1, a0, b0, _j, _0, x0);
         two_one_sum(_j, _0, b1, x3, x2, x1);
     }
+
+#ifndef FP_FAST_FMA
 
     /**
      * \brief Computes the product between two doubles where
@@ -319,6 +147,8 @@ namespace {
         double err3 = err2 - (ahi * blo);
         y = (alo * blo) - err3;
     }
+
+#endif
 
     /**
      * \brief Computes the square of an expansion of length 2.
@@ -426,20 +256,58 @@ namespace {
 #endif
     }
 
+    // [Shewchuk 97]
+    // (https://people.eecs.berkeley.edu/~jrs/papers/robustr.pdf)
+    // Section 2.8: other operations
+    // Compression
+    // Note: when converting the algorithms in Shewchuk's article
+    // into code, indices in the article go from 1 to m, and in the
+    // code they go from 0 to m-1 !!!
+    // /!\ there is a bug in the original article,
+    // line 14 of the algorithm should be h_top <= q (small q and not capital Q)
+
     /**
-     * \brief Adds a scalar to an expansion, eliminating zero components
-     *  from the output expansion.
-     * \param[in] e first expansion
-     * \param[in] b double to be added to \p e
-     * \param[out] h the result \p e + \p b
-     * \details Sets \p h = (\p e + \p b). \p e and \p h can be the same.
-     *  This function is adapted from Jonathan Shewchuk's code.
-     *  See the long version of his paper for details.
-     *  Maintains the nonoverlapping property.  If round-to-even is used (as
-     *  with IEEE 754), maintains the strongly nonoverlapping and nonadjacent
-     *  properties as well.  (That is, if e has one of these properties, so
-     *  will h.)
+     * \brief Compresses an expansion
+     * \details Modifies in-place an expansion in such a way that it
+     *  is shorter. The represented value is not modified.
+     * \param[in,out] e a reference to the expansion to be compressed
      */
+    void compress_expansion(expansion& e) {
+        expansion& h = e;
+
+        index_t m = e.length();
+        double Qnew,q;
+
+        index_t bottom = m-1;
+        double Q = e[bottom];
+
+        for(int i=int(m)-2; i>=0; --i) {
+            fast_two_sum(Q, e[index_t(i)], Qnew, q);
+            Q = Qnew;
+            if(q != 0.0) {
+                h[bottom] = Q;
+                --bottom;
+                Q = q;
+            }
+        }
+        h[bottom] = Q;
+
+        index_t top = 0;
+        for(index_t i=bottom+1; i<m; ++i) {
+            fast_two_sum(h[i],Q,Qnew,q);
+            Q = Qnew;
+            if(q != 0) {
+                h[top] = q;
+                ++top;
+            }
+        }
+        h[top] = Q;
+        h.set_length(top+1);
+    }
+}
+
+namespace GEO {
+
     void grow_expansion_zeroelim(
         const expansion& e, double b, expansion& h
     ) {
@@ -464,21 +332,6 @@ namespace {
         h.set_length(hindex);
     }
 
-    /**
-     * \brief Multiplies an expansion by a scalar,
-     *  eliminating zero components from the
-     *  output expansion.
-     * \param[in] e an expansion
-     * \param[in] b the double to be multiplied by \p e
-     * \param[out] h the result \p b * \p e
-     * \details (sets \p h = \p b * \p e). \p e and \p h cannot be the same.
-     *  This function is adapted from Jonathan Shewchuk's code.
-     *  See either version of his paper for details.
-     *  Maintains the nonoverlapping property.  If round-to-even is used (as
-     *  with IEEE 754), maintains the strongly nonoverlapping and nonadjacent
-     *  properties as well.  (That is, if e has one of these properties, so
-     *  will h.)
-     */
     void scale_expansion_zeroelim(
         const expansion& e, double b, expansion& h
     ) {
@@ -536,21 +389,6 @@ namespace {
         h.set_length(hindex);
     }
 
-    /**
-     * \brief Sums two expansions, eliminating zero
-     *  components from the output expansion (sets \p h = \p e + \p f).
-     * \param[in] e the first expansion
-     * \param[in] f the second expansion
-     * \param[out] h the result \p e + \p f
-     * \details h cannot be e or f.
-     *  This function is adapted from Jonathan Shewchuk's code.
-     *  See the long version of his paper for details.
-     *  If round-to-even is used (as with IEEE 754), maintains the strongly
-     *  nonoverlapping property.  (That is, if e is strongly nonoverlapping, h
-     *  will be also.)  Does NOT maintain the nonoverlapping or nonadjacent
-     *  properties.
-     *
-     */
     void fast_expansion_sum_zeroelim(
         const expansion& e, const expansion& f, expansion& h
     ) {
@@ -625,20 +463,6 @@ namespace {
         h.set_length(hindex);
     }
 
-    /**
-     * \brief Computes the difference of two expansions, eliminating zero
-     *  components from the output expansion
-     * \param[in] e first expansion
-     * \param[in] f second expansion to be subtracted from e
-     * \param[out] h the result \p e - \p f
-     * \details Sets \p h = (\p e - \p f). \p h cannot be \p e or \p f.
-     *  This function is adapted from Jonathan Shewchuk's code.
-     *  See the long version of his paper for details.
-     *  If round-to-even is used (as with IEEE 754), maintains the strongly
-     *  nonoverlapping property.  (That is, if e is strongly nonoverlapping, h
-     *  will be also.)  Does NOT maintain the nonoverlapping or nonadjacent
-     *  properties.
-     */
     void fast_expansion_diff_zeroelim(
         const expansion& e, const expansion& f, expansion& h
     ) {
@@ -712,6 +536,7 @@ namespace {
         }
         h.set_length(hindex);
     }
+
 }
 
 /****************************************************************************/
@@ -746,30 +571,6 @@ namespace GEO {
             check = 1.0 + expansion_epsilon_;
         } while((check != 1.0) && (check != lastcheck));
         expansion_splitter_ += 1.0;
-    }
-
-    static Process::spinlock expansions_lock;
-
-    expansion* expansion::new_expansion_on_heap(index_t capa) {
-        Process::acquire_spinlock(expansions_lock);
-        if(expansion_length_stat_) {
-            if(capa >= expansion_length_histo_.size()) {
-                expansion_length_histo_.resize(capa + 1);
-            }
-            expansion_length_histo_[capa]++;
-        }
-        Memory::pointer addr = Memory::pointer(
-            pools_.malloc(expansion::bytes(capa))
-        );
-        Process::release_spinlock(expansions_lock);
-        expansion* result = new(addr)expansion(capa);
-        return result;
-    }
-
-    void expansion::delete_expansion_on_heap(expansion* e) {
-        Process::acquire_spinlock(expansions_lock);
-        pools_.free(e, expansion::bytes(e->capacity()));
-        Process::release_spinlock(expansions_lock);
     }
 
     // ====== Initialization from expansion and double ===============
@@ -844,13 +645,42 @@ namespace GEO {
         } else {
             // "Distillation" (see Shewchuk's paper) is computed recursively,
             // by splitting the list of expansions to sum into two halves.
+
             const double* a1 = a;
             index_t a1_length = a_length / 2;
             const double* a2 = a1 + a1_length;
             index_t a2_length = a_length - a1_length;
-            expansion& a1b = expansion_sub_product(a1, a1_length, b);
-            expansion& a2b = expansion_sub_product(a2, a2_length, b);
-            this->assign_sum(a1b, a2b);
+
+            // Allocate both halves on the stack or on the heap if too large
+            // (some platformes, e.g. MacOSX, have a small stack)
+
+            index_t a1b_capa = sub_product_capacity(a1_length, b.length());
+            index_t a2b_capa = sub_product_capacity(a2_length, b.length());
+
+            bool a1b_on_heap = (a1b_capa > MAX_CAPACITY_ON_STACK);
+            bool a2b_on_heap = (a2b_capa > MAX_CAPACITY_ON_STACK);
+
+            expansion* a1b = a1b_on_heap ?
+                new_expansion_on_heap(a1b_capa) :
+                new_expansion_on_stack(a1b_capa);
+
+            a1b->assign_sub_product(a1, a1_length, b);
+
+            expansion* a2b = a2b_on_heap ?
+                new_expansion_on_heap(a2b_capa) :
+                new_expansion_on_stack(a2b_capa);
+
+            a2b->assign_sub_product(a2, a2_length, b);
+
+            this->assign_sum(*a1b, *a2b);
+
+            if(a1b_on_heap) {
+                delete_expansion_on_heap(a1b);
+            }
+
+            if(a2b_on_heap) {
+                delete_expansion_on_heap(a2b);
+            }
         }
         return *this;
     }
@@ -873,24 +703,84 @@ namespace GEO {
             two_two_product(a.data(), b.data(), x_);
             set_length(8);
         } else {
-            // Recursive distillation: the shortest expansion
-            // is split into two parts.
-            if(a.length() < b.length()) {
-                const double* a1 = a.data();
-                index_t a1_length = a.length() / 2;
-                const double* a2 = a1 + a1_length;
-                index_t a2_length = a.length() - a1_length;
-                expansion& a1b = expansion_sub_product(a1, a1_length, b);
-                expansion& a2b = expansion_sub_product(a2, a2_length, b);
-                this->assign_sum(a1b, a2b);
+
+
+            const expansion* pa = &a;
+            const expansion* pb = &b;
+
+            if(pa->length() > pb->length()) {
+                std::swap(pa, pb);
+            }
+
+            // [Shewchuk 97]
+            // (https://people.eecs.berkeley.edu/~jrs/papers/robustr.pdf)
+            // Section 2.8: other operations
+            // Distillation: sum of k values.
+            //    Worst case: 1/2*k*(k-1)
+            //    But O(k log(k)) if the "summing tree" is well balanced
+            //      and using fast_expansion_sum().
+            // Recommended way of computing a product:
+            //    compute a1*b, a2*b ... ak*b using scale_expansion_zeroelim()
+            //    sum them using a well-balanced tree
+            // However, there is an extra cost for the recursion (and more
+            // importantly, for allocating the intermediary sums, especially
+            // when they do not fit on the stack). So when there are less than
+            // 16 values to add, we simply accumulate them.
+
+            bool use_balanced_distillation = (pa->length() >= 16);
+
+            if(use_balanced_distillation) {
+                // assign_sub_product() is a recursive function that
+                // creates a balanced distillation tree on the stack.
+                assign_sub_product(pa->data(), pa->length(),*pb);
             } else {
-                const double* b1 = b.data();
-                index_t b1_length = b.length() / 2;
-                const double* b2 = b1 + b1_length;
-                index_t b2_length = b.length() - b1_length;
-                expansion& ab1 = expansion_sub_product(b1, b1_length, a);
-                expansion& ab2 = expansion_sub_product(b2, b2_length, a);
-                this->assign_sum(ab1, ab2);
+                // trivial implementation: compute all the products
+                // P = ak*b and accumulate them into S
+
+                index_t P_capa = product_capacity(*pb, 3.0); // 3.0, or any
+                                                             // number that is
+                                                             // not a power of 2
+
+                index_t S_capa = capacity(); // same capacity as this,
+                                             // enough to store sum.
+
+                bool P_on_heap = (P_capa > MAX_CAPACITY_ON_STACK);
+                bool S_on_heap = (S_capa > MAX_CAPACITY_ON_STACK);
+
+                expansion* P = P_on_heap ?
+                    new_expansion_on_heap(P_capa) :
+                    new_expansion_on_stack(P_capa);
+
+                expansion* S = S_on_heap ?
+                    new_expansion_on_heap(S_capa) :
+                    new_expansion_on_stack(S_capa);
+
+                expansion* S1 = S;
+                expansion* S2 = this;
+
+                if((pa->length()%2) == 0) {
+                    std::swap(S1,S2);
+                }
+
+                for(index_t i=0; i<pa->length(); ++i) {
+                    if(i == 0) {
+                        S2->assign_product(*pb, (*pa)[i]);
+                    } else {
+                        P->assign_product(*pb, (*pa)[i]);
+                        S2->assign_sum(*S1,*P);
+                    }
+                    std::swap(S1,S2);
+                }
+
+                geo_assert(S1 == this);
+
+                if(S_on_heap) {
+                    delete_expansion_on_heap(S);
+                }
+
+                if(P_on_heap) {
+                    delete_expansion_on_heap(P);
+                }
             }
         }
         return *this;
@@ -1020,6 +910,96 @@ namespace GEO {
 
     /************************************************************************/
 
+    bool expansion::is_same_as(const expansion& rhs) const {
+        if(length() != rhs.length()) {
+            return false;
+        }
+        for(index_t i=0; i<length(); ++i) {
+            if(x_[i] != rhs.x_[i]) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    bool expansion::is_same_as(double rhs) const {
+        if(length() != 1) {
+            return false;
+        }
+        return (x_[0] == rhs);
+    }
+
+    Sign expansion::compare(const expansion& rhs) const {
+        // Fast path: different signs or both zero
+        Sign s1 = sign();
+        Sign s2 = rhs.sign();
+        if(s1 == ZERO && s2 == ZERO) {
+            return ZERO;
+        }
+        if(s1 != s2) {
+            return (int(s1) > int(s2) ? POSITIVE : NEGATIVE);
+        }
+
+        // Fast path: same internal representation
+        if(is_same_as(rhs)) {
+            return ZERO;
+        }
+
+        // Compute difference and return sign of difference
+        index_t capa = diff_capacity(*this, rhs);
+        if(capa > MAX_CAPACITY_ON_STACK) {
+            expansion* d = new_expansion_on_heap(capa);
+            d->assign_diff(*this, rhs);
+            Sign result = d->sign();
+            delete_expansion_on_heap(d);
+            return result;
+        }
+        const expansion& d = expansion_diff(*this, rhs);
+        return d.sign();
+    }
+
+    Sign expansion::compare(double rhs) const {
+        // Fast path: different signs or both zero
+        Sign s1 = sign();
+        Sign s2 = geo_sgn(rhs);
+        if(s1 == ZERO && s2 == ZERO) {
+            return ZERO;
+        }
+        if(s1 != s2) {
+            return (int(s1) > int(s2) ? POSITIVE : NEGATIVE);
+        }
+
+        // Fast path: same internal representation
+        if(is_same_as(rhs)) {
+            return ZERO;
+        }
+
+        // Compute difference and return sign of difference
+        index_t capa = diff_capacity(*this, rhs);
+        if(capa > MAX_CAPACITY_ON_STACK) {
+            expansion* d = new_expansion_on_heap(capa);
+            d->assign_diff(*this, rhs);
+            Sign result = d->sign();
+            delete_expansion_on_heap(d);
+            return result;
+        }
+        const expansion& d = expansion_diff(*this, rhs);
+        return d.sign();
+    }
+
+
+/************************************************************************/
+
+    void expansion::show_all_stats() {
+#ifdef PCK_STATS
+	// Place holder: if we compute statistics for expansions,
+	// the code here will be called if sys:stats is specified
+	// on command line.
+#endif
+    }
+
+    /************************************************************************/
+
     Sign sign_of_expansion_determinant(
         const expansion& a00,const expansion& a01,
         const expansion& a10,const expansion& a11
@@ -1112,5 +1092,10 @@ namespace GEO {
 
     /************************************************************************/
 
-}
+    void expansion::optimize() {
+        compress_expansion(*this);
+    }
 
+    /************************************************************************/
+
+}

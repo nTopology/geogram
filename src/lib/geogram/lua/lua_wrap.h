@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2016, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -13,7 +13,7 @@
  *  * Neither the name of the ALICE Project-Team nor the names of its
  *  contributors may be used to endorse or promote products derived from this
  *  software without specific prior written permission.
- * 
+ *
  *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -26,19 +26,13 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine, 
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX 
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
@@ -46,16 +40,18 @@
 #ifndef GEOGRAM_LUA_LUA_WRAP
 
 #include <geogram/basic/common.h>
+#include <geogram/lua/lua.h>
+#include <geogram/lua/lua_vec_mat.h>
 #include <geogram/basic/assert.h>
 #include <geogram/basic/numeric.h>
 #include <geogram/basic/string.h>
 #include <geogram/basic/memory.h>
 
-extern "C" {
-#include <geogram/third_party/lua/lua.h>    
-#include <geogram/third_party/lua/lauxlib.h>
-#include <geogram/third_party/lua/lualib.h>
-}
+
+#ifdef GEO_COMPILER_MSVC
+#pragma warning( push )
+#pragma warning( disable: 4702 )
+#endif
 
 /**
  * \file geogram/lua/lua_wrap.h
@@ -70,14 +66,14 @@ namespace GEO {
      */
     typedef int (*lua_test_func)(lua_State* L, int idx);
 
-    
+
     /**
      * \brief Tests whether a LUA variable is a boolean.
      * \details lua_isboolean() is a macro, and we needed
      *  a true function here (to be passed to lua_check_type()).
      * \param[in] L a pointer to the LUA state
      * \param[in] idx an index in the LUA stack
-     * \retval a non-zero integer if the variable 
+     * \retval a non-zero integer if the variable
      *  at index \p idx in the LUA
      *  state \p L is a boolean.
      * \retval 0 otherwise.
@@ -87,10 +83,25 @@ namespace GEO {
     }
 
     /**
+     * \brief Tests whether a LUA variable is a light user data.
+     * \details lua_isuserdata() is a macro, and we needed
+     *  a true function here (to be passed to lua_check_type()).
+     * \param[in] L a pointer to the LUA state
+     * \param[in] idx an index in the LUA stack
+     * \retval a non-zero integer if the variable
+     *  at index \p idx in the LUA
+     *  state \p L is a light user data.
+     * \retval 0 otherwise.
+     */
+    inline int my_lua_islightuserdata(lua_State* L, int idx) {
+        return lua_islightuserdata(L,idx);
+    }
+
+    /**
      * \brief Tests whether a LUA variable is a positive integer.
      * \param[in] L a pointer to the LUA state
      * \param[in] idx an index in the LUA stack
-     * \retval a non-zero integer if the variable 
+     * \retval a non-zero integer if the variable
      *  at index \p idx in the LUA
      *  state \p L is a positive integer.
      * \retval 0 otherwise.
@@ -106,20 +117,20 @@ namespace GEO {
     /**
      * \brief Memorizes an error message in LUA registry.
      * \details This is used by C++/LUA interoperability
-     *  functions to memorize an error. The error message 
+     *  functions to memorize an error. The error message
      *  can be passed back to LUA when exiting a wrapper.
      * \param[in] L a pointer to the LUA state.
      * \param[in] error the error message. It will be copied.
      */
     inline void lua_set_error(lua_State* L, const char* error) {
         lua_pushstring(L, error);
-        lua_setfield(L,LUA_REGISTRYINDEX,"last_geogram_error"); 
+        lua_setfield(L,LUA_REGISTRYINDEX,"last_geogram_error");
     }
 
     /**
      * \brief Memorizes an error message in LUA registry.
      * \details This is used by C++/LUA interoperability
-     *  functions to memorize an error. The error message 
+     *  functions to memorize an error. The error message
      *  can be passed back to LUA when exiting a wrapper.
      * \param[in] L a pointer to the LUA state.
      * \param[in] error the error message. It will be copied.
@@ -176,7 +187,7 @@ namespace GEO {
      * \brief Tests whether the expected number of arguments was pushed
      *  onto the stack.
      * \details If the number of elements on the stack does not match
-     *  the expected number of arguments, then an error message is 
+     *  the expected number of arguments, then an error message is
      *  memorized in the registry.
      * \param[in] L a pointer to the LUA state
      * \param[in] expected_nb_args the expected number of arguments
@@ -247,7 +258,7 @@ namespace GEO {
         }
 
         /**
-         * \brief Tests whether a LUA variable can be converted to 
+         * \brief Tests whether a LUA variable can be converted to
          *  a C++ variable.
          * \note It would have been possible to make the constructor throw
          *  an exception on conversion error, but exceptions are not well
@@ -279,7 +290,7 @@ namespace GEO {
      * \brief lua_to specialization for int.
      */
     template<> class lua_to<int> {
-      public:
+    public:
         lua_to(lua_State* L, int idx) {
             x_ = int(lua_tointeger(L,idx));
         }
@@ -289,33 +300,33 @@ namespace GEO {
         operator int() const {
             return x_;
         }
-      private:
+    private:
         int x_;
     };
 
     /**
-     * \brief lua_to specialization for index_t.
+     * \brief lua_to specialization for Numeric::uint32.
      */
-    template<> class lua_to<index_t> {
-      public:
+    template<> class lua_to<Numeric::uint32> {
+    public:
         lua_to(lua_State* L, int idx) {
-            x_ = index_t(lua_tointeger(L,idx));
+            x_ = Numeric::uint32(lua_tointeger(L,idx));
         }
         static bool can_convert(lua_State* L, int idx) {
             return lua_check_type(L, idx, my_lua_ispositiveinteger);
         }
-        operator index_t() const {
+        operator Numeric::uint32() const {
             return x_;
         }
-      private:
-        index_t x_;
+    private:
+        Numeric::uint32 x_;
     };
 
     /**
      * \brief lua_to specialization for Numeric::uint64.
      */
     template<> class lua_to<Numeric::uint64> {
-      public:
+    public:
         lua_to(lua_State* L, int idx) {
             x_ = Numeric::uint64(lua_tointeger(L,idx));
         }
@@ -325,15 +336,16 @@ namespace GEO {
         operator Numeric::uint64() const {
             return x_;
         }
-      private:
+    private:
         Numeric::uint64 x_;
     };
+
 
     /**
      * \brief lua_to specialization for Numeric::int64.
      */
     template<> class lua_to<Numeric::int64> {
-      public:
+    public:
         lua_to(lua_State* L, int idx) {
             x_ = Numeric::int64(lua_tointeger(L,idx));
         }
@@ -343,15 +355,15 @@ namespace GEO {
         operator Numeric::int64() const {
             return x_;
         }
-      private:
+    private:
         Numeric::int64 x_;
     };
-    
+
     /**
      * \brief lua_to specialization for float.
      */
     template<> class lua_to<float> {
-      public:
+    public:
         lua_to(lua_State* L, int idx) {
             x_ = float(lua_tonumber(L,idx));
         }
@@ -361,7 +373,7 @@ namespace GEO {
         operator float() const {
             return x_;
         }
-      private:
+    private:
         float x_;
     };
 
@@ -369,7 +381,7 @@ namespace GEO {
      * \brief lua_to specialization for double.
      */
     template<> class lua_to<double> {
-      public:
+    public:
         lua_to(lua_State* L, int idx) {
             x_ = double(lua_tonumber(L,idx));
         }
@@ -379,7 +391,7 @@ namespace GEO {
         operator double() const {
             return x_;
         }
-      private:
+    private:
         double x_;
     };
 
@@ -387,7 +399,7 @@ namespace GEO {
      * \brief lua_to specialization for bool.
      */
     template<> class lua_to<bool> {
-      public:
+    public:
         lua_to(lua_State* L, int idx) {
             x_ = (lua_toboolean(L,idx) != 0);
         }
@@ -397,7 +409,7 @@ namespace GEO {
         operator bool() const {
             return x_;
         }
-      private:
+    private:
         bool x_;
     };
 
@@ -405,7 +417,7 @@ namespace GEO {
      * \brief lua_to specialization for raw string (const char*).
      */
     template<> class lua_to<const char*> {
-      public:
+    public:
         lua_to(lua_State* L, int idx) {
             x_ = lua_tostring(L,idx);
         }
@@ -415,7 +427,7 @@ namespace GEO {
         operator const char*() const {
             return x_;
         }
-      private:
+    private:
         const char* x_;
     };
 
@@ -423,7 +435,7 @@ namespace GEO {
      * \brief lua_to specialization for reference to std::string.
      */
     template<> class lua_to<const std::string&> {
-      public:
+    public:
         lua_to(lua_State* L, int idx) {
             x_ = lua_tostring(L,idx);
         }
@@ -433,7 +445,7 @@ namespace GEO {
         operator const std::string&() const {
             return x_;
         }
-      private:
+    private:
         std::string x_;
     };
 
@@ -441,7 +453,7 @@ namespace GEO {
      * \brief lua_to specialization for std::string.
      */
     template<> class lua_to<std::string> {
-      public:
+    public:
         lua_to(lua_State* L, int idx) {
             x_ = lua_tostring(L,idx);
         }
@@ -451,8 +463,47 @@ namespace GEO {
         operator std::string() const {
             return x_;
         }
-      private:
+    private:
         std::string x_;
+    };
+
+
+    /**
+     * \brief lua_to specialization for vec.
+     */
+    template<class T, unsigned int N> class lua_to< const vecng<N,T>& > {
+    public:
+        lua_to(lua_State* L, int idx) {
+	    lua_tovec(L, idx, x_);
+        }
+        static bool can_convert(lua_State* L, int idx) {
+	    vecng<N,T> x;
+            return lua_tovec(L, idx, x);
+        }
+        operator vecng<N,T>() const {
+            return x_;
+        }
+    private:
+        vecng<N,T> x_;
+    };
+
+    /**
+     * \brief lua_to specialization for mat.
+     */
+    template<class T, unsigned int N> class lua_to< const Matrix<N,T>& > {
+    public:
+        lua_to(lua_State* L, int idx) {
+	    lua_tomat(L, idx, x_);
+        }
+        static bool can_convert(lua_State* L, int idx) {
+	    Matrix<N,T> x;
+            return lua_tomat(L, idx, x);
+        }
+        operator Matrix<N,T>() const {
+            return x_;
+        }
+    private:
+        Matrix<N,T> x_;
     };
 
     /**********************************************************************/
@@ -461,8 +512,9 @@ namespace GEO {
      * \brief Converts and pushes a C++ variable onto the LUA stack.
      * \details This version is a placeholder. The actual implementation
      *  is done in the specializations.
-     * \note Just using function overloading (instead of template partializations)
-     *  works with gcc, but does not work with clang and MSVC.
+     * \note Just using function overloading
+     *   (instead of template partializations) works with gcc,
+     *   but does not work with clang and MSVC.
      * \param[in] L a pointer to the LUA state.
      * \param[in] x the variable to be pushed.
      */
@@ -480,9 +532,9 @@ namespace GEO {
     }
 
     /**
-     * \brief Specialization of lua_push() for index_t.
+     * \brief Specialization of lua_push() for Numeric::uint32.
      */
-    template<> inline void lua_push(lua_State* L, index_t x) {
+    template<> inline void lua_push(lua_State* L, Numeric::uint32 x) {
         lua_pushinteger(L,lua_Integer(x));
     }
 
@@ -499,7 +551,7 @@ namespace GEO {
     template<> inline void lua_push(lua_State* L, Numeric::int64 x) {
         lua_pushinteger(L,lua_Integer(x));
     }
-    
+
     /**
      * \brief Specialization of lua_push() for float.
      */
@@ -560,27 +612,27 @@ namespace GEO {
 /**
  * \brief Declares a new enum type that can be used by LUA wrappers.
  * \details enum types that can be used in wrapped functions need to be
- *  explicitely declared before using lua_bindwrapper() and 
+ *  explicitely declared before using lua_bindwrapper() and
  *  lua_bindwrapperglobal(). This will be no longer the case when we will
  *  switch to C++11 (but for now, geogram needs to remain compatible with
- *  C++98). 
+ *  C++98).
  * \note LUA_DECLAREENUMTYPE cannot be done from within a function.
  * \param[in] T the C++ type name of the enum.
  */
-#define LUA_DECLAREENUMTYPE(T)                                \
-    template<> inline void lua_push(lua_State* L, T x) {      \
-        lua_push(L, int(x));                                  \
-    }                                                         \
-                                                              \
-    template<> class lua_to<T> : public GEO::lua_to<int> {    \
-      public:                                                 \
-        lua_to(lua_State* L, int idx) : lua_to<int>(L,idx) {  \
-        }                                                     \
-        operator T() const {                                  \
-            return T(lua_to<int>::operator int());            \
-        }                                                     \
-    }
-    
+#define LUA_DECLAREENUMTYPE(T)                                  \
+    template<> inline void lua_push(lua_State* L, T x) {        \
+        lua_push(L, int(x));                                    \
+    }                                                           \
+                                                                \
+        template<> class lua_to<T> : public GEO::lua_to<int> {  \
+        public:                                                 \
+        lua_to(lua_State* L, int idx) : lua_to<int>(L,idx) {    \
+        }                                                       \
+            operator T() const {                                \
+                return T(lua_to<int>::operator int());          \
+            }                                                   \
+        }
+
     /**********************************************************************/
 
     /**
@@ -610,8 +662,8 @@ namespace GEO {
         lua_State* L, R (*fptr)(T1)
     ) {
         if(
-           !lua_check_nb_args(L,1) ||
-           !lua_to<T1>::can_convert(L,1)
+            !lua_check_nb_args(L,1) ||
+            !lua_to<T1>::can_convert(L,1)
         ) {
             return lua_notify_last_error(L);
         }
@@ -633,9 +685,9 @@ namespace GEO {
         lua_State* L, R (*fptr)(T1,T2)
     ) {
         if(
-           !lua_check_nb_args(L,2) ||
-           !lua_to<T1>::can_convert(L,1) ||
-           !lua_to<T2>::can_convert(L,2)           
+            !lua_check_nb_args(L,2) ||
+            !lua_to<T1>::can_convert(L,1) ||
+            !lua_to<T2>::can_convert(L,2)
         ) {
             return lua_notify_last_error(L);
         }
@@ -658,10 +710,10 @@ namespace GEO {
         lua_State* L, R (*fptr)(T1,T2,T3)
     ) {
         if(
-           !lua_check_nb_args(L,3) ||
-           !lua_to<T1>::can_convert(L,1) ||
-           !lua_to<T2>::can_convert(L,2) ||
-           !lua_to<T3>::can_convert(L,3)                   
+            !lua_check_nb_args(L,3) ||
+            !lua_to<T1>::can_convert(L,1) ||
+            !lua_to<T2>::can_convert(L,2) ||
+            !lua_to<T3>::can_convert(L,3)
         ) {
             return lua_notify_last_error(L);
         }
@@ -684,11 +736,11 @@ namespace GEO {
     template <class R, class T1, class T2, class T3, class T4>
     inline int lua_wrap(lua_State* L, R (*fptr)(T1,T2,T3,T4)) {
         if(
-           !lua_check_nb_args(L,4) ||
-           !lua_to<T1>::can_convert(L,1) ||
-           !lua_to<T2>::can_convert(L,2) ||
-           !lua_to<T3>::can_convert(L,3) ||
-           !lua_to<T4>::can_convert(L,4)           
+            !lua_check_nb_args(L,4) ||
+            !lua_to<T1>::can_convert(L,1) ||
+            !lua_to<T2>::can_convert(L,2) ||
+            !lua_to<T3>::can_convert(L,3) ||
+            !lua_to<T4>::can_convert(L,4)
         ) {
             return lua_notify_last_error(L);
         }
@@ -696,18 +748,18 @@ namespace GEO {
             lua_to<T1>(L,1),
             lua_to<T2>(L,2),
             lua_to<T3>(L,3),
-            lua_to<T4>(L,4)         
+            lua_to<T4>(L,4)
         );
         lua_push(L,retval);
         return 1;
     }
-    
+
     /*************************************************************************/
 
     /**
      * \brief Calls a C++ function from LUA.
-     * \details The arguments are converted from the LUA stack. 
-     *  Whenever an error occurs, (invalid number of arguments or type error), 
+     * \details The arguments are converted from the LUA stack.
+     *  Whenever an error occurs, (invalid number of arguments or type error),
      *  it is captured and an error message is returned to the caller.
      */
     template <> inline int lua_wrap(lua_State* L, void (*fptr)(void)) {
@@ -720,36 +772,36 @@ namespace GEO {
 
     /**
      * \brief Calls a C++ function from LUA.
-     * \details The arguments are converted from the LUA stack. 
-     *  Whenever an error occurs, (invalid number of arguments or type error), 
+     * \details The arguments are converted from the LUA stack.
+     *  Whenever an error occurs, (invalid number of arguments or type error),
      *  it is captured and an error message is returned to the caller.
      */
     template <class T1> inline int lua_wrap(lua_State* L, void (*fptr)(T1)) {
         if(
-           !lua_check_nb_args(L,1) ||
-           !lua_to<T1>::can_convert(L,1)
+            !lua_check_nb_args(L,1) ||
+            !lua_to<T1>::can_convert(L,1)
         ) {
             return lua_notify_last_error(L);
         }
         fptr(
             lua_to<T1>(L,1)
-        );          
+        );
         return 0;
     }
 
     /**
      * \brief Calls a C++ function from LUA.
-     * \details The arguments are converted from the LUA stack. 
-     *  Whenever an error occurs, (invalid number of arguments or type error), 
+     * \details The arguments are converted from the LUA stack.
+     *  Whenever an error occurs, (invalid number of arguments or type error),
      *  it is captured and an error message is returned to the caller.
      */
     template <class T1, class T2> inline int lua_wrap(
         lua_State* L, void (*fptr)(T1,T2)
     ) {
         if(
-           !lua_check_nb_args(L,2) ||
-           !lua_to<T1>::can_convert(L,1) ||
-           !lua_to<T2>::can_convert(L,2)           
+            !lua_check_nb_args(L,2) ||
+            !lua_to<T1>::can_convert(L,1) ||
+            !lua_to<T2>::can_convert(L,2)
         ) {
             return lua_notify_last_error(L);
         }
@@ -762,17 +814,17 @@ namespace GEO {
 
     /**
      * \brief Calls a C++ function from LUA.
-     * \details The arguments are converted from the LUA stack. 
-     *  Whenever an error occurs, (invalid number of arguments or type error), 
+     * \details The arguments are converted from the LUA stack.
+     *  Whenever an error occurs, (invalid number of arguments or type error),
      *  it is captured and an error message is returned to the caller.
      */
     template <class T1, class T2, class T3>
     inline int lua_wrap(lua_State* L, void (*fptr)(T1,T2,T3)) {
         if(
-           !lua_check_nb_args(L,3) ||
-           !lua_to<T1>::can_convert(L,1) ||
-           !lua_to<T2>::can_convert(L,2) ||
-           !lua_to<T3>::can_convert(L,3)                   
+            !lua_check_nb_args(L,3) ||
+            !lua_to<T1>::can_convert(L,1) ||
+            !lua_to<T2>::can_convert(L,2) ||
+            !lua_to<T3>::can_convert(L,3)
         ) {
             return lua_notify_last_error(L);
         }
@@ -786,18 +838,18 @@ namespace GEO {
 
     /**
      * \brief Calls a C++ function from LUA.
-     * \details The arguments are converted from the LUA stack. 
-     *  Whenever an error occurs, (invalid number of arguments or type error), 
+     * \details The arguments are converted from the LUA stack.
+     *  Whenever an error occurs, (invalid number of arguments or type error),
      *  it is captured and an error message is returned to the caller.
      */
     template <class T1, class T2, class T3, class T4>
     inline int lua_wrap(lua_State* L, void (*fptr)(T1,T2,T3,T4)) {
         if(
-           !lua_check_nb_args(L,4) ||
-           !lua_to<T1>::can_convert(L,1) ||
-           !lua_to<T2>::can_convert(L,2) ||
-           !lua_to<T3>::can_convert(L,3) ||
-           !lua_to<T4>::can_convert(L,4)                           
+            !lua_check_nb_args(L,4) ||
+            !lua_to<T1>::can_convert(L,1) ||
+            !lua_to<T2>::can_convert(L,2) ||
+            !lua_to<T3>::can_convert(L,3) ||
+            !lua_to<T4>::can_convert(L,4)
         ) {
             return lua_notify_last_error(L);
         }
@@ -805,14 +857,388 @@ namespace GEO {
             lua_to<T1>(L,1),
             lua_to<T2>(L,2),
             lua_to<T3>(L,3),
-            lua_to<T4>(L,4)         
+            lua_to<T4>(L,4)
         );
         return 0;
     }
 
-    
     /**
-     * \brief Specialization of the wrapper for functions that 
+     * \brief Calls a C++ function from LUA.
+     * \details The arguments are converted from the LUA stack.
+     *  Whenever an error occurs, (invalid number of arguments or type error),
+     *  it is captured and an error message is returned to the caller.
+     */
+    template <
+        class T1, class T2, class T3, class T4, class T5
+        >
+    inline int lua_wrap(
+        lua_State* L, void (*fptr)(T1,T2,T3,T4,T5)
+    ) {
+        if(
+            !lua_check_nb_args(L,5) ||
+            !lua_to<T1>::can_convert(L,1) ||
+            !lua_to<T2>::can_convert(L,2) ||
+            !lua_to<T3>::can_convert(L,3) ||
+            !lua_to<T4>::can_convert(L,4) ||
+            !lua_to<T5>::can_convert(L,5)
+        ) {
+            return lua_notify_last_error(L);
+        }
+        fptr(
+            lua_to<T1>(L,1),
+            lua_to<T2>(L,2),
+            lua_to<T3>(L,3),
+            lua_to<T4>(L,4),
+            lua_to<T5>(L,5)
+        );
+        return 0;
+    }
+
+    /**
+     * \brief Calls a C++ function from LUA.
+     * \details The arguments are converted from the LUA stack.
+     *  Whenever an error occurs, (invalid number of arguments or type error),
+     *  it is captured and an error message is returned to the caller.
+     */
+    template <
+        class T1, class T2, class T3, class T4, class T5, class T6
+        >
+    inline int lua_wrap(
+        lua_State* L, void (*fptr)(T1,T2,T3,T4,T5,T6)
+    ) {
+        if(
+            !lua_check_nb_args(L,6) ||
+            !lua_to<T1>::can_convert(L,1) ||
+            !lua_to<T2>::can_convert(L,2) ||
+            !lua_to<T3>::can_convert(L,3) ||
+            !lua_to<T4>::can_convert(L,4) ||
+            !lua_to<T5>::can_convert(L,5) ||
+            !lua_to<T6>::can_convert(L,6)
+        ) {
+            return lua_notify_last_error(L);
+        }
+        fptr(
+            lua_to<T1>(L,1),
+            lua_to<T2>(L,2),
+            lua_to<T3>(L,3),
+            lua_to<T4>(L,4),
+            lua_to<T5>(L,5),
+            lua_to<T6>(L,6)
+        );
+        return 0;
+    }
+
+    /**
+     * \brief Calls a C++ function from LUA.
+     * \details The arguments are converted from the LUA stack.
+     *  Whenever an error occurs, (invalid number of arguments or type error),
+     *  it is captured and an error message is returned to the caller.
+     */
+    template <
+        class T1, class T2, class T3, class T4, class T5,
+        class T6, class T7
+        >
+    inline int lua_wrap(
+        lua_State* L, void (*fptr)(T1,T2,T3,T4,T5,T6,T7)
+    ) {
+        if(
+            !lua_check_nb_args(L,7) ||
+            !lua_to<T1>::can_convert(L,1) ||
+            !lua_to<T2>::can_convert(L,2) ||
+            !lua_to<T3>::can_convert(L,3) ||
+            !lua_to<T4>::can_convert(L,4) ||
+            !lua_to<T5>::can_convert(L,5) ||
+            !lua_to<T6>::can_convert(L,6) ||
+            !lua_to<T7>::can_convert(L,7)
+        ) {
+            return lua_notify_last_error(L);
+        }
+        fptr(
+            lua_to<T1>(L,1),
+            lua_to<T2>(L,2),
+            lua_to<T3>(L,3),
+            lua_to<T4>(L,4),
+            lua_to<T5>(L,5),
+            lua_to<T6>(L,6),
+            lua_to<T7>(L,7)
+        );
+        return 0;
+    }
+
+
+    /**
+     * \brief Calls a C++ function from LUA.
+     * \details The arguments are converted from the LUA stack.
+     *  Whenever an error occurs, (invalid number of arguments or type error),
+     *  it is captured and an error message is returned to the caller.
+     */
+    template <
+        class T1, class T2, class T3, class T4, class T5,
+        class T6, class T7, class T8
+        >
+    inline int lua_wrap(
+        lua_State* L, void (*fptr)(T1,T2,T3,T4,T5,T6,T7,T8)
+    ) {
+        if(
+            !lua_check_nb_args(L,8) ||
+            !lua_to<T1>::can_convert(L,1) ||
+            !lua_to<T2>::can_convert(L,2) ||
+            !lua_to<T3>::can_convert(L,3) ||
+            !lua_to<T4>::can_convert(L,4) ||
+            !lua_to<T5>::can_convert(L,5) ||
+            !lua_to<T6>::can_convert(L,6) ||
+            !lua_to<T7>::can_convert(L,7) ||
+            !lua_to<T8>::can_convert(L,8)
+        ) {
+            return lua_notify_last_error(L);
+        }
+        fptr(
+            lua_to<T1>(L,1),
+            lua_to<T2>(L,2),
+            lua_to<T3>(L,3),
+            lua_to<T4>(L,4),
+            lua_to<T5>(L,5),
+            lua_to<T6>(L,6),
+            lua_to<T7>(L,7),
+            lua_to<T8>(L,8)
+        );
+        return 0;
+    }
+
+
+    /**
+     * \brief Calls a C++ function from LUA.
+     * \details The arguments are converted from the LUA stack.
+     *  Whenever an error occurs, (invalid number of arguments or type error),
+     *  it is captured and an error message is returned to the caller.
+     */
+    template <
+        class T1, class T2, class T3, class T4, class T5,
+        class T6, class T7, class T8, class T9
+        >
+    inline int lua_wrap(
+        lua_State* L, void (*fptr)(T1,T2,T3,T4,T5,T6,T7,T8,T9)
+    ) {
+        if(
+            !lua_check_nb_args(L,9) ||
+            !lua_to<T1>::can_convert(L,1) ||
+            !lua_to<T2>::can_convert(L,2) ||
+            !lua_to<T3>::can_convert(L,3) ||
+            !lua_to<T4>::can_convert(L,4) ||
+            !lua_to<T5>::can_convert(L,5) ||
+            !lua_to<T6>::can_convert(L,6) ||
+            !lua_to<T7>::can_convert(L,7) ||
+            !lua_to<T8>::can_convert(L,8) ||
+            !lua_to<T9>::can_convert(L,9)
+        ) {
+            return lua_notify_last_error(L);
+        }
+        fptr(
+            lua_to<T1>(L,1),
+            lua_to<T2>(L,2),
+            lua_to<T3>(L,3),
+            lua_to<T4>(L,4),
+            lua_to<T5>(L,5),
+            lua_to<T6>(L,6),
+            lua_to<T7>(L,7),
+            lua_to<T8>(L,8),
+            lua_to<T9>(L,9)
+        );
+        return 0;
+    }
+
+
+    /**
+     * \brief Calls a C++ function from LUA.
+     * \details The arguments are converted from the LUA stack.
+     *  Whenever an error occurs, (invalid number of arguments or type error),
+     *  it is captured and an error message is returned to the caller.
+     */
+    template <
+        class T1, class T2, class T3, class T4, class T5,
+        class T6, class T7, class T8, class T9, class T10
+        >
+    inline int lua_wrap(
+        lua_State* L, void (*fptr)(T1,T2,T3,T4,T5,T6,T7,T8,T9,T10)
+    ) {
+        if(
+            !lua_check_nb_args(L,10) ||
+            !lua_to<T1>::can_convert(L,1) ||
+            !lua_to<T2>::can_convert(L,2) ||
+            !lua_to<T3>::can_convert(L,3) ||
+            !lua_to<T4>::can_convert(L,4) ||
+            !lua_to<T5>::can_convert(L,5) ||
+            !lua_to<T6>::can_convert(L,6) ||
+            !lua_to<T7>::can_convert(L,7) ||
+            !lua_to<T8>::can_convert(L,8) ||
+            !lua_to<T9>::can_convert(L,9) ||
+            !lua_to<T10>::can_convert(L,10)
+        ) {
+            return lua_notify_last_error(L);
+        }
+        fptr(
+            lua_to<T1>(L,1),
+            lua_to<T2>(L,2),
+            lua_to<T3>(L,3),
+            lua_to<T4>(L,4),
+            lua_to<T5>(L,5),
+            lua_to<T6>(L,6),
+            lua_to<T7>(L,7),
+            lua_to<T8>(L,8),
+            lua_to<T9>(L,9),
+            lua_to<T10>(L,10)
+        );
+        return 0;
+    }
+
+
+    /**
+     * \brief Calls a C++ function from LUA.
+     * \details The arguments are converted from the LUA stack.
+     *  Whenever an error occurs, (invalid number of arguments or type error),
+     *  it is captured and an error message is returned to the caller.
+     */
+    template <
+        class T1, class T2, class T3, class T4, class T5,
+        class T6, class T7, class T8, class T9, class T10,
+        class T11
+        >
+    inline int lua_wrap(
+        lua_State* L, void (*fptr)(T1,T2,T3,T4,T5,T6,T7,T8,T9,T10,T11)
+    ) {
+        if(
+            !lua_check_nb_args(L,11) ||
+            !lua_to<T1>::can_convert(L,1) ||
+            !lua_to<T2>::can_convert(L,2) ||
+            !lua_to<T3>::can_convert(L,3) ||
+            !lua_to<T4>::can_convert(L,4) ||
+            !lua_to<T5>::can_convert(L,5) ||
+            !lua_to<T6>::can_convert(L,6) ||
+            !lua_to<T7>::can_convert(L,7) ||
+            !lua_to<T8>::can_convert(L,8) ||
+            !lua_to<T9>::can_convert(L,9) ||
+            !lua_to<T10>::can_convert(L,10) ||
+            !lua_to<T11>::can_convert(L,11)
+        ) {
+            return lua_notify_last_error(L);
+        }
+        fptr(
+            lua_to<T1>(L,1),
+            lua_to<T2>(L,2),
+            lua_to<T3>(L,3),
+            lua_to<T4>(L,4),
+            lua_to<T5>(L,5),
+            lua_to<T6>(L,6),
+            lua_to<T7>(L,7),
+            lua_to<T8>(L,8),
+            lua_to<T9>(L,9),
+            lua_to<T10>(L,10),
+            lua_to<T11>(L,11)
+        );
+        return 0;
+    }
+
+    /**
+     * \brief Calls a C++ function from LUA.
+     * \details The arguments are converted from the LUA stack.
+     *  Whenever an error occurs, (invalid number of arguments or type error),
+     *  it is captured and an error message is returned to the caller.
+     */
+    template <
+        class T1, class T2, class T3, class T4, class T5,
+        class T6, class T7, class T8, class T9, class T10,
+        class T11, class T12
+        >
+    inline int lua_wrap(
+        lua_State* L, void (*fptr)(T1,T2,T3,T4,T5,T6,T7,T8,T9,T10,T11,T12)
+    ) {
+        if(
+            !lua_check_nb_args(L,12) ||
+            !lua_to<T1>::can_convert(L,1) ||
+            !lua_to<T2>::can_convert(L,2) ||
+            !lua_to<T3>::can_convert(L,3) ||
+            !lua_to<T4>::can_convert(L,4) ||
+            !lua_to<T5>::can_convert(L,5) ||
+            !lua_to<T6>::can_convert(L,6) ||
+            !lua_to<T7>::can_convert(L,7) ||
+            !lua_to<T8>::can_convert(L,8) ||
+            !lua_to<T9>::can_convert(L,9) ||
+            !lua_to<T10>::can_convert(L,10) ||
+            !lua_to<T11>::can_convert(L,11) ||
+            !lua_to<T12>::can_convert(L,12)
+        ) {
+            return lua_notify_last_error(L);
+        }
+        fptr(
+            lua_to<T1>(L,1),
+            lua_to<T2>(L,2),
+            lua_to<T3>(L,3),
+            lua_to<T4>(L,4),
+            lua_to<T5>(L,5),
+            lua_to<T6>(L,6),
+            lua_to<T7>(L,7),
+            lua_to<T8>(L,8),
+            lua_to<T9>(L,9),
+            lua_to<T10>(L,10),
+            lua_to<T11>(L,11),
+            lua_to<T12>(L,12)
+        );
+        return 0;
+    }
+
+
+    /**
+     * \brief Calls a C++ function from LUA.
+     * \details The arguments are converted from the LUA stack.
+     *  Whenever an error occurs, (invalid number of arguments or type error),
+     *  it is captured and an error message is returned to the caller.
+     */
+    template <
+        class T1, class T2, class T3, class T4, class T5,
+        class T6, class T7, class T8, class T9, class T10,
+        class T11, class T12, class T13
+        >
+    inline int lua_wrap(
+        lua_State* L, void (*fptr)(T1,T2,T3,T4,T5,T6,T7,T8,T9,T10,T11,T12,T13)
+    ) {
+        if(
+            !lua_check_nb_args(L,13) ||
+            !lua_to<T1>::can_convert(L,1) ||
+            !lua_to<T2>::can_convert(L,2) ||
+            !lua_to<T3>::can_convert(L,3) ||
+            !lua_to<T4>::can_convert(L,4) ||
+            !lua_to<T5>::can_convert(L,5) ||
+            !lua_to<T6>::can_convert(L,6) ||
+            !lua_to<T7>::can_convert(L,7) ||
+            !lua_to<T8>::can_convert(L,8) ||
+            !lua_to<T9>::can_convert(L,9) ||
+            !lua_to<T10>::can_convert(L,10) ||
+            !lua_to<T11>::can_convert(L,11) ||
+            !lua_to<T12>::can_convert(L,12) ||
+            !lua_to<T12>::can_convert(L,13)
+        ) {
+            return lua_notify_last_error(L);
+        }
+        fptr(
+            lua_to<T1>(L,1),
+            lua_to<T2>(L,2),
+            lua_to<T3>(L,3),
+            lua_to<T4>(L,4),
+            lua_to<T5>(L,5),
+            lua_to<T6>(L,6),
+            lua_to<T7>(L,7),
+            lua_to<T8>(L,8),
+            lua_to<T9>(L,9),
+            lua_to<T10>(L,10),
+            lua_to<T11>(L,11),
+            lua_to<T12>(L,12),
+            lua_to<T13>(L,13)
+        );
+        return 0;
+    }
+
+    /**
+     * \brief Specialization of the wrapper for functions that
      *  are "already wrapped".
      * \note Normally not used, since there is a specialization of
      *  lua_pushwrapper() for lua_CFunction.
@@ -821,33 +1247,31 @@ namespace GEO {
         return fptr(L);
     }
 
-    
+
     /*************************************************************************/
 
     /**
      * \brief Manages wrappers around C++ functions to be called from LUA.
-     * \details This class should not be used directly by client code. 
+     * \details This class should not be used directly by client code.
      *  Client code will rather use the high-level macro lua_bindwrapper()
-     *  or the lower-level functions lua_bindwrapperwithname() and 
+     *  or the lower-level functions lua_bindwrapperwithname() and
      *  lua_pushwrapper().
      */
     template <class FPTR> class lua_wrapper {
-      public:
+    public:
 
         /**
-         * \brief Implementation of the wrapper. 
-         * \details This is the C functions to be declared to LUA. 
-         *  It is typed by the signature of the wrapped C++ function, 
-         *  and the pointer to the  actual wrapped C++ function is stored 
+         * \brief Implementation of the wrapper.
+         * \details This is the C functions to be declared to LUA.
+         *  It is typed by the signature of the wrapped C++ function,
+         *  and the pointer to the actual wrapped C++ function is stored
          *  in an upvalue.
          * \param[in] L a pointer to the LUA state.
          */
         static int call(lua_State* L) {
-            FPTR f = FPTR(
-                Memory::generic_pointer_to_function_pointer(
-                    lua_touserdata(L, lua_upvalueindex(1))
-                )
-            );
+            FPTR f = Memory::generic_pointer_to_function_pointer<FPTR>(
+		lua_touserdata(L, lua_upvalueindex(1))
+	    );
             return lua_wrap(L, f);
         }
 
@@ -859,10 +1283,7 @@ namespace GEO {
          */
         static void push(lua_State* L, FPTR f) {
             lua_pushlightuserdata(
-                L,
-                Memory::function_pointer_to_generic_pointer(
-                    Memory::function_pointer(f)
-                )
+                L, Memory::function_pointer_to_generic_pointer<FPTR>(f)
             );
             lua_pushcclosure(L, lua_wrapper<FPTR>::call, 1);
         }
@@ -887,11 +1308,11 @@ namespace GEO {
     template<> inline void lua_pushwrapper(lua_State* L, lua_CFunction f) {
         lua_pushcfunction(L,f);
     }
-    
+
     /**************************************************************************/
 
     /**
-     * \brief Binds a wrapper to a name in the table at the top 
+     * \brief Binds a wrapper to a name in the table at the top
      *  of the LUA stack.
      * \pre the object on the top of the stack is a table.
      * \param[in] L a pointer to the LUA state.
@@ -958,9 +1379,9 @@ namespace GEO {
      * \param[in] f a pointer to the C++ function to be wrapped. It cannot be
      *  a non-static object member function.
      */
-     #define lua_bindwrapper(L, f) lua_bindwrapperwithname( \
-        (L),(f),GEO::lua_wrappername(L,#f)                 \
-     )
+#define lua_bindwrapper(L, f) lua_bindwrapperwithname(  \
+        (L),(f),GEO::lua_wrappername(L,#f)              \
+    )
 
     /**
      * \brief Binds a LUA wrapper around a C++ function to the global scope.
@@ -976,13 +1397,17 @@ namespace GEO {
      * \param[in] f a pointer to the C++ function to be wrapped. It cannot be
      *  a non-static object member function.
      */
-     #define lua_bindwrapperglobal(L, f) lua_bindwrapperwithnameglobal(\
-        (L),(f),GEO::lua_wrappername(L,#f)                        \
-     )
+#define lua_bindwrapperglobal(L, f) lua_bindwrapperwithnameglobal(      \
+        (L),(f),GEO::lua_wrappername(L,#f)                              \
+    )
 
-    
+
     /*************************************************************************/
-    
+
 }
+
+#ifdef GEO_COMPILER_MSVC
+#pragma warning( pop )
+#endif
 
 #endif

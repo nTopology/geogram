@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2014, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -26,19 +26,13 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine,
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
@@ -56,19 +50,19 @@ namespace GEO {
         /**
          * \brief Initializes the bibliography system.
          */
-        inline void GEOGRAM_API initialize() { }
+        void GEOGRAM_API initialize();
 
         /**
          * \brief Terminates the bibliography system.
          */
-        inline void GEOGRAM_API terminate() { }
+        void GEOGRAM_API terminate();
 
         /**
          * \brief Registers a set of bibliographic references.
          * \param[in] bib_refs a string with the bibliographic references,
          *  in Bibtex format.
          */
-        inline void GEOGRAM_API register_references(const char* bib_refs) { geo_argused(bib_refs); }
+        void GEOGRAM_API register_references(const char* bib_refs);
 
         /**
          * \brief Cites a bibliographic reference.
@@ -82,25 +76,29 @@ namespace GEO {
          *  key is cited.
          * \param[in] info more information about the context of the citation.
          */
-        // void GEOGRAM_API cite(
-        //     const char* ref,
-        //     const char* file, int line,
-        //     const char* function,
-        //     const char* info = nullptr
-        // );
+        void GEOGRAM_API cite(
+            const char* ref,
+            const char* file, int line,
+            const char* function,
+            const char* info = nullptr
+        );
 
         /**
          * \brief Resets all citations.
          */
-        inline void GEOGRAM_API reset_citations() { }
-        }
+        void GEOGRAM_API reset_citations();
+    }
 
 /**
  * \brief Cites a reference.
  * \param [in] ref a string with the bibtex key of the reference.
  */
-#ifndef geo_cite
-#define geo_cite(x)
+#ifdef GEO_COMPILER_GCC
+#define geo_cite(ref) ::GEO::Biblio::cite(              \
+        ref, __FILE__, __LINE__, __PRETTY_FUNCTION__    \
+    )
+#else
+#define geo_cite(ref) ::GEO::Biblio::cite(ref, __FILE__, __LINE__, __FUNCTION__)
 #endif
 
 /**
@@ -109,9 +107,17 @@ namespace GEO {
  * \param [in] ref a string with the bibtex key of the reference.
  * \param [in] info more information on the context of the citation.
  */
-#ifndef geo_cite_with_info
-#define geo_cite_with_info(x,y)
+#ifdef GEO_COMPILER_GCC
+#define geo_cite_with_info(ref, info) ::GEO::Biblio::cite(      \
+        ref, __FILE__, __LINE__, __PRETTY_FUNCTION__, info      \
+    )
+#else
+#define geo_cite_with_info(ref, info) ::GEO::Biblio::cite(      \
+        ref, __FILE__, __LINE__, __FUNCTION__, info             \
+    )
 #endif
+
+
 
 }
 

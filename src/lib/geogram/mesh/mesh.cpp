@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2014, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -13,7 +13,7 @@
  *  * Neither the name of the ALICE Project-Team nor the names of its
  *  contributors may be used to endorse or promote products derived from this
  *  software without specific prior written permission.
- * 
+ *
  *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -26,19 +26,13 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine, 
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX 
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
@@ -48,8 +42,7 @@
 #include <geogram/basic/logger.h>
 #include <geogram/basic/algorithm.h>
 #include <geogram/basic/string.h>
-
-#include <tbb/parallel_for.h>
+#include <geogram/basic/process.h>
 
 namespace GEO {
 
@@ -72,7 +65,7 @@ namespace GEO {
         attributes_.resize(new_size);
         nb_ = new_size;
     }
-    
+
     /*************************************************************************/
 
     MeshElements::MeshElements() {
@@ -80,9 +73,9 @@ namespace GEO {
 
     MeshElements::~MeshElements() {
     }
-    
+
     /*************************************************************************/
-    
+
     MeshVertices::MeshVertices(Mesh& mesh) :
         MeshSubElementsStore(mesh),
         edges_(mesh.edges),
@@ -106,7 +99,7 @@ namespace GEO {
         }
 
         index_t dim = dimension();
-        
+
         point_.create_vector_attribute(
             attributes(), "point", dim
         );
@@ -114,7 +107,7 @@ namespace GEO {
         for(index_t i=0; i<point_.nb_elements(); ++i) {
             point_[i] = double(point_fp32_[i]);
         }
-        
+
         point_fp32_.destroy();
     }
 
@@ -124,7 +117,7 @@ namespace GEO {
         }
 
         index_t dim = dimension();
-        
+
         point_fp32_.create_vector_attribute(
             attributes(), "point_fp32", dim
         );
@@ -132,15 +125,15 @@ namespace GEO {
         for(index_t i=0; i<point_.nb_elements(); ++i) {
             point_fp32_[i] = float(point_[i]);
         }
-        
-        point_.destroy();        
+
+        point_.destroy();
     }
 
-    
+
     void MeshVertices::clear(bool keep_attributes, bool keep_memory) {
         bool singlep = single_precision();
         index_t dim = dimension();
-        
+
         //   We need to unbind point attributes
         // because it is not correct to clear the
         // AttributesManager when an attribute is
@@ -153,7 +146,7 @@ namespace GEO {
                 point_fp32_.unbind();
             }
         }
-        
+
         clear_store(keep_attributes, keep_memory);
 
         //  Now we can re-create the point attributes.
@@ -161,9 +154,9 @@ namespace GEO {
             bind_point_attribute(dim,singlep);
         }
     }
-    
+
     void MeshVertices::clear_store(
-        bool keep_attributes, bool keep_memory 
+        bool keep_attributes, bool keep_memory
     ) {
         MeshSubElementsStore::clear_store(keep_attributes, keep_memory);
     }
@@ -186,7 +179,7 @@ namespace GEO {
                     old2new[i] = cur;
                     ++cur;
                 } else {
-                    old2new[i] = index_t(-1);
+                    old2new[i] = NO_INDEX;
                 }
             }
             attributes_.compress(old2new);
@@ -200,7 +193,7 @@ namespace GEO {
                     edges_.set_vertex(e,lv,v);
                 }
             }
-            
+
             for(index_t c=0; c<facet_corners_.nb(); ++c) {
                 index_t v = facet_corners_.vertex(c);
                 v = old2new[v];
@@ -230,7 +223,7 @@ namespace GEO {
                 edges_.set_vertex(e,lv,v);
             }
         }
-        
+
         for(index_t c=0; c<facet_corners_.nb(); ++c) {
             index_t v = facet_corners_.vertex(c);
             v = permutation[v];
@@ -257,11 +250,11 @@ namespace GEO {
                 to_delete[v] = 0;
             }
         }
-        
+
         for(index_t f=0; f<mesh_.facets.nb(); ++f) {
             for(index_t co=mesh_.facets.corners_begin(f);
                 co<mesh_.facets.corners_end(f); ++co
-            ) {
+               ) {
                 index_t v = mesh_.facet_corners.vertex(co);
                 to_delete[v] = 0;
             }
@@ -276,7 +269,7 @@ namespace GEO {
                 to_delete[v] = 0;
             }
         }
-        
+
         delete_elements(to_delete);
     }
 
@@ -322,15 +315,15 @@ namespace GEO {
         geo_debug_assert(nb() != 0);
         --nb_;
     }
-    
+
     /**************************************************************************/
 
     MeshEdges::MeshEdges(Mesh& mesh) : MeshSubElementsStore(mesh) {
     }
-    
+
     MeshEdges::~MeshEdges() {
     }
-    
+
     void MeshEdges::delete_elements(
         vector<index_t>& to_delete, bool remove_isolated_vertices
     ) {
@@ -345,14 +338,14 @@ namespace GEO {
         }
 
         // to_delete is used for both indicating
-        // which facets should be deleted and
+        // which edges should be deleted and
         // for storing the re-numbering map
         vector<index_t>& edges_old2new = to_delete;
         index_t new_nb_edges = 0;
 
         for(index_t e = 0; e < nb(); ++e) {
             if(edges_old2new[e] != 0) {
-                edges_old2new[e] = NO_FACET;
+                edges_old2new[e] = NO_EDGE;
             } else {
                 edges_old2new[e] = new_nb_edges;
                 if(new_nb_edges != e) {
@@ -371,7 +364,7 @@ namespace GEO {
             mesh_.vertices.remove_isolated();
         }
     }
-    
+
     void MeshEdges::permute_elements(vector<index_t>& permutation) {
         attributes_.apply_permutation(permutation);
         Permutation::apply(
@@ -380,7 +373,7 @@ namespace GEO {
             index_t(sizeof(index_t) * 2)
         );
     }
-    
+
     void MeshEdges::clear(bool keep_attributes, bool keep_memory) {
         clear_store(keep_attributes, keep_memory);
     }
@@ -388,6 +381,14 @@ namespace GEO {
     void MeshEdges::pop() {
         geo_debug_assert(nb() != 0);
         resize_store(nb()-1);
+    }
+
+    void MeshEdges::flip(index_t e) {
+	geo_debug_assert(e < nb());
+	index_t v1 = vertex(e,0);
+	index_t v2 = vertex(e,1);
+	set_vertex(e,0,v2);
+	set_vertex(e,1,v1);
     }
 
     void MeshEdges::clear_store(
@@ -400,7 +401,7 @@ namespace GEO {
         }
         MeshSubElementsStore::clear_store(keep_attributes, keep_memory);
     }
-        
+
     void MeshEdges::resize_store(index_t new_size) {
         edge_vertex_.resize(new_size*2,NO_VERTEX);
         MeshSubElementsStore::resize_store(new_size);
@@ -408,7 +409,7 @@ namespace GEO {
 
 
     /**************************************************************************/
-    
+
     MeshFacetsStore::MeshFacetsStore(Mesh& mesh) :
         MeshSubElementsStore(mesh),
         is_simplicial_(true) {
@@ -454,13 +455,13 @@ namespace GEO {
         }
         MeshSubElementsStore::clear_store(keep_attributes, keep_memory);
     }
-    
+
     void MeshFacetCornersStore::resize_store(index_t new_size) {
         corner_vertex_.resize(new_size);
         corner_adjacent_facet_.resize(new_size);
         MeshSubElementsStore::resize_store(new_size);
     }
-    
+
     /**************************************************************************/
 
     MeshFacets::MeshFacets(Mesh& mesh) :
@@ -474,7 +475,7 @@ namespace GEO {
         clear_store(keep_attributes, keep_memory);
         is_simplicial();
     }
-    
+
     void MeshFacets::delete_elements(
         vector<index_t>& to_delete,
         bool remove_isolated_vertices
@@ -488,7 +489,7 @@ namespace GEO {
             }
             return;
         }
-        
+
         // to_delete is used for both indicating
         // which facets should be deleted and
         // for storing the re-numbering map
@@ -497,7 +498,7 @@ namespace GEO {
         vector<index_t>& corner_vertex = facet_corners_.corner_vertex_;
         vector<index_t>& corner_adjacent_facet =
             facet_corners_.corner_adjacent_facet_;
-        
+
         index_t new_nb_facets = 0;
         index_t new_nb_corners = 0;
 
@@ -505,7 +506,7 @@ namespace GEO {
         // to compute the index mapping for them.
         vector<index_t> corners_old2new;
         if(facet_corners_.attributes().nb() != 0) {
-            corners_old2new.resize(facet_corners_.nb(), index_t(-1));
+            corners_old2new.resize(facet_corners_.nb(), NO_INDEX);
         }
 
         for(index_t f = 0; f < nb(); ++f) {
@@ -531,7 +532,7 @@ namespace GEO {
                 new_nb_facets++;
             }
         }
-        
+
         if(!is_simplicial_) {
             facet_ptr_[new_nb_facets] = new_nb_corners;
         }
@@ -555,12 +556,12 @@ namespace GEO {
             facet_corners_.attributes().compress(corners_old2new);
         }
         facet_corners_.resize_store(new_nb_corners);
-        
+
         if(remove_isolated_vertices) {
             mesh_.vertices.remove_isolated();
         }
     }
-        
+
     void MeshFacets::permute_elements(vector<index_t>& permutation) {
         attributes_.apply_permutation(permutation);
 
@@ -580,16 +581,16 @@ namespace GEO {
                     facet_corners_permutation.push_back(old_c);
                 }
             }
-            
+
             facet_corners_.attributes().apply_permutation(
                 facet_corners_permutation
             );
         }
-        
+
         if(is_simplicial_) {
             // If the surface is triangulated,
             // everything can be done in-place (great !!)
-            
+
             Permutation::apply(
                 corner_vertex.data(),
                 permutation,
@@ -603,14 +604,14 @@ namespace GEO {
             );
 
             Permutation::invert(permutation);
-                
+
             for(index_t c = 0; c < corner_adjacent_facet.size(); ++c) {
                 if(corner_adjacent_facet[c] != NO_FACET) {
                     corner_adjacent_facet[c] =
                         permutation[corner_adjacent_facet[c]];
                 }
             }
-            
+
         } else {
 
             {
@@ -648,7 +649,7 @@ namespace GEO {
 
 
             Permutation::invert(permutation);
-                
+
             for(index_t c = 0; c < corner_adjacent_facet.size(); ++c) {
                 if(corner_adjacent_facet[c] != NO_FACET) {
                     corner_adjacent_facet[c] =
@@ -659,62 +660,130 @@ namespace GEO {
     }
 
     void MeshFacets::connect() {
-        // Chains the corners around each vertex.
-        vector<index_t> next_corner_around_vertex(
-            facet_corners_.nb(), NO_CORNER
-        );
-        
-        // Gives for each vertex a corner incident to it.
-        vector<index_t> v2c(vertices_.nb(), NO_CORNER);
-        
-        // Gives for each corner the facet incident to it
-        // (or use c/3 if the surface is triangulated).
-        GEO::vector<index_t> c2f;
-        if(!is_simplicial_) {
-            c2f.assign(facet_corners_.nb(), NO_FACET);
-        }
-        
-        // Step 1: chain corners around vertices and compute v2c
-        for(index_t f = 0; f < nb(); ++f) {
-            for(index_t c = corners_begin(f); c < corners_end(f); ++c) {
-                index_t v = facet_corners_.vertex(c);
-                next_corner_around_vertex[c] = v2c[v];
-                v2c[v] = c;
-            }
-        }
-        
-        // compute c2f is needed
-        if(!is_simplicial_) {
-            for(index_t f = 0; f < nb(); ++f) {
-                for(index_t c = corners_begin(f); c < corners_end(f); ++c) {
-                    c2f[c] = f;
+	connect(0, nb());
+    }
+
+    void MeshFacets::connect(index_t f_begin, index_t f_end) {
+
+	if(f_begin == f_end) {
+	    return;
+	}
+
+	// Sanity check: no facet is incident to same vertex
+	// several times
+#ifdef GEO_DEBUG
+        {
+            for(index_t f = f_begin; f != f_end; ++f) {
+                for(index_t lv1=0; lv1<nb_vertices(f); ++lv1) {
+                    for(index_t lv2=lv1+1; lv2<nb_vertices(f); ++lv2) {
+                        geo_debug_assert(vertex(f,lv1) != vertex(f,lv2));
+                    }
                 }
             }
         }
-        
+#endif
+
+	// Get facet corners slice
+	index_t c_begin = corners_begin(f_begin);
+	index_t c_end = corners_end(f_end-1);
+
+	// Get vertices slices indexed by facets in slice
+	index_t v_begin = NO_INDEX;
+	index_t v_end = NO_INDEX;
+
+	if(c_begin == 0 && c_end == facet_corners_.nb()) {
+	    v_begin = 0;
+	    v_end = vertices_.nb();
+	} else {
+	    v_begin = facet_corners_.vertex(c_begin);
+	    v_end = v_begin;
+	    for(index_t c=c_begin; c!=c_end; ++c) {
+		index_t v = facet_corners_.vertex(c);
+		v_begin = std::min(v_begin,v);
+		v_end = std::max(v_end,v);
+	    }
+	    ++v_end;
+	}
+
+        // Gives for each corner the facet incident to it
+        // (or use c/3 if the surface is triangulated).
+        vector<index_t> c2f;
+        if(!is_simplicial_) {
+            c2f.assign(c_end - c_begin, NO_FACET);
+	    for(index_t f = f_begin; f < f_end; ++f) {
+                for(index_t c = corners_begin(f); c < corners_end(f); ++c) {
+		    geo_debug_assert(c >= c_begin);
+                    c2f[c-c_begin] = f;
+                }
+            }
+        }
+
+        for(index_t c = c_begin; c < c_end; ++c) {
+            facet_corners_.set_adjacent_facet(c, NO_FACET);
+        }
+
+        // Gives for each vertex a corner incident to it.
+        vector<index_t> v2c(v_end - v_begin, NO_CORNER);
+
+        // Chains the corners around each vertex.
+        vector<index_t> next_corner_around_vertex(c_end - c_begin, NO_CORNER);
+
+        // Step 1: chain corners around vertices and compute v2c
+        for(index_t f = f_begin; f < f_end; ++f) {
+            for(index_t c = corners_begin(f); c < corners_end(f); ++c) {
+                index_t v = facet_corners_.vertex(c);
+                next_corner_around_vertex[c - c_begin] = v2c[v - v_begin];
+                v2c[v - v_begin] = c;
+            }
+        }
+
         // Step 2: connect
-        for(index_t f1 = 0; f1 < nb(); ++f1) {
+        for(index_t f1 = f_begin; f1 < f_end; ++f1) {
             for(index_t c1 = corners_begin(f1); c1 < corners_end(f1); ++c1) {
                 if(facet_corners_.adjacent_facet(c1) == NO_FACET) {
+
+                    index_t nb_candidates = 0;
+                    index_t c_candidate = NO_CORNER;
+
+                    index_t v1 = facet_corners_.vertex(c1);
                     index_t v2 = facet_corners_.vertex(
                         next_corner_around_facet(f1, c1)
                     );
+
                     //   Traverse all the corners c2 incident to v1, and
-                    // find among them the one that is opposite to c1
+                    // find among them the one(s) that is opposite to c1
                     for(
-                        index_t c2 = next_corner_around_vertex[c1];
-                        c2 != NO_CORNER; c2 = next_corner_around_vertex[c2]
+                        index_t c2 = v2c[v1 - v_begin];
+                        c2 != NO_CORNER;
+			c2 = next_corner_around_vertex[c2 - c_begin]
                     ) {
                         if(c2 != c1) {
-                            index_t f2 = is_simplicial_ ? c2/3 : c2f[c2];
-                            index_t c3 = prev_corner_around_facet(f2, c2);
-                            index_t v3 = facet_corners_.vertex(c3);
-                            if(v3 == v2) {
-                                facet_corners_.set_adjacent_facet(c1, f2);
-                                facet_corners_.set_adjacent_facet(c3, f1);
-                                break; 
+                            index_t f2 =
+				is_simplicial_ ? c2/3 : c2f[c2 - c_begin];
+                            index_t c2_prev = prev_corner_around_facet(f2, c2);
+
+                            index_t v3 = facet_corners_.vertex(c2);
+                            index_t v4 = facet_corners_.vertex(c2_prev);
+
+                            geo_assert(v1 == v3);
+
+                            if(
+                                v4 == v2 && (
+				    facet_corners_.adjacent_facet(c2_prev) ==
+				    NO_FACET
+				)
+                            ) {
+                                c_candidate = c2_prev;
+                                ++nb_candidates;
                             }
                         }
+                    }
+                    // If there were more than 1 candidate, do not connect.
+                    if(nb_candidates == 1) {
+                        index_t c2 = c_candidate;
+                        index_t f2 = is_simplicial_ ? (c2/3) : c2f[c2 - c_begin];
+                        facet_corners_.set_adjacent_facet(c1,f2);
+                        facet_corners_.set_adjacent_facet(c2,f1);
                     }
                 }
             }
@@ -735,7 +804,7 @@ namespace GEO {
             index_t v0 = facet_corners_.vertex(corners_begin(f));
             for(index_t c = corners_begin(f) + 1;
                 c + 1 < corners_end(f); ++c
-            ) {
+               ) {
                 new_corner_vertex_index.push_back(v0);
                 new_corner_vertex_index.push_back(
                     facet_corners_.vertex(c)
@@ -750,15 +819,15 @@ namespace GEO {
 
     void MeshFacets::flip(index_t f) {
         index_t d = nb_vertices(f);
-        
+
         // Allocated on the stack (more multithread-friendly
         // and no need to free)
         index_t* corner_vertex_index =
             (index_t*) alloca(sizeof(index_t) * d);
-        
+
         index_t* corner_adjacent_facet =
             (index_t*) alloca(sizeof(index_t) * d);
-        
+
         index_t c0 = corners_begin(f);
         for(index_t i = 0; i < d; i++) {
             corner_vertex_index[i] = facet_corners_.vertex(c0 + i);
@@ -771,6 +840,9 @@ namespace GEO {
             facet_corners_.set_adjacent_facet(
                 c0 + i, corner_adjacent_facet[i_f]
             );
+        }
+        for(index_t i=0; i<d/2; i++) {
+            mesh_.facet_corners.attributes().swap_items(c0+i,c0+d-1-i);
         }
     }
 
@@ -819,7 +891,7 @@ namespace GEO {
         attributes().zero();
         facet_corners_.attributes().zero();
     }
-    
+
     void MeshFacets::pop() {
         geo_debug_assert(nb() != 0);
         index_t new_nb_corners =
@@ -828,7 +900,6 @@ namespace GEO {
         facet_corners_.resize_store(new_nb_corners);
     }
 
-    
     /**************************************************************************/
 
     namespace MeshCellDescriptors {
@@ -851,7 +922,7 @@ namespace GEO {
                 {0,3}, {0,1}, {0,2}, {2,3}, {3,1}, {1,2}
             }
         };
-        
+
 
         GEOGRAM_API CellDescriptor hex_descriptor = {
             8,             // nb_vertices
@@ -932,21 +1003,21 @@ namespace GEO {
             },
             {              // edges adjacent facets
                 {1,0},{1,0},{2,0},{2,0},{2,1}
-            }         
+            }
         };
 
-        GEOGRAM_API CellDescriptor* cell_type_to_cell_descriptor[5] = { 
-            &tet_descriptor, 
-            &hex_descriptor, 
-            &prism_descriptor, 
-            &pyramid_descriptor, 
+        GEOGRAM_API CellDescriptor* cell_type_to_cell_descriptor[5] = {
+            &tet_descriptor,
+            &hex_descriptor,
+            &prism_descriptor,
+            &pyramid_descriptor,
             &connector_descriptor
         };
 
     }
-    
+
     /********************************************************************/
-    
+
     MeshCellsStore::MeshCellsStore(Mesh& mesh) :
         MeshSubElementsStore(mesh),
         is_simplicial_(true) {
@@ -954,7 +1025,7 @@ namespace GEO {
     }
 
     void MeshCellsStore::clear_store(
-        bool keep_attributes, bool keep_memory 
+        bool keep_attributes, bool keep_memory
     ) {
         if(keep_memory) {
             cell_ptr_.resize(0);
@@ -963,7 +1034,7 @@ namespace GEO {
             cell_ptr_.clear();
             cell_type_.clear();
         }
-        cell_ptr_.push_back(0);        
+        cell_ptr_.push_back(0);
         MeshSubElementsStore::clear_store(keep_attributes, keep_memory);
     }
 
@@ -974,8 +1045,25 @@ namespace GEO {
         }
         MeshSubElementsStore::resize_store(new_size);
     }
-    
-    
+
+
+    const CellDescriptor& MeshCellsStore::descriptor(index_t c) const {
+	geo_debug_assert(c < nb());
+	return is_simplicial_ ? MeshCellDescriptors::tet_descriptor :
+	    *(
+		MeshCellDescriptors::cell_type_to_cell_descriptor[
+		    cell_type_[c]
+		]
+	    );
+    }
+
+    const CellDescriptor& MeshCellsStore::cell_type_to_cell_descriptor(
+	MeshCellType t
+    ) {
+	geo_debug_assert(t < GEO::MESH_NB_CELL_TYPES);
+	return *(MeshCellDescriptors::cell_type_to_cell_descriptor[t]);
+    }
+
     /**************************************************************************/
 
     MeshCellCornersStore::MeshCellCornersStore(Mesh& mesh) :
@@ -993,7 +1081,7 @@ namespace GEO {
         }
         MeshSubElementsStore::clear_store(keep_attributes, keep_memory);
     }
-    
+
     void MeshCellCornersStore::resize_store(index_t new_size) {
         corner_vertex_.resize(new_size);
         MeshSubElementsStore::resize_store(new_size);
@@ -1017,13 +1105,13 @@ namespace GEO {
         }
         MeshSubElementsStore::clear_store(keep_attributes, keep_memory);
     }
-    
+
     void MeshCellFacetsStore::resize_store(index_t new_size) {
         adjacent_cell_.resize(new_size);
         MeshSubElementsStore::resize_store(new_size);
     }
 
-    
+
     /**************************************************************************/
 
     MeshCells::MeshCells(Mesh& mesh) :
@@ -1035,12 +1123,12 @@ namespace GEO {
 
     void MeshCells::clear(bool keep_attributes, bool keep_memory) {
         cell_corners_.clear_store(keep_attributes, keep_memory);
-        cell_facets_.clear_store(keep_attributes, keep_memory);        
+        cell_facets_.clear_store(keep_attributes, keep_memory);
         clear_store(keep_attributes, keep_memory);
-        is_simplicial_ = true;        
+        is_simplicial_ = true;
     }
 
-    
+
     void MeshCells::delete_elements(
         vector<index_t>& to_delete,
         bool remove_isolated_vertices
@@ -1071,7 +1159,7 @@ namespace GEO {
         if(
             cell_corners_.attributes().nb() != 0 ||
             cell_facets_.attributes().nb() != 0) {
-            corner_facets_old2new.resize(cell_corners_.nb(), index_t(-1));
+            corner_facets_old2new.resize(cell_corners_.nb(), NO_INDEX);
         }
 
         for(index_t c=0; c<nb(); ++c) {
@@ -1121,11 +1209,11 @@ namespace GEO {
                 adjacent_cell[f] = cells_old2new[c];
             }
         }
-        
+
         // Manage cell store and attributes
         attributes().compress(cells_old2new);
         resize_store(new_nb_cells);
-        
+
         // Manage corners/facets store and attributes
         if(corner_facets_old2new.size() != 0) {
             // Corner/facet index mapping is only computed
@@ -1135,12 +1223,12 @@ namespace GEO {
         }
         cell_corners_.resize_store(new_nb_corner_facets);
         cell_facets_.resize_store(new_nb_corner_facets);
-        
+
         if(remove_isolated_vertices) {
             mesh_.vertices.remove_isolated();
         }
     }
-        
+
     void MeshCells::permute_elements(vector<index_t>& permutation) {
         attributes_.apply_permutation(permutation);
 
@@ -1157,11 +1245,11 @@ namespace GEO {
                     std::max(nb_vertices(old_cell), nb_facets(old_cell));
                 for(index_t i=0; i<cell_size; ++i) {
                     cell_corner_facets_permutation.push_back(
-                        cell_ptr_[old_cell]+i
+                        corners_begin(old_cell)+i
                     );
                 }
             }
-            
+
             if(cell_corners_.attributes().nb() != 0) {
                 cell_corners_.attributes().apply_permutation(
                     cell_corner_facets_permutation
@@ -1176,10 +1264,10 @@ namespace GEO {
 
         vector<index_t>& corner_vertex = cell_corners_.corner_vertex_;
         vector<index_t>& facet_adjacent_cell = cell_facets_.adjacent_cell_;
-        
+
         if(is_simplicial_) {
             // in-place permutation !
-            
+
             Permutation::apply(
                 corner_vertex.data(),
                 permutation,
@@ -1202,11 +1290,11 @@ namespace GEO {
             }
         } else {
             // we need to do some copies
-            
+
             vector<index_t> new_cell_ptr(nb()+1);
             vector<index_t> new_corner_vertex(cell_corners_.nb());
             vector<index_t> new_facet_adjacent_cell(cell_facets_.nb());
-            
+
             index_t new_ptr = 0;
             for(index_t new_c=0; new_c<nb(); ++new_c) {
                 index_t old_c = permutation[new_c];
@@ -1243,8 +1331,8 @@ namespace GEO {
         }
     }
 
-    
-    
+
+
     void MeshCells::connect_tets() {
         geo_assert(is_simplicial_);
         if(nb() == 0) {
@@ -1259,7 +1347,7 @@ namespace GEO {
             nb() * 4, NO_CORNER
         );
         GEO::vector<index_t> v2c(vertices_.nb(), NO_CORNER);
-        
+
         // Step 1: chain tet corners around vertices and compute v2c
         for(index_t t = 0; t < nb(); ++t) {
             for(index_t lv = 0; lv < 4; ++lv) {
@@ -1268,27 +1356,31 @@ namespace GEO {
                 v2c[v] = 4 * t + lv;
             }
         }
-        
-        // Step 2: connect tets
-        auto connect = [&](index_t t1) {
-          for (index_t lf1 = 0; lf1 < 4; ++lf1) {
-            if (adjacent(t1, lf1) == NO_CELL) {
-              index_t v1 = facet_vertex(t1, lf1, 0);
-              index_t v2 = facet_vertex(t1, lf1, 1);
-              index_t v3 = facet_vertex(t1, lf1, 2);
-              for (index_t c2 = v2c[v1]; c2 != NO_CORNER; c2 = next_tet_corner_around_vertex[c2]) {
-                index_t t2  = c2 / 4;
-                index_t lf2 = find_tet_facet(t2, v3, v2, v1);
-                if (lf2 != NO_FACET) {
-                  set_adjacent(t1, lf1, t2);
-                  break;
-                }
-              }
-            }
-          }
-        }; 
 
-        tbb::parallel_for(index_t(0), nb(), connect);
+        // Step 2: connect tets
+        // Each tet only writes its own adjacency (the symmetric link is
+        // found when processing the neighbor), so this is thread-safe.
+        auto connect = [&](index_t t1) {
+            for(index_t lf1 = 0; lf1 < 4; ++lf1) {
+                if(adjacent(t1, lf1) == NO_CELL) {
+                    index_t v1 = facet_vertex(t1, lf1, 0);
+                    index_t v2 = facet_vertex(t1, lf1, 1);
+                    index_t v3 = facet_vertex(t1, lf1, 2);
+                    for(
+                        index_t c2 = v2c[v1]; c2 != NO_CORNER;
+                        c2 = next_tet_corner_around_vertex[c2]
+                    ) {
+                        index_t t2 = c2/4;
+                        index_t lf2 = find_tet_facet(t2, v3, v2, v1);
+                        if(lf2 != NO_FACET) {
+                            set_adjacent(t1, lf1, t2);
+                            break;
+                        }
+                    }
+                }
+            }
+        };
+        tbb_parallel_for(0, nb(), connect);
     }
 
     bool MeshCells::facets_match(
@@ -1337,7 +1429,7 @@ namespace GEO {
         return (
             (v1 == w1 && v2 == w2 && v3 == w3) ||
             (v1 == w2 && v2 == w3 && v3 == w1) ||
-            (v1 == w3 && v2 == w1 && v3 == w2) 
+            (v1 == w3 && v2 == w1 && v3 == w2)
         );
     }
 
@@ -1347,7 +1439,7 @@ namespace GEO {
     ) const {
         geo_debug_assert(facet_nb_vertices(c1,lf1) == 3);
         geo_debug_assert(facet_nb_vertices(c2,lf2) == 4);
-        
+
         index_t v1 = facet_vertex(c1,lf1,0);
         index_t v2 = facet_vertex(c1,lf1,1);
         index_t v3 = facet_vertex(c1,lf1,2);
@@ -1363,7 +1455,7 @@ namespace GEO {
         return (
             triangles_equal(v1,v2,v3,w4,w3,w2) ||
             triangles_equal(v1,v2,v3,w3,w2,w1) ||
-            triangles_equal(v1,v2,v3,w2,w1,w4) ||            
+            triangles_equal(v1,v2,v3,w2,w1,w4) ||
             triangles_equal(v1,v2,v3,w1,w4,w3)
         ) ;
     }
@@ -1381,7 +1473,7 @@ namespace GEO {
                     facet_vertex(c1, f1, (e1+1)%3) ==
                     facet_vertex(c2, f2, (e2+2)%3)  &&
                     facet_vertex(c1, f1, (e1+2)%3) ==
-                    facet_vertex(c2, f2, (e2+1)%3) 
+                    facet_vertex(c2, f2, (e2+1)%3)
                 ) {
                     return true;
                 }
@@ -1399,7 +1491,7 @@ namespace GEO {
         if(matches.size() == 0) {
             return false;
         }
-        
+
         if(matches.size() == 1) {
             GEO::Logger::warn("Mesh")
                 << "Found only one triangular facet adjacent to a quad facet"
@@ -1432,7 +1524,7 @@ namespace GEO {
                        matches[i].first, matches[i].second,
                        matches[j].first, matches[j].second,
                        cur_e1, cur_e2
-                )) {
+                   )) {
                     adj_c1 = matches[i].first;
                     adj_lf1 = matches[i].second;
                     adj_c2 = matches[j].first;
@@ -1456,7 +1548,7 @@ namespace GEO {
             for(index_t i=0; i<matches.size(); ++i) {
                 weird[matches[i].first] = true;
             }
-            
+
             return false;
         }
 
@@ -1474,9 +1566,9 @@ namespace GEO {
             adjacent(adj_c2, adj_lf2) != NO_CELL
         ) {
             /*
-            GEO::Logger::warn("Mesh")
-                << "Matching tet facets are not on border (\"thick sliver\")"
-                << std::endl;
+              GEO::Logger::warn("Mesh")
+              << "Matching tet facets are not on border (\"thick sliver\")"
+              << std::endl;
             */
             return false;
         }
@@ -1485,15 +1577,15 @@ namespace GEO {
         index_t v1 = facet_vertex(
             adj_c1, adj_lf1, (e1+1)%3
         );
-        
+
         index_t v2 = facet_vertex(
             adj_c1, adj_lf1, (e1+2)%3
         );
-                    
+
         // w1 and w2 are the opposite vertices
         index_t w1 = facet_vertex(adj_c1, adj_lf1, e1);
         index_t w2 = facet_vertex(adj_c2, adj_lf2, e2);
-        
+
         // Create the connector
         index_t conn = create_connector(
             v1, w2, v2, w1,
@@ -1507,7 +1599,7 @@ namespace GEO {
 
         return true;
     }
-    
+
     void MeshCells::connect(bool remove_trivial_slivers, bool verbose_if_OK) {
         // "Fast track" for simplicial mesh
         if(is_simplicial_) {
@@ -1587,9 +1679,9 @@ namespace GEO {
 
         // If remove_trivial_slivers is set, we also detect the trivial
         // slivers, i.e. the slivers that are glued on a quadrilateral facet.
-        
+
         std::vector<index_t> trivial_slivers;
-        
+
         // (c1,f1) traverse all quadrangular cell facets on the border
         for(index_t c1=0; c1 < nb_cells0; ++c1) {
             if(type(c1) == MESH_TET) {
@@ -1611,8 +1703,8 @@ namespace GEO {
                     for(
                         index_t c2 = v2cell[v1]; c2 != NO_CELL;
                         c2 = next_cell_around_vertex[
-                                corners_begin(c2) +
-                                find_cell_vertex(c2,v1)
+                            corners_begin(c2) +
+                            find_cell_vertex(c2,v1)
                         ]
                     ) {
                         geo_debug_assert(find_cell_vertex(c2,v1) != NO_VERTEX);
@@ -1628,9 +1720,9 @@ namespace GEO {
                             }
                             if(triangular_facet_matches_quad_facet(
                                    c2,lf2,c1,lf1
-                            )) {
+                               )) {
                                 matches.push_back(std::make_pair(c2,lf2));
-                            } 
+                            }
                         }
                     }
                 }
@@ -1680,7 +1772,7 @@ namespace GEO {
 
             next_cell_around_vertex.clear();
             v2cell.clear();
-            
+
             vector<index_t> delete_c(nb(),0);
             for(index_t i=0; i<trivial_slivers.size(); ++i) {
                 delete_c[trivial_slivers[i]] = 1;
@@ -1695,22 +1787,31 @@ namespace GEO {
             }
             delete_elements(delete_c);
 
-            GEO::Logger::warn("Mesh") << "Re-trying to connect cells" << std::endl;
+            GEO::Logger::warn("Mesh")
+		<< "Re-trying to connect cells" << std::endl;
             connect(false,true);
         }
     }
 
     void MeshCells::compute_borders() {
+        Attribute<index_t> facet_cell;
+        compute_borders(facet_cell);
+    }
+
+    void MeshCells::compute_borders(Attribute<index_t>& facet_cell) {
         mesh_.facets.clear(true,false);
         if(is_simplicial_) {
             for(index_t t=0; t<nb(); ++t) {
                 for(index_t f=0; f<4; ++f) {
                     if(adjacent(t,f) == NO_CELL) {
-                        mesh_.facets.create_triangle(
+                        index_t new_f = mesh_.facets.create_triangle(
                             tet_facet_vertex(t,f,0),
                             tet_facet_vertex(t,f,1),
                             tet_facet_vertex(t,f,2)
                         );
+                        if(facet_cell.is_bound()) {
+                            facet_cell[new_f] = t;
+                        }
                     }
                 }
             }
@@ -1718,16 +1819,17 @@ namespace GEO {
             for(index_t c=0; c<nb(); ++c) {
                 for(index_t f=0; f<nb_facets(c); ++f) {
                     if(adjacent(c,f) == NO_CELL) {
+                        index_t new_f = NO_INDEX;
                         switch(facet_nb_vertices(c,f)) {
                         case 3:
-                            mesh_.facets.create_triangle(
+                            new_f = mesh_.facets.create_triangle(
                                 facet_vertex(c,f,0),
                                 facet_vertex(c,f,1),
                                 facet_vertex(c,f,2)
                             );
                             break;
                         case 4:
-                            mesh_.facets.create_quad(
+                            new_f = mesh_.facets.create_quad(
                                 facet_vertex(c,f,0),
                                 facet_vertex(c,f,1),
                                 facet_vertex(c,f,2),
@@ -1736,6 +1838,9 @@ namespace GEO {
                             break;
                         default:
                             geo_assert_not_reached;
+                        }
+                        if(facet_cell.is_bound()) {
+                            facet_cell[new_f] = c;
                         }
                     }
                 }
@@ -1785,9 +1890,9 @@ namespace GEO {
         cell_facets_.resize_store(corners_facets_new_size);
         resize_store(nb()-1);
     }
-    
+
     /**************************************************************************/
-    
+
     Mesh::Mesh(index_t dimension, bool single_precision)
         : vertices(*this),
           edges(*this),
@@ -1802,7 +1907,7 @@ namespace GEO {
 
     Mesh::~Mesh() {
     }
-    
+
     void Mesh::clear(bool keep_attributes, bool keep_memory) {
         vertices.clear(keep_attributes, keep_memory);
         edges.clear(keep_attributes, keep_memory);
@@ -1815,6 +1920,9 @@ namespace GEO {
         bool copy_attributes,
         MeshElementsFlags what
     ) {
+	if(&rhs == this) {
+	    return;
+	}
         if((what & MESH_VERTICES) == 0) {
             clear(false,false);
             return;
@@ -1839,7 +1947,7 @@ namespace GEO {
             cells.clear(false,false);
         }
     }
-    
+
     void Mesh::show_stats(const std::string& tag) const {
         index_t nb_borders = 0;
         for(index_t co = 0; co < facet_corners.nb(); ++co) {
@@ -1847,9 +1955,9 @@ namespace GEO {
                 nb_borders++;
             }
         }
-        
+
         Logger::out(tag)
-            << (vertices.single_precision() ? "(FP32)" : "(FP64)") 
+            << (vertices.single_precision() ? "(FP32)" : "(FP64)")
             << " nb_v:" << vertices.nb()
             << " nb_e:" << edges.nb()
             << " nb_f:" << facets.nb()
@@ -1861,19 +1969,19 @@ namespace GEO {
         if(cells.nb() != 0) {
             if(cells.are_simplices()) {
                 Logger::out(tag) << " nb_tets:"
-                                      << cells.nb() << std::endl;
+                                 << cells.nb() << std::endl;
             } else {
-                
+
                 index_t nb_cells_by_type[GEO::MESH_NB_CELL_TYPES];
                 for(index_t i=0; i<GEO::MESH_NB_CELL_TYPES; ++i) {
                     nb_cells_by_type[i] = 0;
                 }
-                
+
                 for(index_t c=0; c<cells.nb(); ++c) {
                     geo_debug_assert(cells.type(c) < GEO::MESH_NB_CELL_TYPES);
                     ++nb_cells_by_type[cells.type(c)];
                 }
-                
+
                 Logger::out(tag) << " Hybrid - nb_cells:"
                                  << cells.nb() << " "
                                  << " Tet:" << nb_cells_by_type[0]
@@ -1886,7 +1994,7 @@ namespace GEO {
         }
 
         display_attributes(tag, "vertices", vertices);
-        display_attributes(tag, "edges", edges);        
+        display_attributes(tag, "edges", edges);
         display_attributes(tag, "facets", facets);
         display_attributes(tag, "facet_corners", facet_corners);
         display_attributes(tag, "cells", cells);
@@ -1919,7 +2027,7 @@ namespace GEO {
 
     void Mesh::display_attributes(
         const std::string& tag, const std::string& subelement_name,
-        const MeshSubElementsStore& subelements 
+        const MeshSubElementsStore& subelements
     ) const {
         if(subelements.attributes().nb() != 0) {
             vector<std::string> names;
@@ -1928,7 +2036,7 @@ namespace GEO {
             for(index_t i=0; i<names.size(); ++i) {
                 if(i != 0) {
                     names_str = names_str + ",";
-                } 
+                }
                 names_str = names_str + names[i];
                 AttributeStore* store =
                     subelements.attributes().find_attribute_store(names[i]);
@@ -1991,7 +2099,7 @@ namespace GEO {
             geo_assert_not_reached;
         }
     }
-    
+
     MeshSubElementsStore& Mesh::get_subelements_by_type(
         MeshElementsFlags what
     ) {
@@ -2017,7 +2125,7 @@ namespace GEO {
         }
         return *(MeshSubElementsStore*)nullptr;
     }
-    
+
     const MeshSubElementsStore& Mesh::get_subelements_by_type(
         MeshElementsFlags what
     ) const {
@@ -2043,7 +2151,7 @@ namespace GEO {
         }
         return *(MeshSubElementsStore*)nullptr;
     }
-    
+
     std::string Mesh::subelements_type_to_name(MeshElementsFlags what) {
         std::string result;
         switch(what) {
@@ -2052,22 +2160,22 @@ namespace GEO {
             break;
         case MESH_EDGES:
             result = "edges";
-            break;            
+            break;
         case MESH_FACETS:
             result = "facets";
-            break;            
+            break;
         case MESH_FACET_CORNERS:
             result = "facet_corners";
-            break;            
+            break;
         case MESH_CELLS:
             result = "cells";
-            break;            
+            break;
         case MESH_CELL_CORNERS:
             result = "cell_corners";
-            break;            
+            break;
         case MESH_CELL_FACETS:
             result = "cell_facets";
-            break;            
+            break;
         case MESH_NONE:
         case MESH_ALL_ELEMENTS:
         case MESH_ALL_SUBELEMENTS:
@@ -2075,7 +2183,7 @@ namespace GEO {
         }
         return result;
     }
-    
+
     MeshElementsFlags Mesh::name_to_subelements_type(const std::string& name) {
         if(name == "vertices") {
             return MESH_VERTICES;
@@ -2094,14 +2202,61 @@ namespace GEO {
         }
         return MESH_NONE;
     }
-    
+
+    /**************************************************************************/
+
+    bool Mesh::parse_attribute_name(
+        const std::string& full_attribute_name,
+        MeshElementsFlags& where,
+        std::string& attribute_name,
+        index_t& component
+    ) {
+
+        size_t pos1 = full_attribute_name.find('.');
+        if(pos1 == std::string::npos) {
+            return false;
+        }
+
+        {
+            std::string where_name = full_attribute_name.substr(0,pos1);
+            where = Mesh::name_to_subelements_type(where_name);
+            if(where == MESH_NONE) {
+                return false;
+            }
+        }
+
+        attribute_name = full_attribute_name.substr(
+            pos1+1, full_attribute_name.length()-pos1-1
+        );
+
+        size_t pos2 = attribute_name.find('[');
+        if(pos2 == std::string::npos) {
+            component = 0;
+        } else {
+            if(attribute_name[attribute_name.length()-1] != ']') {
+                return false;
+            }
+            std::string component_str = attribute_name.substr(
+                pos2+1, attribute_name.length()-pos2-2
+            );
+            attribute_name = attribute_name.substr(0, pos2);
+            try {
+                component = String::to_uint(component_str);
+            } catch(...) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     /**************************************************************************/
 }
 
 namespace {
 
     using namespace GEO;
-    
+
     /**
      * \brief Gets the names of all scalar attributes from an AttributeManager
      * \param[in] attributes a const reference to the attribute manager
@@ -2145,13 +2300,36 @@ namespace {
         return result;
     }
 
+    /**
+     * \brief Gets the names of all attributes from an AttributeManager
+     * \param[in] attributes a const reference to the attribute manager
+     * \param[in] prefix a const rerefenre to a string to be prepended to
+     *  all attribute names
+     * \return a ';'-separated list of all the attributes
+     */
+    std::string get_attributes_impl(
+        const AttributesManager& attributes,
+        const std::string& prefix
+    ) {
+        std::string result;
+        vector<std::string> attribute_names;
+        attributes.list_attribute_names(attribute_names);
+
+        for(index_t i=0; i<attribute_names.size(); ++i) {
+            if(result != "") {
+                result += ";";
+            }
+            result += prefix + "." + attribute_names[i];
+        }
+        return result;
+    }
 
     /**
      * \brief Gets the names of all vector attributes from an AttributeManager
      * \param[in] attributes a const reference to the attribute manager
      * \param[in] prefix a const rerefenre to a string to be prepended to
      *  all attribute names
-     * \param[in] max_dim if non-zero, only return vector attributes with 
+     * \param[in] max_dim if non-zero, only return vector attributes with
      *  dimension lower than max_dim
      * \return a ';'-separated list of all the vector attributes
      */
@@ -2167,7 +2345,10 @@ namespace {
         for(index_t i=0; i<attribute_names.size(); ++i) {
             const AttributeStore* store = attributes.
                 find_attribute_store(attribute_names[i]);
-            if(store->dimension() >= 2 && (max_dim == 0 || store->dimension() <= max_dim)) {
+            if(
+                store->dimension() >= 2 &&
+                (max_dim == 0 || store->dimension() <= max_dim))
+            {
                 if(result != "") {
                     result += ";";
                 }
@@ -2180,22 +2361,22 @@ namespace {
                 if(result != "") {
                     result += ";";
                 }
-                result += prefix + "." + attribute_names[i];            
+                result += prefix + "." + attribute_names[i];
             }
             if(
                 store->elements_type_matches(typeid(vec3).name()) &&
-                (max_dim == 0 || 2 <= max_dim)
+                (max_dim == 0 || 3 <= max_dim)
             ) {
                 if(result != "") {
                     result += ";";
                 }
-                result += prefix + "." + attribute_names[i];            
+                result += prefix + "." + attribute_names[i];
             }
         }
         return result;
     }
 
-    
+
     /**
      * \brief Appends a string to another one, with ';' delimiters.
      * \details If a is non-empty, a ';' delimiter is inserted.
@@ -2213,7 +2394,37 @@ namespace {
 }
 
 namespace GEO {
-    
+
+    std::string Mesh::get_attributes() const {
+        std::string result;
+        strappend(
+            result,get_attributes_impl(vertices.attributes(),"vertices")
+        );
+        strappend(
+            result,get_attributes_impl(edges.attributes(),"edges")
+        );
+        strappend(
+            result,get_attributes_impl(facets.attributes(),"facets")
+        );
+        strappend(
+            result,get_attributes_impl(
+                facet_corners.attributes(),"facet_corners"
+            )
+        );
+        strappend(
+            result,get_attributes_impl(cells.attributes(),"cells")
+        );
+        strappend(
+            result,get_attributes_impl(
+                cell_corners.attributes(),"cell_corners"
+            )
+        );
+        strappend(result,get_attributes_impl(
+                      cell_facets.attributes(),"cell_facets")
+                 );
+        return result;
+    }
+
     std::string Mesh::get_scalar_attributes() const {
         std::string result;
         strappend(
@@ -2228,7 +2439,7 @@ namespace GEO {
         strappend(result,get_scalar_attributes_impl(
                       facet_corners.attributes(),"facet_corners"
                   )
-        );
+                 );
         strappend(
             result,get_scalar_attributes_impl(cells.attributes(),"cells")
         );
@@ -2238,8 +2449,8 @@ namespace GEO {
             )
         );
         strappend(result,get_scalar_attributes_impl(
-            cell_facets.attributes(),"cell_facets")
-        );        
+                      cell_facets.attributes(),"cell_facets")
+                 );
         return result;
     }
 
@@ -2258,7 +2469,7 @@ namespace GEO {
         strappend(result,get_vector_attributes_impl(
                       facet_corners.attributes(),"facet_corners",max_dim
                   )
-        );
+                 );
         strappend(
             result,get_vector_attributes_impl(cells.attributes(),"cells",max_dim)
         );
@@ -2268,10 +2479,10 @@ namespace GEO {
             )
         );
         strappend(result,get_vector_attributes_impl(
-              cell_facets.attributes(),"cell_facets",max_dim)
-        );        
+                      cell_facets.attributes(),"cell_facets",max_dim)
+                 );
         return result;
     }
-    
-}
 
+
+}

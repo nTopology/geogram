@@ -17,6 +17,7 @@ ALICE Project LORIA, INRIA Lorraine, Campus Scientifique, BP 239 54506 VANDOEUVR
 Modifications:
 Peter Beben     2023/02/07: Microsoft C++ Standard Library - Modifications under license: Apache v2.0 with LLVM Exception
 Evan Sullivan   2024/03/08: Removed TETGEN and LM6 sources and license attributions. Removed LMIOHandler from mesh_io.cpp.
+nTopology       2025: Rebased onto geogram 1.10.1. TETGEN sources and the DelaunayTetgen wrapper removed again. The LGPL LM6/LM7 libraries are not present; the MIT-licensed libMeshb bundled by upstream 1.10.1 is used instead.
 
 Bundled third-party software
 Geogram uses the following softwares:
@@ -24,6 +25,12 @@ Geogram uses the following softwares:
 AntTweakBar: Simple OpenGL GUI (by Philippe Decaudin) - License: zlib/libpng
 Exact predicates (by Jonathan Shewchuk) - License: Public Domain
 HLBFGS: Numerical optimization (developed by Yang Liu during his post-doc at Inria)
+libMeshb: .mesh file format I/O (by Loic Marechal) - License: MIT
+OpenNL: sparse linear solvers (by Bruno Levy) - License: BSD 3-clause
+AMGCL: algebraic multigrid solver (by Denis Demidov) - License: MIT
+PoissonRecon: surface reconstruction (by Michael Kazhdan) - License: MIT
+xatlas: UV atlas generation (by Jonathan Young) - License: MIT
+stb_image: image I/O (by Sean Barrett) - License: Public Domain / MIT
 RPLY: .ply file format I/O (by Diego Nehab) - License: MIT
 Optionally, Geogram can be compiled with additional libraries (see "How to compile" )
 

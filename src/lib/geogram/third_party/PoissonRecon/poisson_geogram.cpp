@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2014, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -26,19 +26,13 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine, 
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX 
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
@@ -71,6 +65,8 @@
 #ifdef _OPENMP
 #include <omp.h>
 #endif
+
+#include <geogram/basic/logger.h>
 
 // TODO: redirect to geogram Logger.
 void DumpOutput( const char* format , ... ) {
@@ -171,7 +167,7 @@ namespace GEO {
         voxel_res_ = 0;
         voxel_values_ = nullptr;
 
-        geo_cite("DBLP:journals/tog/KazhdanH13");
+	geo_cite("DBLP:journals/tog/KazhdanH13");
     }
 
     PoissonReconstruction::~PoissonReconstruction() {
@@ -258,7 +254,6 @@ namespace GEO {
 
         const int Degree = 2;
         typedef PlyVertex<double> Vertex;
-            
         {
             std::vector< int > indexMap;
             if( NORMAL_DEGREE>Degree )
@@ -300,7 +295,7 @@ namespace GEO {
             }
             DeletePointer(values);
         }
-        
+
         tree.GetMCIsoSurface< Degree , WEIGHT_DEGREE , DATA_DEGREE >(
             densityWeights , colorData , solution , isoValue ,
             mesh , !linear_fit_, !non_manifold_, polygon_mesh_
@@ -313,7 +308,6 @@ namespace GEO {
         }
         
         // Copy mesh to result
-        
         surface->clear();
         surface->vertices.set_dimension(3);
 

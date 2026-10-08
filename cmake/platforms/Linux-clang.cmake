@@ -4,10 +4,6 @@
 
 include(${GEOGRAM_SOURCE_DIR}/cmake/platforms/Linux.cmake)
 
-# Set the Clang compilers
-set(CMAKE_C_COMPILER "/usr/bin/clang-3.8" CACHE string "clang compiler" FORCE)
-set(CMAKE_CXX_COMPILER "/usr/bin/clang++-3.8" CACHE string "clang compiler" FORCE)
-
 # Warning flags
 set(NORMAL_WARNINGS -Wall -Wextra)
 
@@ -25,27 +21,31 @@ set(FULL_WARNINGS
 # Compile with full warnings by default
 add_definitions(${FULL_WARNINGS})
 
+# Since C++23 libc++ is in the process of splitting larger headers
+# into smaller modular headers.  Force this behavior for the older
+# dialects to keep the C++23 build green.  See
+# https://libcxx.llvm.org/DesignDocs/HeaderRemovalPolicy.html
+add_definitions(-D_LIBCPP_REMOVE_TRANSITIVE_INCLUDES)
+
 # Run the static analyzer
 if(VORPALINE_WITH_CLANGSA)
     add_definitions(--analyze)
 endif()
 
 # I do not know where this -Wno-maybe-uninitialized comes from
-# (but clang does not understand it), silence the warning for 
+# (but clang does not understand it), silence the warning for
 # now...
 add_flags(CMAKE_CXX_FLAGS -Wno-unknown-warning-option)
 add_flags(CMAKE_C_FLAGS -Wno-unknown-warning-option)
 
-# Add static and dynamic bounds checks (optimization required)
-#add_flags(CMAKE_CXX_FLAGS_RELEASE -D_FORTIFY_SOURCE=2)
-#add_flags(CMAKE_C_FLAGS_RELEASE -D_FORTIFY_SOURCE=2)
+# Enable setting FPU rounding mode (needed by FPG) and
+# disable automatic generation of FMAs (would break exact
+# predicates)
+add_flags(CMAKE_CXX_FLAGS -frounding-math -ffp-contract=off)
+add_flags(CMAKE_C_FLAGS -frounding-math -ffp-contract=off)
 
-# Enable SSE3 instruction set
-add_flags(CMAKE_CXX_FLAGS -msse3)
-add_flags(CMAKE_C_FLAGS -msse3)
-
-# C++11 standard
-add_flags(CMAKE_CXX_FLAGS -Qunused-arguments -std=c++11 -Wno-c++98-compat)
+# Additional C++ flags
+add_flags(CMAKE_CXX_FLAGS -Qunused-arguments -Wno-c++98-compat)
 
 # Enable glibc parallel mode
 #add_flags(CMAKE_CXX_FLAGS -D_GLIBCXX_PARALLEL)
@@ -150,4 +150,3 @@ macro(vor_add_executable)
     endif()
 
 endmacro()
-

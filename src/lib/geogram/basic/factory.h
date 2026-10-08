@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2014, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -26,19 +26,13 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine,
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
@@ -59,6 +53,13 @@
  * \brief Generic factory mechanism
  */
 
+
+// Latest clang complains too often about empty \par statements in documentation
+#ifdef GEO_COMPILER_CLANG
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdocumentation"
+#endif
+
 namespace GEO {
 
     /**
@@ -75,49 +76,49 @@ namespace GEO {
      */
     class GEOGRAM_API InstanceRepo {
     public:
-        /**
-         * \brief Type of the Instances stored in the repository
-         */
-        typedef Counted Instance;
+    /**
+     * \brief Type of the Instances stored in the repository
+     */
+    typedef Counted Instance;
 
-        /**
-         * \brief Gets unique instance from the repository
-         * \details This function returns a unique instance of type \p
-         * InstanceType. If the instance is already registered in the
-         * repository, it is returned, otherwise a new instance is created and
-         * registered to the repository using the InstanceType name.
-         * \tparam InstanceType type of the instance
-         * \return a pointer to a \p InstanceType unique instance.
-         */
-        template <class InstanceType>
-        static InstanceType& instance() {
-            std::lock_guard<std::mutex> lock(instance_mutex_);
-            const std::string name = typeid(InstanceType).name();
-            Instance* instance = get(name);
-            if(instance == nullptr) {
-                instance = new InstanceType;
-                add(name, instance);
-            }
-            return *static_cast<InstanceType*>(instance);
+    /**
+     * \brief Gets unique instance from the repository
+     * \details This function returns a unique instance of type \p
+     * InstanceType. If the instance is already registered in the
+     * repository, it is returned, otherwise a new instance is created and
+     * registered to the repository using the InstanceType name.
+     * \tparam InstanceType type of the instance
+     * \return a pointer to a \p InstanceType unique instance.
+     */
+    template <class InstanceType>
+    static InstanceType& instance() {
+        std::lock_guard<std::recursive_mutex> lock(instance_mutex_);
+        const std::string name = typeid(InstanceType).name();
+        Instance* instance = get(name);
+        if(instance == nullptr) {
+            instance = new InstanceType;
+            add(name, instance);
         }
+        return *static_cast<InstanceType*>(instance);
+    }
 
     private:
-        /**
-         * \brief Registers an instance to the repository
-         * \param[in] name registration key of the instance
-         * \param[in] instance the instance to register
-         */
-        static void add(const std::string& name, Instance* instance);
+    /**
+     * \brief Registers an instance to the repository
+     * \param[in] name registration key of the instance
+     * \param[in] instance the instance to register
+     */
+    static void add(const std::string& name, Instance* instance);
 
-        /**
-         * \brief Retrieves an instance from the repository
-         * \param[in] name registration key of then instance
-         * \retval the pointer to the stored instance.
-         * \retval a null pointer otherwise
-         */
-        static Instance* get(const std::string& name);
+    /**
+     * \brief Retrieves an instance from the repository
+     * \param[in] name registration key of then instance
+     * \retval the pointer to the stored instance.
+     * \retval a null pointer otherwise
+     */
+    static Instance* get(const std::string& name);
 
-        static std::mutex instance_mutex_;
+    static std::recursive_mutex instance_mutex_;
     };
 
     /**************************************************************************/
@@ -249,7 +250,7 @@ namespace GEO {
         /**
          * \brief Factory destructor.
          */
-        virtual ~Factory() {
+        ~Factory() override {
         }
 
     private:
@@ -366,7 +367,9 @@ namespace GEO {
          * creator in this Factory
          * \retval a null pointer otherwise.
          */
-        static Type* create_object(const std::string& name, const Param1& param1) {
+        static Type* create_object(
+	    const std::string& name, const Param1& param1
+	) {
             typename BaseClass::CreatorType creator =
                 BaseClass::find_creator(name);
             return creator == nullptr ? nullptr : (* creator)(param1);
@@ -391,11 +394,15 @@ namespace GEO {
      * \param[in] name name of the \p ConcreteType creator in the Factory
      * \see Factory::RegisterCreator
      */
-#define geo_register_creator(FactoryType, ConcreteType, name) \
-    static FactoryType::RegisterCreator<ConcreteType> \
-    CPP_CONCAT(Factory_register_creator_, __LINE__) (name); \
+#define geo_register_creator(FactoryType, ConcreteType, name)           \
+    static FactoryType::RegisterCreator<ConcreteType>                   \
+    CPP_CONCAT(Factory_register_creator_, __LINE__) (name);             \
     geo_argused(CPP_CONCAT(Factory_register_creator_, __LINE__))
 }
 
+
+#ifdef GEO_COMPILER_CLANG
+#pragma clang diagnostic pop
 #endif
 
+#endif

@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2014, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -13,7 +13,7 @@
  *  * Neither the name of the ALICE Project-Team nor the names of its
  *  contributors may be used to endorse or promote products derived from this
  *  software without specific prior written permission.
- * 
+ *
  *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -26,19 +26,13 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine, 
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX 
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
@@ -72,17 +66,9 @@ namespace {
      */
     double signed_volume(const Mesh& M, index_t f) {
         double result = 0;
-        index_t v0 = M.facet_corners.vertex(M.facets.corners_begin(f));
-        const vec3& p0 = Geom::mesh_vertex(M, v0);
-        for(index_t c =
-            M.facets.corners_begin(f) + 1; c + 1 < M.facets.corners_end(f); c++
-        ) {
-            index_t v1 = M.facet_corners.vertex(c);
-            const vec3& p1 = Geom::mesh_vertex(M, v1);
-            index_t v2 = M.facet_corners.vertex(c + 1);
-            const vec3& p2 = Geom::mesh_vertex(M, v2);
-            result += dot(p0, cross(p1, p2));
-        }
+	for(auto [ p1, p2, p3] : M.facets.triangle_points(f)) {
+	    result += dot(p1,cross(p2, p3)) / 6.0;
+	}
         return result;
     }
 }
@@ -97,28 +83,25 @@ namespace GEO {
         }
         vector<vec3> border_normal;
         border_normal.assign(M.vertices.nb(), vec3(0.0, 0.0, 0.0));
-        for(index_t f = 0; f < M.facets.nb(); f++) {
+        for(index_t f: M.facets) {
             vec3 N = Geom::mesh_facet_normal(M, f);
-            for(
-                index_t c1 = M.facets.corners_begin(f);
-                c1 < M.facets.corners_end(f); c1++
-            ) {
+            for(index_t c1: M.facets.corners(f)) {
                 if(M.facet_corners.adjacent_facet(c1) == NO_FACET) {
                     index_t c2 = M.facets.next_corner_around_facet(f, c1);
                     index_t v1 = M.facet_corners.vertex(c1);
                     index_t v2 = M.facet_corners.vertex(c2);
-                    const vec3& p1 = Geom::mesh_vertex(M, v1);
-                    const vec3& p2 = Geom::mesh_vertex(M, v2);
+                    const vec3& p1 = M.vertices.point(v1);
+                    const vec3& p2 = M.vertices.point(v2);
                     vec3 Ne = cross(p2 - p1, N);
                     border_normal[v1] += Ne;
                     border_normal[v2] += Ne;
                 }
             }
         }
-        for(index_t v = 0; v < M.vertices.nb(); v++) {
+        for(index_t v: M.vertices) {
             double s = length(border_normal[v]);
             if(s > 0.0) {
-                Geom::mesh_vertex_ref(M, v) +=
+		M.vertices.point(v) +=
                     epsilon * (1.0 / s) * border_normal[v];
             }
         }
@@ -128,7 +111,7 @@ namespace GEO {
 
     void remove_small_facets(Mesh& M, double min_facet_area) {
         vector<index_t> remove_f(M.facets.nb(), 0);
-        for(index_t f = 0; f < M.facets.nb(); f++) {
+        for(index_t f: M.facets) {
             if(Geom::mesh_facet_area(M, f, 3) < min_facet_area) {
                 remove_f[f] = 1;
             }
@@ -143,7 +126,7 @@ namespace GEO {
         index_t nb_components = get_connected_components(M, component);
         vector<double> comp_area(nb_components, 0.0);
         vector<index_t> comp_facets(nb_components, 0);
-        for(index_t f = 0; f < M.facets.nb(); f++) {
+        for(index_t f: M.facets) {
             comp_area[component[f]] += Geom::mesh_facet_area(M, f, 3);
             ++comp_facets[component[f]];
         }
@@ -166,9 +149,9 @@ namespace GEO {
 
         index_t nb_f_remove = 0;
         vector<index_t> remove_f(M.facets.nb(), 0);
-        for(index_t f = 0; f < M.facets.nb(); ++f) {
+        for(index_t f: M.facets) {
             if(
-                comp_area[component[f]] < min_area || 
+                comp_area[component[f]] < min_area ||
                 comp_facets[component[f]] < min_facets
             ) {
                 remove_f[f] = 1;
@@ -189,10 +172,10 @@ namespace GEO {
         vector<index_t> component;
         index_t nb_components = get_connected_components(M, component);
         vector<double> comp_signed_volume(nb_components, 0.0);
-        for(index_t f = 0; f < M.facets.nb(); ++f) {
+        for(index_t f: M.facets) {
             comp_signed_volume[component[f]] += signed_volume(M, f);
         }
-        for(index_t f = 0; f < M.facets.nb(); ++f) {
+        for(index_t f: M.facets) {
             if(comp_signed_volume[component[f]] < 0.0) {
                 M.facets.flip(f);
             }
@@ -200,17 +183,17 @@ namespace GEO {
     }
 
     void invert_normals(Mesh& M) {
-        for(index_t f = 0; f < M.facets.nb(); ++f) {
+        for(index_t f: M.facets) {
             M.facets.flip(f);
         }
     }
 
     /************************************************************************/
-    
+
     void remove_degree2_vertices(Mesh& M) {
         std::set<index_t> to_dissociate;
-        for(index_t f = 0; f < M.facets.nb(); ++f) {
-            for(index_t i1 = M.facets.corners_begin(f); i1 < M.facets.corners_end(f); ++i1) {
+        for(index_t f: M.facets) {
+            for(index_t i1:  M.facets.corners(f)) {
                 index_t i2 = M.facets.next_corner_around_facet(f,i1);
                 index_t f1 = M.facet_corners.adjacent_facet(i1);
                 index_t f2 = M.facet_corners.adjacent_facet(i2);
@@ -227,12 +210,11 @@ namespace GEO {
                 << std::endl;
         }
         for(auto f : to_dissociate) {
-            for(index_t c=M.facets.corners_begin(f); c!=M.facets.corners_end(f); ++c) {
+            for(index_t c: M.facets.corners(f)) {
                 M.facet_corners.set_adjacent_facet(c,NO_FACET);
             }
         }
     }
 
-    /************************************************************************/    
+    /************************************************************************/
 }
-

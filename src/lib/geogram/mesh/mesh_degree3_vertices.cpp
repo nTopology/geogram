@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2014, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -13,7 +13,7 @@
  *  * Neither the name of the ALICE Project-Team nor the names of its
  *  contributors may be used to endorse or promote products derived from this
  *  software without specific prior written permission.
- * 
+ *
  *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -26,19 +26,13 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine, 
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX 
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
@@ -187,7 +181,7 @@ namespace {
      *  different from standard triangle numerotation used here.
      */
     struct Degree3Vertex {
-        
+
         /**
          * \brief Constructs a new Degree3Vertex
          * \param[in] M the mesh
@@ -204,9 +198,9 @@ namespace {
                 index_t k = (j + 1) % 3;
 
                 t[1] = index_t(t_adjacent(M, t[0], j));
-                geo_debug_assert(t[1] != index_t(-1));
+                geo_debug_assert(t[1] != NO_INDEX);
                 t[2] = index_t(t_adjacent(M, t[0], k));
-                geo_debug_assert(t[2] != index_t(-1));
+                geo_debug_assert(t[2] != NO_INDEX);
                 v[1] = t_vertex(M, t[0], j);
                 v[2] = t_vertex(M, t[0], k);
                 adj[0] = t_adjacent(M, t[0], i);
@@ -236,10 +230,10 @@ namespace {
                 adj[2] = t_adjacent(M, t[2], i);
             }
 
-            const vec3& p0 = Geom::mesh_vertex(M, v[0]);
-            const vec3& p1 = Geom::mesh_vertex(M, v[1]);
-            const vec3& p2 = Geom::mesh_vertex(M, v[2]);
-            const vec3& p3 = Geom::mesh_vertex(M, v[3]);
+            const vec3& p0 = M.vertices.point(v[0]);
+            const vec3& p1 = M.vertices.point(v[1]);
+            const vec3& p2 = M.vertices.point(v[2]);
+            const vec3& p3 = M.vertices.point(v[3]);
 
             dist = ::sqrt(
                 Geom::point_triangle_squared_distance(p3, p0, p1, p2)
@@ -280,12 +274,9 @@ namespace GEO {
         //   or -1 if v is on border or if v has an incident facet that
         // is not a triangle.
 
-        for(index_t f = 0; f < M.facets.nb(); f++) {
+        for(index_t f: M.facets) {
             bool f_is_triangle = (M.facets.nb_vertices(f) == 3);
-            for(
-                index_t c = M.facets.corners_begin(f);
-                c < M.facets.corners_end(f); c++
-            ) {
+            for(index_t c: M.facets.corners(f)) {
                 index_t v = M.facet_corners.vertex(c);
                 if(
                     !f_is_triangle ||
@@ -303,7 +294,7 @@ namespace GEO {
         // Step 2: count degree3 vertices
 
         index_t nb_degree3_vertices = 0;
-        for(index_t v = 0; v < M.vertices.nb(); v++) {
+        for(index_t v: M.vertices) {
             if(vertex_degree[v] == 3) {
                 nb_degree3_vertices++;
             }
@@ -318,11 +309,8 @@ namespace GEO {
         // Step 3: v2f[v] is one of the facets adjacent to v
 
         vector<index_t> v2f(M.vertices.nb());
-        for(index_t f = 0; f < M.facets.nb(); f++) {
-            for(
-                index_t c = M.facets.corners_begin(f);
-                c < M.facets.corners_end(f); c++
-            ) {
+        for(index_t f: M.facets) {
+            for(index_t c: M.facets.corners(f)) {
                 index_t v = M.facet_corners.vertex(c);
                 v2f[v] = f;
             }
@@ -332,7 +320,7 @@ namespace GEO {
 
         vector<Degree3Vertex> degree3vertices;
         degree3vertices.reserve(nb_degree3_vertices);
-        for(index_t v = 0; v < M.vertices.nb(); v++) {
+        for(index_t v: M.vertices) {
             if(vertex_degree[v] == 3) {
                 Degree3Vertex V(M, v, v2f[v]);
                 if(V.dist < max_dist) {
@@ -404,10 +392,7 @@ namespace GEO {
             for(index_t j = 1; j <= 2; j++) {
                 if(V.adj[j] != NO_FACET) {
                     index_t f = index_t(V.adj[j]);
-                    for(
-                        index_t c = M.facets.corners_begin(f);
-                        c < M.facets.corners_end(f); ++c
-                    ) {
+                    for(index_t c: M.facets.corners(f)) {
                         if(M.facet_corners.adjacent_facet(c) == V.t[j]) {
                             M.facet_corners.set_adjacent_facet(c, V.t[0]);
                         }
@@ -432,4 +417,3 @@ namespace GEO {
         return nb_removed;
     }
 }
-

@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2014, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -13,7 +13,7 @@
  *  * Neither the name of the ALICE Project-Team nor the names of its
  *  contributors may be used to endorse or promote products derived from this
  *  software without specific prior written permission.
- * 
+ *
  *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -26,19 +26,13 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine, 
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX 
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
@@ -64,231 +58,242 @@ namespace GEO {
      */
     class GEOGRAM_API MeshHalfedges {
     public:
-        /**
-         * \brief Stores a reference to a mesh corner and facet, and
-         *  provides a halfedge-like API.
-         */
-        struct Halfedge {
+    /**
+     * \brief Stores a reference to a mesh corner and facet, and
+     *  provides a halfedge-like API.
+     */
+    struct Halfedge {
 
-            static const index_t NO_FACET  = index_t(-1);
-            static const index_t NO_CORNER = index_t(-1);
-
-            /**
-             * \brief Constructs a new uninitialized Halfedge.
-             */
-            Halfedge() :
-                facet(NO_FACET),
-                corner(NO_CORNER) {
-            }
-
-            /**
-             * \brief Constructs a new Halfedge from a facet and corner index.
-             * \param[in] f the facet index
-             * \param[in] c the corner index
-             */
-            Halfedge(index_t f, index_t c) :
-                facet(f),
-                corner(c) {
-            }
-
-            /**
-             * \brief Clears this Halfedge.
-             */
-            void clear() {
-                facet = NO_FACET;
-                corner = NO_CORNER;
-            }
-
-            /**
-             * \brief Tests whether this Halfedge is initialized.
-             * \return true if this Halfedge is uninitialized, false otherwise
-             */
-            bool is_nil() const {
-                return (facet == NO_FACET) && (corner == NO_CORNER);
-            }
-
-            /**
-             * \brief Tests whether this Halfedge is the same as another one
-             * \param[in] rhs the comparand
-             * \return true if this Halfedge and \p rhs refer to the same
-             *  facet and corner, false otherwise.
-             */
-            bool operator== (const Halfedge& rhs) const {
-                return facet == rhs.facet && corner == rhs.corner;
-            }
-
-            /**
-             * \brief Tests whether this Halfedge is different from another one
-             * \param[in] rhs the comparand
-             * \return true if this Halfedge and \p rhs refer to a different
-             *  facet or corner, false otherwise.
-             */
-            bool operator!= (const Halfedge& rhs) const {
-                return !(rhs == *this);
-            }
-
-            index_t facet;
-            index_t corner;
-
-        };
+        static constexpr index_t NO_FACET  = NO_INDEX;
+        static constexpr index_t NO_CORNER = NO_INDEX;
 
         /**
-         * \brief Creates a new MeshHalfedges
-         * \param[in] mesh the Mesh
+         * \brief Constructs a new uninitialized Halfedge.
          */
-        MeshHalfedges(Mesh& mesh) : mesh_(mesh) {
+        Halfedge() :
+            facet(NO_FACET),
+            corner(NO_CORNER) {
         }
 
         /**
-         * \brief Gets the mesh.
-         * \return a reference to the mesh.
+         * \brief Constructs a new Halfedge from a facet and corner index.
+         * \param[in] f the facet index
+         * \param[in] c the corner index
          */
-        Mesh& mesh() {
-            return mesh_;
+        Halfedge(index_t f, index_t c) :
+            facet(f),
+            corner(c) {
         }
 
         /**
-         * \brief Gets the mesh.
-         * \return a const reference to the mesh.
+         * \brief Clears this Halfedge.
          */
-        const Mesh& mesh() const {
-            return mesh_;
+        void clear() {
+            facet = NO_FACET;
+            corner = NO_CORNER;
         }
 
         /**
-         * \brief Sets whether facet regions determine borders.
-         * \param[in] x if set, then an halfedge incident to two facets
-         *  with different facet regions is considered to be a
-         *  border
+         * \brief Tests whether this Halfedge is initialized.
+         * \return true if this Halfedge is uninitialized, false otherwise
          */
-        void set_use_facet_region(bool x) {
-            if(x) {
-                if(!facet_region_.is_bound()) {
-                    facet_region_.bind(mesh_.facets.attributes(),"region");
-                }
-            } else {
-                if(facet_region_.is_bound()) {
-                    facet_region_.unbind();
-                }
+        bool is_nil() const {
+            return (facet == NO_FACET) && (corner == NO_CORNER);
+        }
+
+        /**
+         * \brief Tests whether this Halfedge is the same as another one
+         * \param[in] rhs the comparand
+         * \return true if this Halfedge and \p rhs refer to the same
+         *  facet and corner, false otherwise.
+         */
+        bool operator== (const Halfedge& rhs) const {
+            return facet == rhs.facet && corner == rhs.corner;
+        }
+
+        /**
+         * \brief Tests whether this Halfedge is different from another one
+         * \param[in] rhs the comparand
+         * \return true if this Halfedge and \p rhs refer to a different
+         *  facet or corner, false otherwise.
+         */
+        bool operator!= (const Halfedge& rhs) const {
+            return !(rhs == *this);
+        }
+
+        index_t facet;
+        index_t corner;
+
+    };
+
+    /**
+     * \brief Creates a new MeshHalfedges
+     * \param[in] mesh the Mesh
+     */
+    MeshHalfedges(Mesh& mesh) : mesh_(mesh) {
+    }
+
+    /**
+     * \brief Gets the mesh.
+     * \return a reference to the mesh.
+     */
+    Mesh& mesh() {
+        return mesh_;
+    }
+
+    /**
+     * \brief Gets the mesh.
+     * \return a const reference to the mesh.
+     */
+    const Mesh& mesh() const {
+        return mesh_;
+    }
+
+    /**
+     * \brief Sets whether facet regions determine borders.
+     * \param[in] x if set, then an halfedge incident to two facets
+     *  with different facet regions is considered to be a
+     *  border
+     */
+    void set_use_facet_region(bool x) {
+        if(x) {
+            if(!facet_region_.is_bound()) {
+                facet_region_.bind(mesh_.facets.attributes(),"region");
             }
-        }
-
-        /**
-         * \brief Sets a facet attribute name that determines borders.
-         * \param[in] attribute_name the name of the facet attribute to
-         *  be used to determine borders.
-         */
-        void set_use_facet_region(const std::string& attribute_name) {
+        } else {
             if(facet_region_.is_bound()) {
                 facet_region_.unbind();
             }
-            facet_region_.bind(mesh_.facets.attributes(),attribute_name);
         }
+    }
 
-        
-        /**
-         * \brief Tests whether a Halfedge is valid.
-         * \param[in] H the Halfedge to be tested
-         * \return true if \p H refers to a halfedge that
-         *  exists in the mesh, false otherwise
-         * \note It only tests whether H.corner and H.facet are valid
-         *  indices in the mesh, but does not test whether H.corner exists
-         *  in H.facet.
-         */
-        bool halfedge_is_valid(const Halfedge& H) const {
-            return
-                H.facet != Halfedge::NO_FACET && 
-                H.corner != Halfedge::NO_CORNER &&
-                H.facet < mesh_.facets.nb() &&
-                H.corner < mesh_.facet_corners.nb()
+    /**
+     * \brief Sets a facet attribute name that determines borders.
+     * \param[in] attribute_name the name of the facet attribute to
+     *  be used to determine borders.
+     */
+    void set_use_facet_region(const std::string& attribute_name) {
+        if(facet_region_.is_bound()) {
+            facet_region_.unbind();
+        }
+        facet_region_.bind(mesh_.facets.attributes(),attribute_name);
+    }
+
+    /**
+     * \brief Sets a facet attribute name that determines borders.
+     * \param[in] attribute_name the name of the facet attribute to
+     *  be used to determine borders.
+     * \details Needed to have this overload, because const char*
+     *  is implicitly converted to bool instead of std::string.
+     */
+    void set_use_facet_region(const char* attribute_name) {
+        set_use_facet_region(std::string(attribute_name));
+    }
+
+
+    /**
+     * \brief Tests whether a Halfedge is valid.
+     * \param[in] H the Halfedge to be tested
+     * \return true if \p H refers to a halfedge that
+     *  exists in the mesh, false otherwise
+     * \note It only tests whether H.corner and H.facet are valid
+     *  indices in the mesh, but does not test whether H.corner exists
+     *  in H.facet.
+     */
+    bool halfedge_is_valid(const Halfedge& H) const {
+        return
+            H.facet != Halfedge::NO_FACET &&
+            H.corner != Halfedge::NO_CORNER &&
+            H.facet < mesh_.facets.nb() &&
+            H.corner < mesh_.facet_corners.nb()
             ;
-        }
+    }
 
-        /**
-         * \brief Tests whether a Halfedge is on the boder.
-         * \details If set_use_facet_region() is set, then
-         *  Halfedges incident to two different facet regions are
-         *  considered as borders.
-         * \param[in] H the Halfedge
-         * \return true if \p H is on the border, false otherwise
-         */
-        bool halfedge_is_border(const Halfedge& H) const {
-            geo_debug_assert(halfedge_is_valid(H));
-            if(facet_region_.is_bound()) {
-                index_t f = H.facet;
-                index_t adj_f =
-                    mesh_.facet_corners.adjacent_facet(H.corner);
-                return
-                    adj_f == NO_FACET ||
-                    facet_region_[f] != facet_region_[adj_f]
+    /**
+     * \brief Tests whether a Halfedge is on the boder.
+     * \details If set_use_facet_region() is set, then
+     *  Halfedges incident to two different facet regions are
+     *  considered as borders.
+     * \param[in] H the Halfedge
+     * \return true if \p H is on the border, false otherwise
+     */
+    bool halfedge_is_border(const Halfedge& H) const {
+        geo_debug_assert(halfedge_is_valid(H));
+        if(facet_region_.is_bound()) {
+            index_t f = H.facet;
+            index_t adj_f =
+                mesh_.facet_corners.adjacent_facet(H.corner);
+            return
+                adj_f == NO_FACET ||
+                facet_region_[f] != facet_region_[adj_f]
                 ;
-            } 
-            return mesh_.facet_corners.adjacent_facet(H.corner) == NO_FACET;
         }
+        return mesh_.facet_corners.adjacent_facet(H.corner) == NO_FACET;
+    }
 
-        /**
-         * \brief Replaces a Halfedge with the next one around the facet.
-         * \param[in,out] H the Halfedge
-         */
-        void move_to_next_around_facet(Halfedge& H) const {
-            geo_debug_assert(halfedge_is_valid(H));
-            H.corner = mesh_.facets.next_corner_around_facet(H.facet, H.corner);
-        }
+    /**
+     * \brief Replaces a Halfedge with the next one around the facet.
+     * \param[in,out] H the Halfedge
+     */
+    void move_to_next_around_facet(Halfedge& H) const {
+        geo_debug_assert(halfedge_is_valid(H));
+        H.corner = mesh_.facets.next_corner_around_facet(H.facet, H.corner);
+    }
 
-        /**
-         * \brief Replaces a Halfedge with the previous one around the facet.
-         * \param[in,out] H the Halfedge
-         */
-        void move_to_prev_around_facet(Halfedge& H) const {
-            geo_debug_assert(halfedge_is_valid(H));
-            H.corner = mesh_.facets.prev_corner_around_facet(H.facet, H.corner);
-        }
-        
-        /**
-         * \brief Replaces a Halfedge with the next one around the vertex.
-         * \param[in,out] H the Halfedge
-         * \return true if the move was successful, false otherwise. On borders,
-         *  the next halfedge around a vertex may not exist.
-         */
-        bool move_to_next_around_vertex(Halfedge& H) const;
+    /**
+     * \brief Replaces a Halfedge with the previous one around the facet.
+     * \param[in,out] H the Halfedge
+     */
+    void move_to_prev_around_facet(Halfedge& H) const {
+        geo_debug_assert(halfedge_is_valid(H));
+        H.corner = mesh_.facets.prev_corner_around_facet(H.facet, H.corner);
+    }
 
-        /**
-         * \brief Replaces a Halfedge with the previous one around the vertex.
-         * \param[in,out] H the Halfedge
-         * \return true if the move was successful, false otherwise. On borders,
-         *  the previous halfedge around a vertex may not exist.
-         */
-        bool move_to_prev_around_vertex(Halfedge& H) const;
+    /**
+     * \brief Replaces a Halfedge with the next one around the vertex.
+     * \param[in,out] H the Halfedge
+     * \return true if the move was successful, false otherwise. On borders,
+     *  the next halfedge around a vertex may not exist.
+     */
+    bool move_to_next_around_vertex(Halfedge& H) const;
 
-        /**
-         * \brief Replaces a Halfedge with the next one around the border.
-         * \details If set_use_facet_region() is set, then
-         *  Halfedges incident to two different facet regions are
-         *  considered as borders.
-         * \param[in,out] H the Halfedge
-         */
-        void move_to_next_around_border(Halfedge& H) const;
+    /**
+     * \brief Replaces a Halfedge with the previous one around the vertex.
+     * \param[in,out] H the Halfedge
+     * \return true if the move was successful, false otherwise. On borders,
+     *  the previous halfedge around a vertex may not exist.
+     */
+    bool move_to_prev_around_vertex(Halfedge& H) const;
 
-        /**
-         * \brief Replaces a Halfedge with the previous one around the border.
-         * \details If set_use_facet_region() is set, then
-         *  Halfedges incident to two different facet regions are
-         *  considered as borders.
-         * \param[in,out] H the Halfedge
-         */
-        void move_to_prev_around_border(Halfedge& H) const;
-        
-        /**
-         * \brief Replaces a Halfedge with the opposite one in the
-         *  adjacent facet.
-         * \param[in,out] H the Halfedge
-         * \pre !is_on_border(H)
-         */
-        void move_to_opposite(Halfedge& H) const;
+    /**
+     * \brief Replaces a Halfedge with the next one around the border.
+     * \details If set_use_facet_region() is set, then
+     *  Halfedges incident to two different facet regions are
+     *  considered as borders.
+     * \param[in,out] H the Halfedge
+     */
+    void move_to_next_around_border(Halfedge& H) const;
+
+    /**
+     * \brief Replaces a Halfedge with the previous one around the border.
+     * \details If set_use_facet_region() is set, then
+     *  Halfedges incident to two different facet regions are
+     *  considered as borders.
+     * \param[in,out] H the Halfedge
+     */
+    void move_to_prev_around_border(Halfedge& H) const;
+
+    /**
+     * \brief Replaces a Halfedge with the opposite one in the
+     *  adjacent facet.
+     * \param[in,out] H the Halfedge
+     * \pre !is_on_border(H)
+     */
+    void move_to_opposite(Halfedge& H) const;
 
     private:
-        Mesh& mesh_;
-        Attribute<index_t> facet_region_;
+    Mesh& mesh_;
+    Attribute<index_t> facet_region_;
     };
 
     /**
@@ -314,7 +319,7 @@ namespace GEO {
         inline const vec3& halfedge_vertex_from(
             const Mesh& M, const MeshHalfedges::Halfedge& H
         ) {
-            return mesh_vertex(M, M.facet_corners.vertex(H.corner));
+            return M.facet_corners.point(H.corner);
         }
 
         /**
@@ -327,7 +332,7 @@ namespace GEO {
             const Mesh& M, const MeshHalfedges::Halfedge& H
         ) {
             index_t c = M.facets.next_corner_around_facet(H.facet, H.corner);
-            return mesh_vertex(M, M.facet_corners.vertex(c));
+	    return M.facet_corners.point(c);
         }
 
         /**
@@ -359,4 +364,3 @@ namespace GEO {
 }
 
 #endif
-

@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2014, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -13,7 +13,7 @@
  *  * Neither the name of the ALICE Project-Team nor the names of its
  *  contributors may be used to endorse or promote products derived from this
  *  software without specific prior written permission.
- * 
+ *
  *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -26,19 +26,13 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine, 
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX 
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
@@ -62,16 +56,16 @@ namespace {
 
     using namespace GEO;
 
-   /**
-    * \brief Creates a surfacic mesh from a cube.
-    * \param[out] M the resulting mesh
-    */
+    /**
+     * \brief Creates a surfacic mesh from a cube.
+     * \param[out] M the resulting mesh
+     */
     void initialize_mesh_with_box(Mesh& M) {
         M.clear();
         M.vertices.set_dimension(3);
 
         const double d = 1.0;
-        
+
         M.vertices.create_vertex(vec3(-d, -d, -d).data());
         M.vertices.create_vertex(vec3(-d, -d, d).data());
         M.vertices.create_vertex(vec3(-d, d, -d).data());
@@ -80,14 +74,14 @@ namespace {
         M.vertices.create_vertex(vec3(d, -d, d).data());
         M.vertices.create_vertex(vec3(d, d, -d).data());
         M.vertices.create_vertex(vec3(d, d, d).data());
-      
+
         M.facets.create_quad(7,6,2,3);
         M.facets.create_quad(1,3,2,0);
         M.facets.create_quad(5,7,3,1);
         M.facets.create_quad(4,6,7,5);
         M.facets.create_quad(4,5,1,0);
         M.facets.create_quad(6,4,0,2);
-        
+
         M.facets.connect();
     }
 
@@ -175,19 +169,27 @@ namespace {
 
 int main(int argc, char** argv) {
 
-    GEO::initialize();
+    GEO::initialize(GEO::GEOGRAM_INSTALL_ALL);
     GEO::Logger::instance()->set_quiet(false);
     GEO::CmdLine::import_arg_group("standard");
     GEO::CmdLine::import_arg_group("algo");
-    GEO::CmdLine::declare_arg_percent("size", 10.0, "elements size, in bbox diagonal percent");
+    GEO::CmdLine::declare_arg_percent(
+	"size", 10.0, "elements size, in bbox diagonal percent"
+    );
     GEO::CmdLine::declare_arg("shrink", 0.9, "cells shrink");
-    GEO::CmdLine::declare_arg("border_only", false, "output only RVC facets on the border");
-    
+    GEO::CmdLine::declare_arg(
+	"border_only", false, "output only RVC facets on the border"
+    );
+
     std::vector<std::string> filenames;
-    if(!GEO::CmdLine::parse(argc, argv, filenames, "points_filename <cell_filename>")) {
+    if(
+	!GEO::CmdLine::parse(
+	    argc, argv, filenames, "points_filename <cell_filename>"
+	)
+    ) {
         return 1;
     }
-    
+
     if(filenames.size() != 1 && filenames.size() != 2) {
         return 1;
     }
@@ -195,7 +197,7 @@ int main(int argc, char** argv) {
     GEO::Mesh points;
     GEO::MeshIOFlags flags;
     flags.reset_element(GEO::MESH_FACETS);
-    flags.reset_element(GEO::MESH_CELLS);    
+    flags.reset_element(GEO::MESH_CELLS);
     GEO::mesh_load(filenames[0], points, flags);
     GEO::mesh_repair(points);
 
@@ -203,26 +205,26 @@ int main(int argc, char** argv) {
     double size = GEO::CmdLine::get_arg_percent("size",diag);
     double shrink = GEO::CmdLine::get_arg_double("shrink");
     bool border_only = GEO::CmdLine::get_arg_bool("border_only");
-    
+
     //   Since we compute restricted Voronoi cells one cell at a
     // time, the mesh argument of the restricted Voronoi diagram
     // is not used.
     GEO::Mesh dummy_mesh;
-    
+
     //  Create a Delaunay API that encapsulates a Kd-tree
     GEO::Delaunay_var delaunay = Delaunay::create(3,"NN");
     delaunay->set_vertices(points.vertices.nb(), points.vertices.point_ptr(0));
-    
-    GEO::RestrictedVoronoiDiagram_var RVD = 
+
+    GEO::RestrictedVoronoiDiagram_var RVD =
         GEO::RestrictedVoronoiDiagram::create(delaunay, &dummy_mesh);
-    
+
     GEO::Mesh cell;
     GEO::Mesh clipped;
     GEO::Attribute<signed_index_t> facet_id;
     if(border_only) {
         facet_id.bind(clipped.facets.attributes(),"id");
     }
-    
+
     if(filenames.size() == 2) {
         mesh_load(filenames[1],cell);
     } else {
@@ -230,16 +232,17 @@ int main(int argc, char** argv) {
     }
 
     if(!mesh_vertices_are_degree_3(cell)) {
-        Logger::err("RVC") << "Mesh vertices are not all of degree 3" << std::endl;
+        Logger::err("RVC") << "Mesh vertices are not all of degree 3"
+			   << std::endl;
         exit(-1);
     }
-    
+
     if(mesh_facets_are_planar(cell)) {
         Logger::out("RVC") << "Mesh facets are planar (good)" << std::endl;
     } else {
-        Logger::warn("RVC") << "Mesh facets are not planar" << std::endl;        
+        Logger::warn("RVC") << "Mesh facets are not planar" << std::endl;
     }
-    
+
     std::ofstream out("RVC.obj");
     index_t offset = 1;
 
@@ -254,7 +257,7 @@ int main(int argc, char** argv) {
         if(!(i%progress_divider)) {
             task.progress(i/progress_divider);
         }
-        
+
         center_scale_mesh(cell, points.vertices.point(i), size);
         RVD->compute_RVC(i,cell,clipped,facet_id.is_bound());
 
@@ -271,13 +274,16 @@ int main(int argc, char** argv) {
                 continue;
             }
             out << "f ";
-            for(index_t c=clipped.facets.corners_begin(f); c<clipped.facets.corners_end(f); ++c) {
+            for(
+		index_t c=clipped.facets.corners_begin(f);
+		c<clipped.facets.corners_end(f); ++c
+	    ) {
                 out << clipped.facet_corners.vertex(c) + offset << " ";
             }
             out << std::endl;
         }
         offset += clipped.vertices.nb();
     }
-    
+
     return 0;
 }

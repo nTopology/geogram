@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2014, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -13,7 +13,7 @@
  *  * Neither the name of the ALICE Project-Team nor the names of its
  *  contributors may be used to endorse or promote products derived from this
  *  software without specific prior written permission.
- * 
+ *
  *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -26,19 +26,13 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine, 
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX 
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
@@ -51,13 +45,11 @@ namespace GEO {
 
     void GEOGRAM_API mesh_smooth(Mesh& M) {
         // Chain corners around vertices
-        vector<index_t> v2c(M.vertices.nb(), index_t(-1));
-        vector<index_t> next_c_around_v(M.facet_corners.nb(), index_t(-1));
-        vector<index_t> c2f(M.facet_corners.nb(), index_t(-1));
-        for(index_t f=0; f<M.facets.nb(); ++f) {
-            for(index_t c=M.facets.corners_begin(f);
-                c<M.facets.corners_end(f); ++c
-            ) {
+        vector<index_t> v2c(M.vertices.nb(), NO_INDEX);
+        vector<index_t> next_c_around_v(M.facet_corners.nb(), NO_INDEX);
+        vector<index_t> c2f(M.facet_corners.nb(), NO_INDEX);
+        for(index_t f: M.facets) {
+            for(index_t c: M.facets.corners(f)) {
                 index_t v = M.facet_corners.vertex(c);
                 next_c_around_v[c] = v2c[v];
                 v2c[v] = c;
@@ -72,35 +64,32 @@ namespace GEO {
         nlSolverParameteri(NL_NB_SYSTEMS, NLint(M.vertices.dimension()));
         nlEnable(NL_NORMALIZE_ROWS);
         nlEnable(NL_VARIABLES_BUFFER);
-        
+
         Attribute<bool> v_is_locked(M.vertices.attributes(), "selection");
 
         nlBegin(NL_SYSTEM);
-        
+
         for(index_t coord=0; coord<M.vertices.dimension(); ++coord) {
             // Bind directly the variables buffer to the coordinates in
             // the mesh, to avoid copying data.
             nlBindBuffer(
-                NL_VARIABLES_BUFFER, coord,
+                NL_VARIABLES_BUFFER, NLuint(coord),
                 M.vertices.point_ptr(0) + coord,
                 NLuint(sizeof(double)*M.vertices.dimension())
             );
         }
-        
-        for(index_t v=0; v<M.vertices.nb(); ++v) {
+
+        for(index_t v: M.vertices) {
             if(v_is_locked[v]) {
                 nlLockVariable(v);
             }
         }
-        
+
         nlBegin(NL_MATRIX);
-        for(index_t v=0; v<M.vertices.nb(); ++v) {
+        for(index_t v: M.vertices) {
             nlBegin(NL_ROW);
             index_t count = 0;
-            for(
-                index_t c = v2c[v];
-                c != index_t(-1); c = next_c_around_v[c]
-            ) {
+            for(index_t c = v2c[v]; c != NO_INDEX; c = next_c_around_v[c]) {
                 index_t f = c2f[c];
                 index_t c2 = M.facets.next_corner_around_facet(f,c);
                 index_t w = M.facet_corners.vertex(c2);
@@ -117,5 +106,5 @@ namespace GEO {
 
         nlDeleteContext(nlGetCurrent());
     }
-    
+
 }

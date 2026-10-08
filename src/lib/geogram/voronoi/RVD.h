@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2014, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -26,19 +26,13 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine,
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
@@ -128,7 +122,7 @@ namespace GEO {
         ) {
             return create(
                 delaunay, mesh,
-                (mesh->vertices.nb() > 0) ? mesh->vertices.point_ptr(0) : nullptr,
+                (mesh->vertices.nb()>0) ? mesh->vertices.point_ptr(0) : nullptr,
                 mesh->vertices.dimension()
             );
         }
@@ -194,15 +188,20 @@ namespace GEO {
          *  \c dimension()*nb_points point coordinates.
          * \param[out] p stores the computed points.
          * \param[in] nb_points number of points to compute
+         * \param[in] verbose if set, display message
          */
         bool compute_initial_sampling(
-            double* p, index_t nb_points
+            double* p, index_t nb_points, bool verbose = false
         ) {
             bool result = true;
             if(volumetric()) {
-                result = compute_initial_sampling_in_volume(p, nb_points);
+                result = compute_initial_sampling_in_volume(
+                    p, nb_points, verbose
+                );
             } else {
-                result = compute_initial_sampling_on_surface(p, nb_points);
+                result = compute_initial_sampling_on_surface(
+                    p, nb_points, verbose
+                );
             }
             return result;
         }
@@ -216,9 +215,10 @@ namespace GEO {
          *  contain \c dimension()*nb_points point coordinates.
          * \param[out] p stores the computed points
          * \param[in] nb_points number of points to compute
+         * \param[in] verbose if set, display message
          */
         virtual bool compute_initial_sampling_on_surface(
-            double* p, index_t nb_points
+            double* p, index_t nb_points, bool verbose
         ) = 0;
 
         /**
@@ -230,9 +230,10 @@ namespace GEO {
          *  contain \c dimension()*nb_points point coordinates.
          * \param[out] p stores the computed points
          * \param[in] nb_points number of points to compute
+         * \param[in] verbose if set, display message
          */
         virtual bool compute_initial_sampling_in_volume(
-            double* p, index_t nb_points
+            double* p, index_t nb_points, bool verbose
         ) = 0;
 
         /**
@@ -681,7 +682,9 @@ namespace GEO {
          */
         const vec3& R3_embedding(index_t v) const {
             geo_debug_assert(v < mesh_->vertices.nb());
-            return *(const vec3*) (R3_embedding_base_ + v * R3_embedding_stride_);
+            return *reinterpret_cast<const vec3*>(
+		R3_embedding_base_ + v * R3_embedding_stride_
+	    );
         }
 
         /**
@@ -721,7 +724,7 @@ namespace GEO {
         /**
          * \brief RestrictedVoronoiDiagram destructor
          */
-        virtual ~RestrictedVoronoiDiagram();
+        ~RestrictedVoronoiDiagram() override;
 
     protected:
         coord_index_t dimension_;
@@ -731,17 +734,16 @@ namespace GEO {
         index_t R3_embedding_stride_;
         bool has_weights_;
         Attribute<double> vertex_weight_;
-        signed_index_t facets_begin_;
-        signed_index_t facets_end_;
-        signed_index_t tets_begin_;
-        signed_index_t tets_end_;
+        index_t facets_begin_;
+        index_t facets_end_;
+        index_t tets_begin_;
+        index_t tets_end_;
         bool volumetric_;
     };
 
     /** \brief Smart pointer to a RestrictedVoronoiDiagram object */
     typedef SmartPointer<RestrictedVoronoiDiagram>
-        RestrictedVoronoiDiagram_var;
+    RestrictedVoronoiDiagram_var;
 }
 
 #endif
-

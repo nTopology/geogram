@@ -15,10 +15,18 @@ set(FULL_WARNINGS
     -Wno-exit-time-destructors
     -Wno-old-style-cast # Yes, old-style cast is sometime more legible...
     -Wno-format-nonliteral # Todo: use Laurent Alonso's trick
+    -Wno-poison-system-directories
+    -Wno-switch-default
 )
 
 # Compile with full warnings by default
 add_definitions(${FULL_WARNINGS})
+
+# Since C++23 libc++ is in the process of splitting larger headers
+# into smaller modular headers.  Force this behavior for the older
+# dialects to keep the C++23 build green.  See
+# https://libcxx.llvm.org/DesignDocs/HeaderRemovalPolicy.html
+add_definitions(-D_LIBCPP_REMOVE_TRANSITIVE_INCLUDES)
 
 # Run the static analyzer
 if(VORPALINE_WITH_CLANGSA)
@@ -29,12 +37,14 @@ endif()
 add_flags(CMAKE_CXX_FLAGS_RELEASE -D_FORTIFY_SOURCE=2)
 add_flags(CMAKE_C_FLAGS_RELEASE -D_FORTIFY_SOURCE=2)
 
-# Enable SSE3 instruction set
-add_flags(CMAKE_CXX_FLAGS -msse3)
-add_flags(CMAKE_C_FLAGS -msse3)
+# Enable setting FPU rounding mode (needed by FPG) and
+# disable automatic generation of FMAs (would break exact
+# predicates)
+add_flags(CMAKE_CXX_FLAGS -frounding-math -ffp-contract=off)
+add_flags(CMAKE_C_FLAGS -frounding-math -ffp-contract=off)
 
-# C++11 standard
-add_flags(CMAKE_CXX_FLAGS -Qunused-arguments -std=c++11 -stdlib=libc++ -Wno-c++98-compat)
+# Additional C++ flags
+add_flags(CMAKE_CXX_FLAGS -Qunused-arguments -stdlib=libc++ -Wno-c++98-compat)
 
 # Enable glibc parallel mode
 #add_flags(CMAKE_CXX_FLAGS -D_GLIBCXX_PARALLEL)
@@ -112,8 +122,8 @@ macro(vor_add_executable)
     if(NOT VORPALINE_BUILD_DYNAMIC)
         # Create a statically linked executable
         # Link with static libraries
-        add_flags(CMAKE_CXX_FLAGS -static)
-        add_flags(CMAKE_C_FLAGS -static)
+        # add_flags(CMAKE_CXX_FLAGS -static)
+        # add_flags(CMAKE_C_FLAGS -static)
     endif()
 
     add_executable(${ARGN})
@@ -132,9 +142,4 @@ macro(vor_add_executable)
         target_link_libraries(${ARGV0} dmallocthcxx)
     endif()
 
-    if(UNIX)
-        target_link_libraries(${ARGV0} m pthread)
-    endif()
-
 endmacro()
-

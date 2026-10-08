@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2014, Bruno Levy
+ *  Copyright (c) 2000-2022 Inria
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -13,7 +13,7 @@
  *  * Neither the name of the ALICE Project-Team nor the names of its
  *  contributors may be used to endorse or promote products derived from this
  *  software without specific prior written permission.
- * 
+ *
  *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -26,19 +26,13 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  If you modify this software, you should include a notice giving the
- *  name of the person performing the modification, the date of modification,
- *  and the reason for such modification.
- *
  *  Contact: Bruno Levy
  *
- *     Bruno.Levy@inria.fr
- *     http://www.loria.fr/~levy
+ *     https://www.inria.fr/fr/bruno-levy
  *
- *     ALICE Project
- *     LORIA, INRIA Lorraine, 
- *     Campus Scientifique, BP 239
- *     54506 VANDOEUVRE LES NANCY CEDEX 
+ *     Inria,
+ *     Domaine de Voluceau,
+ *     78150 Le Chesnay - Rocquencourt
  *     FRANCE
  *
  */
@@ -47,6 +41,7 @@
 
 
 #include <geogram/delaunay/delaunay_triangle.h>
+#include <geogram/mesh/mesh.h>
 #include <geogram/bibliography/bibliography.h>
 
 namespace {
@@ -83,7 +78,7 @@ namespace {
         free(tri->normlist);
         memset(tri, 0, sizeof(struct triangulateio));
     }
-    
+
 }
 
 namespace GEO {
@@ -96,11 +91,25 @@ namespace GEO {
         }
         init_triangulateio(&triangle_in_);
         init_triangulateio(&triangle_out_);
-        
+
         geo_cite("DBLP:conf/wacg/Shewchuk96");
     }
 
+    bool DelaunayTriangle::supports_constraints() const {
+        return true;
+    }
+
     void DelaunayTriangle::set_vertices(
+        index_t nb_vertices, const double* vertices
+    ) {
+        if(constraints_ != nullptr) {
+            set_vertices_constrained(nb_vertices, vertices);
+        } else {
+            set_vertices_unconstrained(nb_vertices, vertices);
+        }
+    }
+
+    void DelaunayTriangle::set_vertices_unconstrained(
         index_t nb_vertices, const double* vertices
     ) {
         Delaunay::set_vertices(nb_vertices, vertices);
@@ -110,17 +119,68 @@ namespace GEO {
         // Q: quiet
         // z: numbering starts from 0
         // n: output neighbors
-        triangulate(const_cast<char*>("Qzn"), &triangle_in_, &triangle_out_, nullptr);
-        set_arrays(
-            index_t(triangle_out_.numberoftriangles), 
-            triangle_out_.trianglelist, triangle_out_.neighborlist
+        triangulate(
+            const_cast<char*>("Qzn"), &triangle_in_, &triangle_out_, nullptr
         );
+        set_arrays(
+            index_t(triangle_out_.numberoftriangles),
+            reinterpret_cast<index_t*>(triangle_out_.trianglelist),
+	    reinterpret_cast<index_t*>(triangle_out_.neighborlist)
+        );
+    }
+
+    void DelaunayTriangle::set_vertices_constrained(
+        index_t nb_vertices, const double* vertices
+    ) {
+        // For now, everything is taken from the constraints
+        geo_assert(nb_vertices == 0);
+        geo_assert(vertices == nullptr);
+
+        nb_vertices = constraints_->vertices.nb();
+        vertices = constraints_->vertices.point_ptr(0);
+
+        free_triangulateio(&triangle_out_);
+
+        triangle_in_.numberofpoints = int(nb_vertices);
+        triangle_in_.pointlist = const_cast<double*>(vertices);
+        triangle_in_.numberofsegments = int(constraints_->edges.nb());
+        triangle_in_.segmentlist = reinterpret_cast<int*>(const_cast<index_t*>(
+                                                              constraints_->edges.vertex_index_ptr(0)
+                                                          ));
+
+        // Q: quiet
+        // z: numbering starts from 0
+        // n: output neighbors
+        // p: Planar Straight Line Graph
+        triangulate(
+            const_cast<char*>("Qznp"), &triangle_in_, &triangle_out_, nullptr
+        );
+
+        Delaunay::set_vertices(
+            index_t(triangle_out_.numberofpoints),
+            triangle_out_.pointlist
+        );
+
+        set_arrays(
+            index_t(triangle_out_.numberoftriangles),
+            reinterpret_cast<index_t*>(triangle_out_.trianglelist),
+            reinterpret_cast<index_t*>(triangle_out_.neighborlist)
+        );
+
+        if(triangle_out_.numberofpoints != triangle_in_.numberofpoints) {
+            std::cerr << "Triangle: created "
+                      <<  triangle_out_.numberofpoints -
+                triangle_in_.numberofpoints
+                      << " points"
+                      << std::endl;
+        }
     }
 
     DelaunayTriangle::~DelaunayTriangle() {
         free_triangulateio(&triangle_out_);
     }
-    
+
+
 }
 
 #endif
